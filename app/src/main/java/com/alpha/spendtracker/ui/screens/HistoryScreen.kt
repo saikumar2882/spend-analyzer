@@ -26,6 +26,7 @@ import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -74,6 +75,12 @@ fun HistoryScreen(
             val matchesCategory = selectedCategory == ALL_CATEGORIES || spend.category == selectedCategory
             matchesQuery && matchesCategory
         }
+    }
+
+    val currentMonthName = remember { formatMonth(System.currentTimeMillis()) }
+    val currentMonthTotal = remember(filteredHistory) {
+        filteredHistory.filter { formatMonth(it.timestamp) == currentMonthName }
+            .sumOf { it.amount }
     }
 
     if (spendToDelete != null) {
@@ -154,7 +161,9 @@ fun HistoryScreen(
         if (filteredHistory.isNotEmpty()) {
             FilterSummaryBar(
                 count = filteredHistory.size,
-                total = filteredHistory.sumOf { it.amount }
+                total = filteredHistory.sumOf { it.amount },
+                currentMonthTotal = currentMonthTotal,
+                currentMonthName = currentMonthName
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -169,13 +178,26 @@ fun HistoryScreen(
             ) {
                 val grouped = filteredHistory.groupBy { formatMonth(it.timestamp) }
                 grouped.forEach { (monthHeader, spends) ->
+                    val monthSum = spends.sumOf { it.amount }
                     item(key = "header-$monthHeader") {
-                        Text(
-                            text = monthHeader,
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.padding(vertical = 4.dp)
-                        )
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .padding(vertical = 4.dp),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                text = monthHeader,
+                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Text(
+                                text = "₹${formatCurrency(monthSum)}",
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.secondary
+                            )
+                        }
                     }
                     items(spends, key = { it.id }) { spend ->
                         HistorySpendCard(
@@ -190,27 +212,56 @@ fun HistoryScreen(
 }
 
 @Composable
-private fun FilterSummaryBar(count: Int, total: Double) {
+private fun FilterSummaryBar(
+    count: Int, 
+    total: Double,
+    currentMonthTotal: Double,
+    currentMonthName: String
+) {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Row(
-            modifier = Modifier.padding(12.dp),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text(
-                text = "Viewing $count transaction(s)",
-                style = MaterialTheme.typography.labelMedium,
-                color = MaterialTheme.colorScheme.onSecondaryContainer
+        Column(modifier = Modifier.padding(12.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Viewing $count transaction(s)",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    text = "Total Sum: ₹${formatCurrency(total)}",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            
+            HorizontalDivider(
+                modifier = Modifier.padding(vertical = 8.dp),
+                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.1f)
             )
-            Text(
-                text = "Sum: ₹${formatCurrency(total)}",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
-            )
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "$currentMonthName Spending",
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSecondaryContainer
+                )
+                Text(
+                    text = "₹${formatCurrency(currentMonthTotal)}",
+                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.secondary
+                )
+            }
         }
     }
 }

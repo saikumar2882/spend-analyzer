@@ -21,6 +21,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.text.drawText
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -340,6 +341,34 @@ fun SpendingTrendBarChart(
                         textLayoutResult = labelResult,
                         topLeft = Offset(labelX, labelY)
                     )
+
+                    // Numerical value drawing on top of bar
+                    if (point.amount > 0) {
+                        val valueText = if (point.amount >= 1000) {
+                            String.format(Locale.getDefault(), "%.1fk", point.amount / 1000)
+                        } else {
+                            point.amount.toInt().toString()
+                        }
+                        
+                        val valueResult = textMeasurer.measure(
+                            text = valueText,
+                            style = textStyle.copy(
+                                fontWeight = FontWeight.Bold,
+                                color = barColor.copy(alpha = 0.8f),
+                                fontSize = 8.sp
+                            )
+                        )
+                        
+                        val valueX = xStart + (barWidth / 2) - (valueResult.size.width / 2)
+                        val valueY = yStart - valueResult.size.height - 2.dp.toPx()
+                        
+                        if (valueY > 0) { // Only draw if there's space at the top
+                            drawText(
+                                textLayoutResult = valueResult,
+                                topLeft = Offset(valueX, valueY)
+                            )
+                        }
+                    }
                 }
             }
         }

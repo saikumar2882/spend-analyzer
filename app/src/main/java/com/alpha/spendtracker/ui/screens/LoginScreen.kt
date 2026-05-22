@@ -156,11 +156,18 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
                     }
                     
                     isLoading = true
+                    android.util.Log.d("LoginScreen", "Attempting login for email: $email")
                     auth.signInWithEmailAndPassword(email, password)
                         .addOnCompleteListener { task ->
                             isLoading = false
-                            if (task.isSuccessful) onLoginSuccess()
-                            else errorMessage = task.exception?.message ?: "Login failed"
+                            if (task.isSuccessful) {
+                                android.util.Log.d("LoginScreen", "Login successful")
+                                onLoginSuccess()
+                            } else {
+                                val error = task.exception?.message ?: "Login failed"
+                                android.util.Log.e("LoginScreen", "Login failed: $error", task.exception)
+                                errorMessage = error
+                            }
                         }
                 },
                 modifier = Modifier.fillMaxWidth(),
