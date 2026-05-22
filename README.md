@@ -1,21 +1,65 @@
-<div align="center">
-<img width="1200" height="475" alt="GHBanner" src="https://ai.google.dev/static/site-assets/images/share-ais-513315318.png" />
-</div>
+# SpendWise - Smart Spend Tracker
 
-# Run and deploy your AI Studio app
+SpendWise is a modern, privacy-focused Android application designed to help users track their daily expenses with ease. It features a robust architecture combining local storage for offline speed and cloud synchronization for data safety across devices.
 
-This contains everything you need to run your app locally.
+## 🚀 Key Features
 
-View your app in AI Studio: https://ai.studio/apps/1065d162-72c0-4ebe-afa8-a0a9903943ae
+- **Intuitive Dashboard**: Overview of your spending with beautiful donut and bar charts.
+- **Categorized Tracking**: Organize expenses into categories like UPI Apps, Quick Commerce, Groceries, Rent, and more.
+- **Detailed History**: Search and filter through your entire spending history.
+- **Cloud Sync**: Automatically backup and sync your data with Firebase Firestore.
+- **Offline First**: Works perfectly without internet, using Room database as the local source of truth.
+- **Theming**: Supports Light, Dark, and System theme preferences.
 
-## Run Locally
+## 🔐 Authentication
 
-**Prerequisites:**  [Android Studio](https://developer.android.com/studio)
+SpendWise offers multiple secure ways to sign in, all handled via **Firebase Authentication**:
 
+- **Google Sign-In**: Quick, one-tap access using your Google account.
+- **Email/Password**: Traditional registration and login with strict security requirements:
+    - Minimum 8 characters.
+    - At least one Uppercase, one Lowercase, one Number, and one Special Symbol.
+- **Passwordless Email Link**: Sign in securely by clicking a magic link sent to your inbox—no password required.
 
-1. Open Android Studio
-2. Select **Open** and choose the directory containing this project
-3. Allow Android Studio to fix any incompatibilities as it imports the project.
-4. Create a file named `.env` in the project directory and set `GEMINI_API_KEY` in that file to your Gemini API key (see `.env.example` for an example)
-5. Remove this line from the app's `build.gradle.kts` file: `signingConfig = signingConfigs.getByName("debugConfig")`
-6. Run the app on an emulator or physical device
+## 🛠 Tech Stack
+
+- **UI**: Jetpack Compose (Modern Declarative UI)
+- **Local Database**: Room (with multi-user support)
+- **Backend/Cloud**: Firebase (Auth & Firestore)
+- **Architecture**: MVVM (Model-View-ViewModel)
+- **Asynchronous**: Kotlin Coroutines & Flow
+
+## 📖 Setup & Configuration
+
+### Prerequisites
+- [Android Studio Ladybug](https://developer.android.com/studio) or newer.
+- A Firebase Project.
+
+### Local Setup
+1. **Clone the project**:
+   ```bash
+   git clone https://github.com/saikumar2882/spend-analyzer.git
+   ```
+2. **Firebase Configuration**:
+   - Add your `google-services.json` to the `app/` directory.
+   - Enable **Google** and **Email/Password** (with Email Link) in the Firebase Auth console.
+   - Update `strings.xml` with your `default_web_client_id`.
+3. **Environment Variables**:
+   - Create a `.env` file based on `.env.example`.
+4. **Build & Run**:
+   - Open in Android Studio and run on your emulator or device.
+
+## 🛡 Security Rules (Firestore)
+
+Ensure your Firestore rules are set to protect user data:
+
+```javascript
+rules_version = '2';
+service cloud.firestore {
+  match /databases/{database}/documents {
+    match /users/{userId}/spends/{spendId} {
+      allow read, write: if request.auth != null && request.auth.uid == userId;
+    }
+  }
+}
+```
