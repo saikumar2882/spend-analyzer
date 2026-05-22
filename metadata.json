@@ -1,0 +1,6 @@
+{
+  "name": "Spend Tracker",
+  "description": "An elegant and powerful personal finance application to track, categorize, and analyze your visual spendings over days, weeks, months, and years with built-in analytics and local Room database.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

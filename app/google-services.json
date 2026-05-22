@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "460156966019",
+    "project_id": "spend-analyzer-6f37b",
+    "storage_bucket": "spend-analyzer-6f37b.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:460156966019:android:aa9a41dea4d53c1164f7b6",
+        "android_client_info": {
+          "package_name": "com.alpha.spendtracker"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyCkjH_Qsa4MU-e5vGitGuPFynl_YOsUt8c"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}
