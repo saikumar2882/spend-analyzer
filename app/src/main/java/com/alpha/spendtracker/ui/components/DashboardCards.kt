@@ -20,9 +20,9 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Group
-import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -43,11 +43,13 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
+import java.util.Locale
 
 @Composable
 fun TimeFilterSelectorRow(
     selected: TimeFilter,
     onSelect: (TimeFilter) -> Unit,
+    onCustomClick: () -> Unit,
     modifier: Modifier = Modifier
 ) {
     val options = remember {
@@ -56,7 +58,8 @@ fun TimeFilterSelectorRow(
             TimeFilter.WEEK to "Week",
             TimeFilter.MONTH to "Month",
             TimeFilter.YEAR to "Year",
-            TimeFilter.ALL to "All"
+            TimeFilter.ALL to "All",
+            TimeFilter.CUSTOM to "Custom"
         )
     }
 
@@ -64,19 +67,22 @@ fun TimeFilterSelectorRow(
         modifier = modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(6.dp),
+        horizontalArrangement = Arrangement.spacedBy(4.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
         options.forEach { (type, label) ->
             val isSelected = selected == type
             Surface(
-                onClick = { onSelect(type) },
+                onClick = { 
+                    if (type == TimeFilter.CUSTOM) onCustomClick()
+                    else onSelect(type)
+                },
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(20.dp),
+                shape = RoundedCornerShape(16.dp),
                 color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
                         else MaterialTheme.colorScheme.surface,
                 border = if (isSelected) null
-                         else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.6f))
+                         else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
             ) {
                 Box(
                     modifier = Modifier.padding(vertical = 8.dp),
@@ -86,7 +92,7 @@ fun TimeFilterSelectorRow(
                         text = label,
                         style = MaterialTheme.typography.labelMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 12.sp
+                            fontSize = 11.sp
                         ),
                         color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
                                 else MaterialTheme.colorScheme.onSurfaceVariant
@@ -103,6 +109,7 @@ fun TotalSpentHeroCard(
     totalAmount: Double,
     friendLending: Double,
     transactionCount: Int,
+    dateRange: Pair<Long, Long>? = null,
     onLentClick: (() -> Unit)? = null
 ) {
     val titleText = when (filterType) {
@@ -111,6 +118,14 @@ fun TotalSpentHeroCard(
         TimeFilter.MONTH -> "This Month's Spending"
         TimeFilter.YEAR -> "Annual Total Spent"
         TimeFilter.ALL -> "Total Aggregated Outflow"
+        TimeFilter.CUSTOM -> "Custom Range Outflow"
+    }
+
+    val subtitleText = if (filterType == TimeFilter.CUSTOM && dateRange != null) {
+        val sdf = java.text.SimpleDateFormat("dd MMM", Locale.getDefault())
+        "${sdf.format(dateRange.first)} - ${sdf.format(dateRange.second)}"
+    } else {
+        "$transactionCount logs"
     }
 
     Card(
@@ -208,8 +223,8 @@ fun TotalSpentHeroCard(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     GlassChip(
-                        icon = Icons.Rounded.ReceiptLong,
-                        text = "$transactionCount logs",
+                        icon = Icons.AutoMirrored.Rounded.ReceiptLong,
+                        text = subtitleText,
                         tint = Color.White.copy(alpha = 0.95f),
                         background = Color.White.copy(alpha = 0.10f),
                         border = Color.White.copy(alpha = 0.15f)

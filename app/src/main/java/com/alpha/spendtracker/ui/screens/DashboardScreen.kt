@@ -26,12 +26,8 @@ import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LightMode
-import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
-import androidx.compose.runtime.Composable
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -51,6 +47,7 @@ import com.alpha.spendtracker.ui.components.TotalSpentHeroCard
 import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun DashboardScreen(
     currentFilter: TimeFilter,
@@ -59,11 +56,49 @@ fun DashboardScreen(
     themePreference: ThemePreference,
     onCycleTheme: () -> Unit,
     onFilterSelect: (TimeFilter) -> Unit,
+    onCustomRangeSelect: (Long, Long) -> Unit,
     onShowAllClick: () -> Unit,
     onAppClick: (String) -> Unit,
     onLentClick: () -> Unit,
     onLogout: () -> Unit
 ) {
+    var showDatePicker by remember { mutableStateOf(false) }
+
+    if (showDatePicker) {
+        val dateRangePickerState = rememberDateRangePickerState()
+        DatePickerDialog(
+            onDismissRequest = { showDatePicker = false },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        val start = dateRangePickerState.selectedStartDateMillis
+                        val end = dateRangePickerState.selectedEndDateMillis
+                        if (start != null && end != null) {
+                            onCustomRangeSelect(start, end)
+                        }
+                        showDatePicker = false
+                    },
+                    enabled = dateRangePickerState.selectedStartDateMillis != null && 
+                             dateRangePickerState.selectedEndDateMillis != null
+                ) {
+                    Text("Confirm")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showDatePicker = false }) {
+                    Text("Cancel")
+                }
+            }
+        ) {
+            DateRangePicker(
+                state = dateRangePickerState,
+                title = { Text("Select Date Range", modifier = Modifier.padding(16.dp)) },
+                showModeToggle = false,
+                modifier = Modifier.weight(1f)
+            )
+        }
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
@@ -82,7 +117,8 @@ fun DashboardScreen(
         item {
             TimeFilterSelectorRow(
                 selected = currentFilter,
-                onSelect = onFilterSelect
+                onSelect = onFilterSelect,
+                onCustomClick = { showDatePicker = true }
             )
         }
 
@@ -92,6 +128,7 @@ fun DashboardScreen(
                 totalAmount = analytics.totalAmount,
                 friendLending = analytics.friendLendingTotal,
                 transactionCount = analytics.transactionCount,
+                dateRange = analytics.dateRange,
                 onLentClick = onLentClick
             )
         }

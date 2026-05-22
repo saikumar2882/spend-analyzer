@@ -202,6 +202,7 @@ fun MainContainer(
                         themePreference = themePreference,
                         onCycleTheme = onCycleTheme,
                         onFilterSelect = viewModel::setFilter,
+                        onCustomRangeSelect = viewModel::setCustomRange,
                         onShowAllClick = {
                             historySearchQuery = ""
                             historyCategoryFilter = "All"

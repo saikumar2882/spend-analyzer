@@ -22,7 +22,7 @@ import java.util.Calendar
 import java.util.Locale
 
 enum class TimeFilter {
-    DAY, WEEK, MONTH, YEAR, ALL
+    DAY, WEEK, MONTH, YEAR, ALL, CUSTOM
 }
 
 /**
@@ -56,12 +56,14 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     )
 
     val selectedFilter = MutableStateFlow(TimeFilter.MONTH)
+    val customDateRange = MutableStateFlow<Pair<Long, Long>?>(null)
 
     val uiState: StateFlow<SpendingAnalytics> = combine(
         allSpendsFlow,
-        selectedFilter
-    ) { spends, filter ->
-        calculateAnalytics(filterSpendsByTime(spends, filter), filter)
+        selectedFilter,
+        customDateRange
+    ) { spends, filter, range ->
+        calculateAnalytics(filterSpendsByTime(spends, filter, range), filter, range)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -106,13 +108,16 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         selectedFilter.value = filter
     }
 
+    fun setCustomRange(start: Long, end: Long) {
+        customDateRange.value = Pair(start, end)
+        selectedFilter.value = TimeFilter.CUSTOM
+    }
+
     // Helper: Filter spends mathematically based on selected TimeFilter
-    private fun filterSpendsByTime(spends: List<Spend>, filter: TimeFilter): List<Spend> {
+    private fun filterSpendsByTime(spends: List<Spend>, filter: TimeFilter, range: Pair<Long, Long>? = null): List<Spend> {
         if (filter == TimeFilter.ALL) return spends
 
-        val now = Calendar.getInstance()
         val startOfPeriod = Calendar.getInstance().apply {
-            // Reset fields
             set(Calendar.HOUR_OF_DAY, 0)
             set(Calendar.MINUTE, 0)
             set(Calendar.SECOND, 0)
@@ -120,23 +125,16 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         }
 
         when (filter) {
-            TimeFilter.DAY -> {
-                // Today 00:00 to 23:59:59
-                // Already set to start of today.
+            TimeFilter.DAY -> {}
+            TimeFilter.WEEK -> startOfPeriod.set(Calendar.DAY_OF_WEEK, startOfPeriod.firstDayOfWeek)
+            TimeFilter.MONTH -> startOfPeriod.set(Calendar.DAY_OF_MONTH, 1)
+            TimeFilter.YEAR -> startOfPeriod.set(Calendar.DAY_OF_YEAR, 1)
+            TimeFilter.CUSTOM -> {
+                return if (range != null) {
+                    spends.filter { it.timestamp in range.first..range.second }
+                } else spends
             }
-            TimeFilter.WEEK -> {
-                // First day of current week (e.g., Sunday or Monday)
-                startOfPeriod.set(Calendar.DAY_OF_WEEK, startOfPeriod.firstDayOfWeek)
-            }
-            TimeFilter.MONTH -> {
-                // Start of the calendar month
-                startOfPeriod.set(Calendar.DAY_OF_MONTH, 1)
-            }
-            TimeFilter.YEAR -> {
-                // Jan 1
-                startOfPeriod.set(Calendar.DAY_OF_YEAR, 1)
-            }
-            TimeFilter.ALL -> {}
+            TimeFilter.ALL -> return spends
         }
 
         val startMillis = startOfPeriod.timeInMillis
@@ -144,9 +142,9 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Helper: Calculate advanced metrics and grouping data categories for high-fidelity dashboards
-    private fun calculateAnalytics(spends: List<Spend>, filter: TimeFilter): SpendingAnalytics {
+    private fun calculateAnalytics(spends: List<Spend>, filter: TimeFilter, range: Pair<Long, Long>? = null): SpendingAnalytics {
         if (spends.isEmpty()) {
-            return SpendingAnalytics(totalAmount = 0.0, filterType = filter)
+            return SpendingAnalytics(totalAmount = 0.0, filterType = filter, dateRange = range)
         }
 
         val total = spends.sumOf { it.amount }
@@ -181,7 +179,8 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
             trendPoints = trendPoints,
             friendLendingTotal = friendLendingTotal,
             transactionCount = spends.size,
-            filterType = filter
+            filterType = filter,
+            dateRange = range
         )
     }
 
@@ -244,6 +243,18 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
                     TrendPoint(label = yr.toString(), amount = total, sortKey = yr)
                 }.sortedBy { it.sortKey }
             }
+            TimeFilter.CUSTOM -> {
+                // For custom range, show short date format like "22 May"
+                val sdf = java.text.SimpleDateFormat("dd MMM", Locale.getDefault())
+                spends.groupBy {
+                    calendar.timeInMillis = it.timestamp
+                    calendar.get(Calendar.DAY_OF_YEAR)
+                }.map { (dayOfYear, items) ->
+                    val total = items.sumOf { it.amount }
+                    val firstItem = items.first()
+                    TrendPoint(label = sdf.format(firstItem.timestamp), amount = total, sortKey = dayOfYear)
+                }.sortedBy { it.sortKey }
+            }
         }
     }
 }
@@ -259,7 +270,8 @@ data class SpendingAnalytics(
     val trendPoints: List<TrendPoint> = emptyList(),
     val friendLendingTotal: Double = 0.0,
     val transactionCount: Int = 0,
-    val filterType: TimeFilter = TimeFilter.MONTH
+    val filterType: TimeFilter = TimeFilter.MONTH,
+    val dateRange: Pair<Long, Long>? = null
 )
 
 /**
