@@ -12,47 +12,35 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.animation.AnimatedContent
+import androidx.compose.animation.*
 import androidx.compose.animation.core.tween
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.togetherWith
-import androidx.compose.foundation.layout.Box
-import androidx.compose.foundation.layout.fillMaxSize
-import androidx.compose.foundation.layout.navigationBarsPadding
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.History
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
-import androidx.compose.material3.Icon
-import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.NavigationBar
-import androidx.compose.material3.NavigationBarItem
-import androidx.compose.material3.Scaffold
-import androidx.compose.material3.SnackbarHost
-import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Text
-import androidx.compose.runtime.Composable
-import androidx.compose.runtime.DisposableEffect
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
+import androidx.compose.material.icons.rounded.Mic
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
-import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.alpha.spendtracker.data.AiTransactionResponse
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.screens.AddSpendScreen
 import com.alpha.spendtracker.ui.screens.DashboardScreen
 import com.alpha.spendtracker.ui.screens.HistoryScreen
 import com.alpha.spendtracker.ui.screens.LoginScreen
 import com.alpha.spendtracker.ui.screens.NewSpend
+import com.alpha.spendtracker.ui.components.AiSettingsDialog
+import com.alpha.spendtracker.ui.components.AiInputBottomSheet
+import com.alpha.spendtracker.ui.components.AiConfirmationScreen
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.alpha.spendtracker.ui.theme.isDark
@@ -110,27 +98,25 @@ fun MainContainer(
     themePreference: ThemePreference,
     onCycleTheme: () -> Unit
 ) {
-    var isAuthenticated by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser != null) }
+    val auth = remember { FirebaseAuth.getInstance() }
+    var currentUser by remember { mutableStateOf(auth.currentUser) }
     var isRegistering by remember { mutableStateOf(false) }
 
-    // Listen for auth changes
-    DisposableEffect(isRegistering) {
-        val listener = FirebaseAuth.AuthStateListener { auth ->
-            if (!isRegistering) {
-                isAuthenticated = auth.currentUser != null
-            }
+    // Single source of truth for auth state
+    DisposableEffect(Unit) {
+        val listener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+            currentUser = firebaseAuth.currentUser
         }
-        FirebaseAuth.getInstance().addAuthStateListener(listener)
+        auth.addAuthStateListener(listener)
         onDispose {
-            FirebaseAuth.getInstance().removeAuthStateListener(listener)
+            auth.removeAuthStateListener(listener)
         }
     }
 
-    if (!isAuthenticated || isRegistering) {
+    if (currentUser == null || isRegistering) {
         LoginScreen(
             onLoginSuccess = { 
                 isRegistering = false
-                isAuthenticated = true 
             },
             onRegisteringStart = { isRegistering = true },
             onRegisteringFinished = { isRegistering = false }
@@ -138,6 +124,7 @@ fun MainContainer(
         return
     }
 
+    // Authenticated UI starts here
     var activeView by rememberSaveable { mutableStateOf(ActiveView.DASHBOARD) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var historyCategoryFilter by rememberSaveable { mutableStateOf("All") }
@@ -146,9 +133,30 @@ fun MainContainer(
     val allSpends by viewModel.allSpendsFlow.collectAsStateWithLifecycle()
     val analyticsState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
+    val aiPrefs by viewModel.aiPreferences.collectAsStateWithLifecycle()
+    val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
+    
+    // ... rest of the state declarations remain the same
+
+    var showAiInput by remember { mutableStateOf<Boolean?>(null) } // true for voice, false for type
+    var showAiSettings by remember { mutableStateOf(false) }
+    var aiProcessingResult by remember { mutableStateOf<AiTransactionResponse?>(null) }
 
     val context = LocalContext.current
     val snackbarHostState = remember { SnackbarHostState() }
+
+    // Handle AI Results
+    LaunchedEffect(aiResult) {
+        aiResult?.let { result ->
+            if (result.isSuccess) {
+                aiProcessingResult = result.getOrNull()
+                showAiInput = null
+            } else {
+                Toast.makeText(context, result.exceptionOrNull()?.message ?: "AI Error", Toast.LENGTH_LONG).show()
+                viewModel.clearAiResult()
+            }
+        }
+    }
 
     BackHandler(enabled = activeView != ActiveView.DASHBOARD) {
         activeView = ActiveView.DASHBOARD
@@ -185,24 +193,82 @@ fun MainContainer(
             }
         },
         floatingActionButton = {
-            if (activeView != ActiveView.ADD_SPEND) {
-                ExtendedFloatingActionButton(
-                    onClick = { 
-                        editingSpend = null
-                        activeView = ActiveView.ADD_SPEND 
-                    },
-                    icon = { Icon(Icons.Rounded.Add, "Add Spend") },
-                    text = { Text("Track Spend") },
-                    containerColor = MaterialTheme.colorScheme.primaryContainer,
-                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer
-                )
+            if (activeView == ActiveView.DASHBOARD || activeView == ActiveView.HISTORY) {
+                var showFabMenu by remember { mutableStateOf(false) }
+                Column(horizontalAlignment = Alignment.End) {
+                    AnimatedVisibility(
+                        visible = showFabMenu,
+                        enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+                        exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
+                    ) {
+                        Column(
+                            horizontalAlignment = Alignment.End, 
+                            modifier = Modifier.padding(bottom = 24.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            // AI Voice Option
+                            ExtendedFloatingActionButton(
+                                onClick = {
+                                    showFabMenu = false
+                                    if (!aiPrefs.isConfigured) showAiSettings = true
+                                    else showAiInput = true
+                                },
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                icon = { Icon(Icons.Rounded.Mic, contentDescription = null) },
+                                text = { Text("AI Voice") }
+                            )
+                            
+                            // AI Type Option
+                            ExtendedFloatingActionButton(
+                                onClick = {
+                                    showFabMenu = false
+                                    if (!aiPrefs.isConfigured) showAiSettings = true
+                                    else showAiInput = false
+                                },
+                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                icon = { Icon(Icons.Rounded.AutoAwesome, contentDescription = null) },
+                                text = { Text("AI Type") }
+                            )
+
+                            // Manual Entry Option
+                            ExtendedFloatingActionButton(
+                                onClick = {
+                                    showFabMenu = false
+                                    editingSpend = null
+                                    activeView = ActiveView.ADD_SPEND
+                                },
+                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                contentColor = MaterialTheme.colorScheme.onTertiaryContainer,
+                                icon = { Icon(Icons.Rounded.Edit, contentDescription = null) },
+                                text = { Text("Manual") }
+                            )
+                        }
+                    }
+                    
+                    ExtendedFloatingActionButton(
+                        onClick = { showFabMenu = !showFabMenu },
+                        icon = { 
+                            Icon(
+                                Icons.Rounded.Add, 
+                                contentDescription = null,
+                                modifier = Modifier.graphicsLayer { rotationZ = if (showFabMenu) 45f else 0f }
+                            ) 
+                        },
+                        text = { Text(if (showFabMenu) "Close Tracking" else "Track Spend") },
+                        containerColor = if (showFabMenu) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
+                        contentColor = if (showFabMenu) MaterialTheme.colorScheme.onSurfaceVariant else MaterialTheme.colorScheme.onPrimaryContainer,
+                        elevation = FloatingActionButtonDefaults.elevation(defaultElevation = 6.dp)
+                    )
+                }
             }
         }
     ) { innerPadding ->
         Box(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(bottom = innerPadding.calculateBottomPadding())
+                .padding(innerPadding)
         ) {
             AnimatedContent(
                 targetState = activeView,
@@ -287,6 +353,54 @@ fun MainContainer(
                     )
                 }
             }
+        }
+    }
+
+    if (showAiSettings) {
+        AiSettingsDialog(
+            currentPrefs = aiPrefs,
+            onSave = { currency, app, purpose ->
+                viewModel.updateAiSettings(currency, app, purpose)
+                showAiSettings = false
+            },
+            onDismiss = { showAiSettings = false }
+        )
+    }
+
+    if (showAiInput != null) {
+        AiInputBottomSheet(
+            isVoiceMode = showAiInput == true,
+            remainingRequests = 10 - aiPrefs.dailyUsageCount,
+            onProcess = { viewModel.processAiInput(it) },
+            onDismiss = { showAiInput = null }
+        )
+    }
+
+    if (aiProcessingResult != null) {
+        ModalBottomSheet(onDismissRequest = { 
+            aiProcessingResult = null
+            viewModel.clearAiResult()
+        }) {
+            AiConfirmationScreen(
+                extractedData = aiProcessingResult!!,
+                onConfirm = { newSpend ->
+                    viewModel.addSpend(
+                        appName = if (newSpend.preset.id == "other") newSpend.customAppName else newSpend.preset.displayName,
+                        amount = newSpend.amount,
+                        purpose = newSpend.purpose,
+                        category = newSpend.preset.category,
+                        notes = newSpend.notes,
+                        timestamp = newSpend.timestamp
+                    )
+                    Toast.makeText(context, "Logged via AI!", Toast.LENGTH_SHORT).show()
+                    aiProcessingResult = null
+                    viewModel.clearAiResult()
+                },
+                onCancel = {
+                    aiProcessingResult = null
+                    viewModel.clearAiResult()
+                }
+            )
         }
     }
 }

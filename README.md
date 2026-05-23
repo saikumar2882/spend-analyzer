@@ -5,6 +5,7 @@ SpendWise is a modern, privacy-focused Android application designed to help user
 ## 🚀 Key Features
 
 - **Intuitive Dashboard**: Overview of your spending with beautiful donut and bar charts.
+- **AI Voice & Text Tracking**: Record expenses naturally using voice or text. Smart parsing of natural language inputs.
 - **Categorized Tracking**: Organize expenses into categories like UPI Apps, Quick Commerce, Groceries, Rent, and more.
 - **Detailed History**: Search and filter through your entire spending history.
 - **Cloud Sync**: Automatically backup and sync your data with Firebase Firestore.
@@ -26,6 +27,7 @@ SpendWise offers multiple secure ways to sign in, all handled via **Firebase Aut
 - **UI**: Jetpack Compose (Modern Declarative UI)
 - **Local Database**: Room (with multi-user support)
 - **Backend/Cloud**: Firebase (Auth & Firestore)
+- **AI Integration**: Speech recognition & Gemini AI parsing
 - **Architecture**: MVVM (Model-View-ViewModel)
 - **Asynchronous**: Kotlin Coroutines & Flow
 

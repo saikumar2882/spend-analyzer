@@ -4,12 +4,17 @@
 package com.alpha.spendtracker.ui.viewmodel
 
 import android.app.Application
+import android.util.Log
 import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.alpha.spendtracker.data.*
+import com.google.ai.client.generativeai.GenerativeModel
+import com.google.ai.client.generativeai.type.RequestOptions
+import com.google.ai.client.generativeai.type.content
 import com.google.firebase.auth.FirebaseAuth
+import com.alpha.spendtracker.BuildConfig
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -18,6 +23,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import org.json.JSONObject
 import java.util.Calendar
 import java.util.Locale
 
@@ -31,11 +37,14 @@ enum class TimeFilter {
 class SpendViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: SpendRepository
+    private val aiPrefsRepository: AiPreferencesRepository
     private val auth = FirebaseAuth.getInstance()
+    private val TAG = "SpendViewModel"
 
     init {
         val database = AppDatabase.getDatabase(application)
         repository = SpendRepository(database.spendDao())
+        aiPrefsRepository = AiPreferencesRepository(application)
         
         // Listen to auth changes
         auth.addAuthStateListener { firebaseAuth ->
@@ -44,6 +53,214 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     private val _userId = MutableStateFlow(auth.currentUser?.uid ?: "anonymous")
+
+    val aiPreferences = aiPrefsRepository.aiPreferencesFlow.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = AiPreferences()
+    )
+
+    private val generativeModel by lazy {
+        val apiKey = try { BuildConfig.GEMINI_API_KEY } catch (_: Exception) { "" }
+        GenerativeModel(
+            modelName = "gemini-3.5-flash",
+            apiKey = apiKey,
+            requestOptions = RequestOptions(apiVersion = "v1")
+        )
+    }
+
+    private val _aiResult = MutableStateFlow<Result<AiTransactionResponse>?>(null)
+    val aiResult: StateFlow<Result<AiTransactionResponse>?> = _aiResult
+
+    fun processAiInput(text: String) {
+        viewModelScope.launch {
+            val prefs = aiPreferences.value
+
+            // 1. Check Rate Limit
+            if (prefs.dailyUsageCount >= 10) {
+                _aiResult.value = Result.failure(Exception("Daily limit reached (10/day). Please try again tomorrow."))
+                return@launch
+            }
+
+            // 2. Validate Input
+            if (text.isBlank()) {
+                _aiResult.value = Result.failure(Exception("Input cannot be empty."))
+                return@launch
+            }
+            if (text.length > 500) {
+                _aiResult.value = Result.failure(Exception("Input too long (max 500 characters)."))
+                return@launch
+            }
+
+            // 3. Run the local heuristic parser first — gives us a deterministic
+            // baseline (and a usable response even if the LLM is down).
+            val localAmount = AiParser.extractAmount(text)
+            val localPreset = AiParser.findAppPreset(text)
+            val localPurpose = AiParser.inferPurpose(text)
+            val localDesc = AiParser.extractDescription(text)
+            val localTimestamp = AiParser.extractTimestamp(text)
+            val baseline = AiTransactionResponse(
+                amount = localAmount,
+                appName = localPreset?.displayName ?: prefs.defaultApp,
+                appPresetId = localPreset?.id,
+                purpose = localPurpose ?: prefs.defaultPurpose,
+                notes = localDesc,
+                date = "today",
+                timestamp = localTimestamp,
+                needsAmount = localAmount == null
+            )
+
+            // 4. Try Gemini for richer extraction. If anything fails, fall back
+            // to the local result (still useful).
+            val apiKey = try { BuildConfig.GEMINI_API_KEY } catch (_: Exception) { "" }
+            if (apiKey.isBlank()) {
+                aiPrefsRepository.incrementUsage()
+                _aiResult.value = Result.success(baseline)
+                return@launch
+            }
+
+            try {
+                val appList = com.alpha.spendtracker.ui.components.APP_PRESETS
+                    .joinToString(", ") { it.displayName }
+                val purposeList = com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
+                    .joinToString(", ")
+
+                val systemPrompt = """
+                    You are a strict JSON extractor for an expense tracker. Read the user's natural-language sentence and emit ONE JSON object with the fields described below. Output ONLY the JSON, no markdown, no commentary.
+
+                    USER DEFAULTS:
+                    - Default Currency: ${prefs.defaultCurrency}
+                    - Default App/Platform: ${prefs.defaultApp}
+                    - Default Purpose: ${prefs.defaultPurpose}
+                    - Today's Date: ${java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(System.currentTimeMillis())}
+
+                    FIELDS:
+                    - amount (number): the money spent. Use the largest number that represents money. If absent, use null.
+                    - appName (string): MUST be one of [$appList]. Map fuzzy mentions: "phone pay" / "phonepay" -> "PhonePe"; "gpay" / "g pay" -> "Google Pay"; "amzn" -> "Amazon". If none mentioned, use "${prefs.defaultApp}".
+                    - purpose (string): MUST be one of [$purposeList]. Infer from what was bought. Examples below.
+                    - notes (string): a SHORT description of what was bought, in Title Case (1-4 words). e.g. "Biryani", "Uber Ride", "Electricity Bill". DO NOT include the amount, the app name, or filler verbs like "spent". If nothing identifiable, use "".
+                    - date (string): YYYY-MM-DD of the spend. Parse natural-language dates relative to "Today's Date" above. Examples: "on 19th may" -> use today's year, month=05, day=19; "yesterday" -> today minus 1 day; "last friday" -> the most recent past Friday. If the result would be in the future (no year given), shift one year back. If no date is mentioned, default to today.
+                    - needsAmount (boolean): true ONLY if no amount could be identified.
+
+                    PURPOSE INFERENCE EXAMPLES:
+                    - "biryani", "pizza", "lunch", "coffee", "groceries", "swiggy", "zomato" -> "Groceries & Food"
+                    - "shirt", "shoes", "dress", "myntra", "ajio" -> "Shopping & Apparels"
+                    - "uber", "ola", "petrol", "metro", "flight" -> "Travel & Commute"
+                    - "netflix", "movie", "gym" -> "Subscription & Leisure"
+                    - "medicine", "doctor", "hospital" -> "Healthcare & Medical"
+                    - "rent", "electricity", "wifi", "recharge" -> "Rent & Utilities"
+                    - "credit card bill", "cc bill" -> "Credit Card Bill"
+                    - "lent to friend", "loan" -> "Friend Lending"
+                    - Otherwise -> "Others"
+
+                    EXAMPLE:
+                    Input: "spend 300 on biryani using phone pay"
+                    Output: {"amount":300,"appName":"PhonePe","purpose":"Groceries & Food","notes":"Biryani","date":"${java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(System.currentTimeMillis())}","needsAmount":false}
+
+                    JSON SCHEMA:
+                    {"amount": number|null, "appName": string, "purpose": string, "notes": string, "date": string, "needsAmount": boolean}
+                """.trimIndent()
+
+                val response = generativeModel.generateContent(
+                    content {
+                        text(systemPrompt)
+                        text("USER INPUT: \"$text\"")
+                    }
+                )
+
+                val responseText = response.text
+                Log.d(TAG, "AI Raw Response: $responseText")
+
+                val merged = if (responseText.isNullOrBlank()) {
+                    baseline
+                } else {
+                    parseAndMerge(responseText, baseline)
+                }
+
+                aiPrefsRepository.incrementUsage()
+                _aiResult.value = Result.success(merged)
+            } catch (e: Exception) {
+                Log.e(TAG, "AI Error, falling back to local parser: ${e.message}", e)
+                // Don't block the user — they typed something meaningful, we have a baseline.
+                aiPrefsRepository.incrementUsage()
+                _aiResult.value = Result.success(baseline)
+            }
+        }
+    }
+
+    /**
+     * Parse the LLM JSON and merge with the local-parser baseline. Per field:
+     * AI wins if it provided a non-blank, valid value; otherwise we keep baseline.
+     */
+    private fun parseAndMerge(responseText: String, baseline: AiTransactionResponse): AiTransactionResponse {
+        val jsonString = run {
+            val start = responseText.indexOf("{")
+            val end = responseText.lastIndexOf("}")
+            if (start in 0 until end) responseText.substring(start, end + 1) else responseText
+        }
+        val json = try {
+            JSONObject(jsonString)
+        } catch (e: Exception) {
+            Log.e(TAG, "JSON Parse Failed. Raw: $responseText", e)
+            return baseline
+        }
+
+        val aiAmount = if (json.isNull("amount")) null else json.optDouble("amount", Double.NaN)
+            .takeIf { !it.isNaN() }
+        val aiAppRaw = json.optString("appName", "").ifBlank { null }
+        val aiPurposeRaw = json.optString("purpose", "").ifBlank { null }
+        val aiNotesRaw = json.optString("notes", "").trim()
+        val aiDate = json.optString("date", "").ifBlank { baseline.date }
+        val aiNeedsAmount = json.optBoolean("needsAmount", false)
+
+        val aiPreset = AiParser.normalizeAppToPreset(aiAppRaw)
+        val finalPreset = aiPreset ?: AiParser.normalizeAppToPreset(baseline.appName)
+        val finalPurpose = AiParser.normalizePurpose(aiPurposeRaw) ?: baseline.purpose
+        val finalNotes = aiNotesRaw.ifBlank { baseline.notes }
+        val finalAmount = aiAmount ?: baseline.amount
+        val finalTimestamp = parseIsoDate(aiDate) ?: baseline.timestamp
+
+        return AiTransactionResponse(
+            amount = finalAmount,
+            appName = finalPreset?.displayName ?: aiAppRaw ?: baseline.appName,
+            appPresetId = finalPreset?.id,
+            purpose = finalPurpose,
+            notes = finalNotes,
+            date = aiDate,
+            timestamp = finalTimestamp,
+            needsAmount = aiNeedsAmount || finalAmount == null
+        )
+    }
+
+    /** Parse "YYYY-MM-DD" emitted by the LLM into an epoch millis. */
+    private fun parseIsoDate(date: String?): Long? {
+        if (date.isNullOrBlank()) return null
+        return try {
+            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+            sdf.isLenient = false
+            sdf.parse(date)?.let { parsed ->
+                Calendar.getInstance().apply {
+                    time = parsed
+                    set(Calendar.HOUR_OF_DAY, 12)
+                    set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0)
+                    set(Calendar.MILLISECOND, 0)
+                }.timeInMillis
+            }
+        } catch (_: Exception) {
+            null
+        }
+    }
+
+    fun clearAiResult() {
+        _aiResult.value = null
+    }
+
+    fun updateAiSettings(currency: String, app: String, purpose: String) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateSettings(currency, app, purpose)
+        }
+    }
 
     // Raw spends flow from Room database filtered by current user
     @OptIn(ExperimentalCoroutinesApi::class)
