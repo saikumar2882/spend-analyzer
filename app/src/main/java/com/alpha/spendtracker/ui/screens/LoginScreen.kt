@@ -451,17 +451,27 @@ fun LoginScreen(
                                 .addOnCompleteListener { signInTask ->
                                     if (!signInTask.isSuccessful) {
                                         isLoading = false
-                                        errorMessage = signInTask.exception?.message
+                                        errorMessage = signInTask.exception?.message ?: "Login failed. Please check your credentials or internet connection."
                                         return@addOnCompleteListener
                                     }
-                                    auth.currentUser?.reload()?.addOnCompleteListener {
+                                    auth.currentUser?.reload()?.addOnCompleteListener { reloadTask ->
                                         isLoading = false
-                                        if (auth.currentUser?.isEmailVerified == true) {
-                                            onLoginSuccess()
+                                        if (reloadTask.isSuccessful) {
+                                            if (auth.currentUser?.isEmailVerified == true) {
+                                                onLoginSuccess()
+                                            } else {
+                                                auth.signOut()
+                                                verificationError = null
+                                                showVerificationModal = true
+                                            }
                                         } else {
-                                            auth.signOut()
-                                            verificationError = null
-                                            showVerificationModal = true
+                                            // Even if reload fails (e.g. network), try to check current state
+                                            if (auth.currentUser?.isEmailVerified == true) {
+                                                onLoginSuccess()
+                                            } else {
+                                                errorMessage = "Sign-in successful, but couldn't verify email status: ${reloadTask.exception?.message}"
+                                                auth.signOut()
+                                            }
                                         }
                                     }
                                 }
