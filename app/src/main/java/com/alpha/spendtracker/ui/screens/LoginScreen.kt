@@ -4,19 +4,35 @@ import android.util.Patterns
 import android.widget.Toast
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material.icons.rounded.ErrorOutline
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alpha.spendtracker.util.findActivity
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
 import com.google.android.gms.common.api.ApiException
@@ -25,43 +41,189 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 
 @Composable
-fun LoginScreen(onLoginSuccess: () -> Unit) {
+fun LoginScreen(
+    onLoginSuccess: () -> Unit,
+    onRegisteringStart: () -> Unit = {},
+    onRegisteringFinished: () -> Unit = {}
+) {
     var email by remember { mutableStateOf("") }
     var password by remember { mutableStateOf("") }
+    var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    
-    // Track if user has touched the fields to avoid showing error on empty start
+    var showVerificationModal by remember { mutableStateOf(false) }
+    var isVerifying by remember { mutableStateOf(false) }
+    var isResending by remember { mutableStateOf(false) }
+    var verificationError by remember { mutableStateOf<String?>(null) }
+    var isSendingReset by remember { mutableStateOf(false) }
+    var infoMessage by remember { mutableStateOf<String?>(null) }
+
     var emailTouched by remember { mutableStateOf(false) }
     var passwordTouched by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
 
-    // Validation Helpers
     fun isValidEmail(email: String): Boolean = Patterns.EMAIL_ADDRESS.matcher(email).matches()
     fun isValidPassword(password: String): Boolean {
-        val passwordPattern = "^(?=.*[0-9])(?=.*[a-z])(?=.*[A-Z])(?=.*[@#$%^&+=!])(?=\\S+$).{8,}$"
-        return password.matches(passwordPattern.toRegex())
+        // Minimum 6 characters for testing, but ideally stronger
+        return password.length >= 6
     }
 
     val emailError = emailTouched && email.isNotEmpty() && !isValidEmail(email)
     val passwordError = passwordTouched && password.isNotEmpty() && !isValidPassword(password)
 
-    // Error Dialog
+    if (showVerificationModal) {
+        AlertDialog(
+            onDismissRequest = {
+                if (!isVerifying && !isResending) {
+                    showVerificationModal = false
+                    verificationError = null
+                    onRegisteringFinished()
+                }
+            },
+            title = {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(Icons.Rounded.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text("Verify your email")
+                }
+            },
+            text = {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        "We've sent a verification link to:",
+                        style = MaterialTheme.typography.bodyMedium,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        email,
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.primary,
+                        textAlign = TextAlign.Center
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        "Open the email and click the verification link. Then come back and tap \"I've Verified\" to sign in.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        textAlign = TextAlign.Center
+                    )
+
+                    if (verificationError != null) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            verificationError!!,
+                            color = MaterialTheme.colorScheme.error,
+                            style = MaterialTheme.typography.bodySmall,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+
+                    if (isVerifying || isResending) {
+                        Spacer(modifier = Modifier.height(16.dp))
+                        CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    }
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        isVerifying = true
+                        verificationError = null
+                        auth.signInWithEmailAndPassword(email, password)
+                            .addOnCompleteListener { signInTask ->
+                                if (!signInTask.isSuccessful) {
+                                    isVerifying = false
+                                    verificationError = "Sign-in failed: ${signInTask.exception?.message}"
+                                    return@addOnCompleteListener
+                                }
+                                auth.currentUser?.reload()?.addOnCompleteListener { reloadTask ->
+                                    isVerifying = false
+                                    if (!reloadTask.isSuccessful) {
+                                        verificationError = "Couldn't refresh status: ${reloadTask.exception?.message}"
+                                        return@addOnCompleteListener
+                                    }
+                                    if (auth.currentUser?.isEmailVerified == true) {
+                                        showVerificationModal = false
+                                        verificationError = null
+                                        onRegisteringFinished()
+                                        onLoginSuccess()
+                                    } else {
+                                        auth.signOut()
+                                        verificationError = "Email not yet verified. Please click the link in your inbox first."
+                                    }
+                                }
+                            }
+                    },
+                    enabled = !isVerifying && !isResending
+                ) { Text("I've Verified") }
+            },
+            dismissButton = {
+                Row {
+                    TextButton(
+                        onClick = {
+                            isResending = true
+                            verificationError = null
+                            auth.signInWithEmailAndPassword(email, password)
+                                .addOnCompleteListener { signInTask ->
+                                    if (!signInTask.isSuccessful) {
+                                        isResending = false
+                                        verificationError = "Could not resend: ${signInTask.exception?.message}"
+                                        return@addOnCompleteListener
+                                    }
+                                    auth.currentUser?.sendEmailVerification()
+                                        ?.addOnCompleteListener { sendTask ->
+                                            auth.signOut()
+                                            isResending = false
+                                            if (sendTask.isSuccessful) {
+                                                verificationError = "Verification email resent to $email."
+                                            } else {
+                                                verificationError = "Resend failed: ${sendTask.exception?.message}"
+                                            }
+                                        }
+                                }
+                        },
+                        enabled = !isVerifying && !isResending
+                    ) { Text("Resend") }
+                    TextButton(
+                        onClick = {
+                            showVerificationModal = false
+                            verificationError = null
+                            onRegisteringFinished()
+                        },
+                        enabled = !isVerifying && !isResending
+                    ) { Text("Cancel") }
+                }
+            }
+        )
+    }
+
     if (errorMessage != null) {
         AlertDialog(
             onDismissRequest = { errorMessage = null },
             icon = { Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Authentication Error") },
-            text = { Text(errorMessage!!, textAlign = TextAlign.Center) },
+            title = { Text("Error") },
+            text = { Text(errorMessage!!) },
             confirmButton = {
                 TextButton(onClick = { errorMessage = null }) { Text("OK") }
             }
         )
     }
 
-    // Google Sign-In Setup
+    if (infoMessage != null) {
+        AlertDialog(
+            onDismissRequest = { infoMessage = null },
+            icon = { Icon(Icons.Rounded.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
+            title = { Text("Check your inbox") },
+            text = { Text(infoMessage!!) },
+            confirmButton = {
+                TextButton(onClick = { infoMessage = null }) { Text("OK") }
+            }
+        )
+    }
+
     val gso = remember {
         GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
             .requestIdToken(context.getString(com.alpha.spendtracker.R.string.default_web_client_id))
@@ -77,176 +239,306 @@ fun LoginScreen(onLoginSuccess: () -> Unit) {
             val credential = GoogleAuthProvider.getCredential(account.idToken, null)
             auth.signInWithCredential(credential).addOnCompleteListener { authTask ->
                 if (authTask.isSuccessful) onLoginSuccess()
-                else errorMessage = "Google sign-in failed. Please try again."
+                else errorMessage = "Google sign-in failed."
             }
         } catch (e: ApiException) {
             errorMessage = "Google sign-in error: ${e.message}"
         }
     }
 
+    val registerAction: () -> Unit = {
+        if (!isValidEmail(email) || !isValidPassword(password)) {
+            emailTouched = true
+            passwordTouched = true
+            Toast.makeText(context, "Enter a valid email and a password of at least 6 characters", Toast.LENGTH_SHORT).show()
+        } else {
+            onRegisteringStart()
+            isLoading = true
+            auth.createUserWithEmailAndPassword(email, password)
+                .addOnCompleteListener { createTask ->
+                    if (!createTask.isSuccessful) {
+                        isLoading = false
+                        onRegisteringFinished()
+                        errorMessage = createTask.exception?.message
+                        return@addOnCompleteListener
+                    }
+                    auth.currentUser?.sendEmailVerification()
+                        ?.addOnCompleteListener { sendTask ->
+                            isLoading = false
+                            auth.signOut()
+                            if (sendTask.isSuccessful) {
+                                verificationError = null
+                                showVerificationModal = true
+                            } else {
+                                onRegisteringFinished()
+                                errorMessage = "Account created, but the verification email could not be sent: " +
+                                    "${sendTask.exception?.message}. Try signing in and tap \"Resend\"."
+                            }
+                        }
+                }
+        }
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(24.dp),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+            .background(
+                Brush.verticalGradient(
+                    colors = listOf(
+                        MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+                        MaterialTheme.colorScheme.surface
+                    )
+                )
+            )
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 24.dp, vertical = 32.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
+        Spacer(modifier = Modifier.height(24.dp))
+
+        Box(
+            modifier = Modifier
+                .size(84.dp)
+                .clip(CircleShape)
+                .background(MaterialTheme.colorScheme.primary),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.AccountBalanceWallet,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onPrimary,
+                modifier = Modifier.size(44.dp)
+            )
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
         Text(
-            text = "SpendWise", 
+            text = "SpendWise",
             style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.ExtraBold),
             color = MaterialTheme.colorScheme.primary
         )
+        Spacer(modifier = Modifier.height(4.dp))
         Text(
-            text = "Master your finances with ease",
+            text = "Track. Save. Thrive.",
             style = MaterialTheme.typography.bodyMedium,
-            color = MaterialTheme.colorScheme.outline,
-            modifier = Modifier.padding(bottom = 32.dp)
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        OutlinedTextField(
-            value = email,
-            onValueChange = { 
-                email = it
-                emailTouched = true
-            },
-            label = { Text("Email Address") },
+        Spacer(modifier = Modifier.height(32.dp))
+
+        Card(
             modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            isError = emailError,
-            supportingText = {
-                if (emailError) {
-                    Text("Enter a valid email address", color = MaterialTheme.colorScheme.error)
-                }
-            }
-        )
-        Spacer(modifier = Modifier.height(12.dp))
-
-        OutlinedTextField(
-            value = password,
-            onValueChange = { 
-                password = it
-                passwordTouched = true
-            },
-            label = { Text("Password") },
-            visualTransformation = PasswordVisualTransformation(),
-            modifier = Modifier.fillMaxWidth(),
-            singleLine = true,
-            isError = passwordError,
-            supportingText = {
-                if (passwordError) {
-                    Text(
-                        "Must be 8+ chars with Upper, Lower, Number & Symbol",
-                        color = MaterialTheme.colorScheme.error,
-                        fontSize = 11.sp
-                    )
-                }
-            }
-        )
-        Spacer(modifier = Modifier.height(24.dp))
-
-        if (isLoading) {
-            CircularProgressIndicator()
-        } else {
-            Button(
-                onClick = {
-                    if (!isValidEmail(email) || password.isEmpty()) {
-                        emailTouched = true
-                        passwordTouched = true
-                        return@Button
-                    }
-                    
-                    isLoading = true
-                    android.util.Log.d("LoginScreen", "Attempting login for email: $email")
-                    auth.signInWithEmailAndPassword(email, password)
-                        .addOnCompleteListener { task ->
-                            isLoading = false
-                            if (task.isSuccessful) {
-                                android.util.Log.d("LoginScreen", "Login successful")
-                                onLoginSuccess()
-                            } else {
-                                val error = task.exception?.message ?: "Login failed"
-                                android.util.Log.e("LoginScreen", "Login failed: $error", task.exception)
-                                errorMessage = error
-                            }
-                        }
-                },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium,
-                enabled = !emailError && !passwordError
-            ) { 
-                Text("Login", modifier = Modifier.padding(vertical = 4.dp)) 
-            }
-            
-            Spacer(modifier = Modifier.height(12.dp))
-            
-            OutlinedButton(
-                onClick = { launcher.launch(googleSignInClient.signInIntent) },
-                modifier = Modifier.fillMaxWidth(),
-                shape = MaterialTheme.shapes.medium
-            ) { 
-                Text("Sign in with Google", modifier = Modifier.padding(vertical = 4.dp)) 
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Box for side-by-side buttons
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
+            shape = RoundedCornerShape(24.dp),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+            elevation = CardDefaults.cardElevation(defaultElevation = 3.dp)
+        ) {
+            Column(
+                modifier = Modifier.padding(24.dp),
+                horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                TextButton(
-                    onClick = {
-                        if (!isValidEmail(email)) {
-                            emailTouched = true
-                            return@TextButton
-                        }
-                        
-                        val actionCodeSettings = ActionCodeSettings.newBuilder()
-                            .setUrl("https://spendwise.page.link/finishSignUp")
-                            .setHandleCodeInApp(true)
-                            .setAndroidPackageName("com.alpha.spendtracker", true, null)
-                            .build()
-                        
-                        auth.sendSignInLinkToEmail(email, actionCodeSettings)
-                            .addOnCompleteListener { task ->
-                                if (task.isSuccessful) {
-                                    Toast.makeText(context, "Sign-in link sent to $email", Toast.LENGTH_LONG).show()
-                                } else {
-                                    errorMessage = task.exception?.message ?: "Could not send link"
-                                }
-                            }
+                Text(
+                    text = "Welcome back",
+                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = "Sign in to continue managing your spending",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    textAlign = TextAlign.Center
+                )
+
+                Spacer(modifier = Modifier.height(24.dp))
+
+                OutlinedTextField(
+                    value = email,
+                    onValueChange = {
+                        email = it
+                        emailTouched = true
                     },
-                    modifier = Modifier.weight(1f),
-                    enabled = !emailError
-                ) { 
-                    Text("Email Link", fontSize = 13.sp) 
+                    label = { Text("Email Address") },
+                    leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null) },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = emailError,
+                    shape = RoundedCornerShape(14.dp),
+                    keyboardOptions = androidx.compose.foundation.text.KeyboardOptions(keyboardType = KeyboardType.Email),
+                    supportingText = if (emailError) {
+                        { Text("Please enter a valid email address") }
+                    } else null
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                OutlinedTextField(
+                    value = password,
+                    onValueChange = {
+                        password = it
+                        passwordTouched = true
+                    },
+                    label = { Text("Password") },
+                    leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
+                    visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                    trailingIcon = {
+                        IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                            Icon(
+                                imageVector = if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                contentDescription = null
+                            )
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    singleLine = true,
+                    isError = passwordError,
+                    shape = RoundedCornerShape(14.dp),
+                    supportingText = if (passwordError) {
+                        { Text("Password must be at least 6 characters") }
+                    } else null
+                )
+
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.End
+                ) {
+                    if (isSendingReset) {
+                        CircularProgressIndicator(
+                            modifier = Modifier.size(16.dp),
+                            strokeWidth = 2.dp
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    TextButton(
+                        onClick = {
+                            if (!isValidEmail(email)) {
+                                emailTouched = true
+                                errorMessage = "Enter a valid email address to receive a reset link."
+                                return@TextButton
+                            }
+                            isSendingReset = true
+                            auth.sendPasswordResetEmail(email)
+                                .addOnCompleteListener { task ->
+                                    isSendingReset = false
+                                    if (task.isSuccessful) {
+                                        infoMessage = "A password reset link has been sent to $email. Please check your inbox (and spam folder)."
+                                    } else {
+                                        errorMessage = task.exception?.message
+                                            ?: "Could not send reset email. Please try again."
+                                    }
+                                }
+                        },
+                        enabled = !isSendingReset && !isLoading
+                    ) {
+                        Text("Forgot Password?")
+                    }
                 }
 
-                VerticalDivider(modifier = Modifier.height(20.dp).padding(horizontal = 4.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
-                TextButton(
-                    onClick = {
-                        if (!isValidEmail(email) || !isValidPassword(password)) {
-                            emailTouched = true
-                            passwordTouched = true
-                            return@TextButton
-                        }
-                        
-                        isLoading = true
-                        auth.createUserWithEmailAndPassword(email, password)
-                            .addOnCompleteListener { task ->
-                                isLoading = false
-                                if (task.isSuccessful) onLoginSuccess()
-                                else errorMessage = task.exception?.message ?: "Registration failed"
+                if (isLoading) {
+                    CircularProgressIndicator()
+                } else {
+                    Button(
+                        onClick = {
+                            if (!isValidEmail(email) || password.isEmpty()) {
+                                emailTouched = true
+                                passwordTouched = true
+                                return@Button
                             }
-                    },
-                    modifier = Modifier.weight(1f),
-                    enabled = !emailError && !passwordError
-                ) { 
-                    Text("Register", fontSize = 13.sp) 
+                            isLoading = true
+                            auth.signInWithEmailAndPassword(email, password)
+                                .addOnCompleteListener { signInTask ->
+                                    if (!signInTask.isSuccessful) {
+                                        isLoading = false
+                                        errorMessage = signInTask.exception?.message
+                                        return@addOnCompleteListener
+                                    }
+                                    auth.currentUser?.reload()?.addOnCompleteListener {
+                                        isLoading = false
+                                        if (auth.currentUser?.isEmailVerified == true) {
+                                            onLoginSuccess()
+                                        } else {
+                                            auth.signOut()
+                                            verificationError = null
+                                            showVerificationModal = true
+                                        }
+                                    }
+                                }
+                        },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(
+                            "Sign In",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                        Text(
+                            text = "  OR  ",
+                            style = MaterialTheme.typography.labelMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        HorizontalDivider(modifier = Modifier.weight(1f))
+                    }
+
+                    Spacer(modifier = Modifier.height(20.dp))
+
+                    OutlinedButton(
+                        onClick = { launcher.launch(googleSignInClient.signInIntent) },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(52.dp),
+                        shape = RoundedCornerShape(14.dp)
+                    ) {
+                        Text(
+                            text = "G",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Spacer(modifier = Modifier.width(12.dp))
+                        Text(
+                            "Continue with Google",
+                            style = MaterialTheme.typography.titleSmall
+                        )
+                    }
                 }
             }
         }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.Center
+        ) {
+            Text(
+                text = "Don't have an account?",
+                style = MaterialTheme.typography.bodyMedium,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            TextButton(
+                onClick = registerAction,
+                enabled = !isLoading
+            ) {
+                Text(
+                    "Register",
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
     }
 }

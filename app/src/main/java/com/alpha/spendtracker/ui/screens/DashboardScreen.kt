@@ -3,6 +3,7 @@
  */
 package com.alpha.spendtracker.ui.screens
 
+import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
@@ -17,6 +18,7 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
@@ -26,13 +28,19 @@ import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LightMode
+import androidx.compose.material.icons.rounded.Security
+import androidx.compose.material.icons.rounded.Visibility
+import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.Spend
@@ -46,6 +54,7 @@ import com.alpha.spendtracker.ui.components.TopAppsRankingCard
 import com.alpha.spendtracker.ui.components.TotalSpentHeroCard
 import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -63,6 +72,104 @@ fun DashboardScreen(
     onLogout: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
+    var showSecurityOptions by remember { mutableStateOf(false) }
+    var showPasswordUpdateDialog by remember { mutableStateOf(false) }
+    
+    val context = LocalContext.current
+    val auth = FirebaseAuth.getInstance()
+
+    if (showSecurityOptions) {
+        AlertDialog(
+            onDismissRequest = { showSecurityOptions = false },
+            title = { Text("Account Security") },
+            text = { Text("Would you like to update your password or receive a reset link via email?") },
+            confirmButton = {
+                TextButton(onClick = {
+                    showSecurityOptions = false
+                    showPasswordUpdateDialog = true
+                }) { Text("Update Password") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    showSecurityOptions = false
+                    val email = auth.currentUser?.email
+                    if (email != null) {
+                        auth.sendPasswordResetEmail(email)
+                            .addOnCompleteListener { task ->
+                                if (task.isSuccessful) {
+                                    Toast.makeText(context, "Reset email sent to $email", Toast.LENGTH_SHORT).show()
+                                } else {
+                                    Toast.makeText(context, "Error: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                                }
+                            }
+                    }
+                }) { Text("Forgot Password") }
+            }
+        )
+    }
+
+    if (showPasswordUpdateDialog) {
+        var newPassword by remember { mutableStateOf("") }
+        var passwordVisible by remember { mutableStateOf(false) }
+        var isUpdating by remember { mutableStateOf(false) }
+
+        AlertDialog(
+            onDismissRequest = { if (!isUpdating) showPasswordUpdateDialog = false },
+            title = { Text("Update Password") },
+            text = {
+                Column {
+                    Text("Enter your new password below:", style = MaterialTheme.typography.bodyMedium)
+                    Spacer(modifier = Modifier.height(16.dp))
+                    OutlinedTextField(
+                        value = newPassword,
+                        onValueChange = { newPassword = it },
+                        label = { Text("New Password") },
+                        visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+                        trailingIcon = {
+                            IconButton(onClick = { passwordVisible = !passwordVisible }) {
+                                Icon(
+                                    imageVector = if (passwordVisible) Icons.Rounded.VisibilityOff else Icons.Rounded.Visibility,
+                                    contentDescription = null
+                                )
+                            }
+                        },
+                        modifier = Modifier.fillMaxWidth(),
+                        singleLine = true
+                    )
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        if (newPassword.length < 6) {
+                            Toast.makeText(context, "Password should be at least 6 characters", Toast.LENGTH_SHORT).show()
+                            return@Button
+                        }
+                        isUpdating = true
+                        auth.currentUser?.updatePassword(newPassword)
+                            ?.addOnCompleteListener { task ->
+                                isUpdating = false
+                                if (task.isSuccessful) {
+                                    Toast.makeText(context, "Password updated successfully!", Toast.LENGTH_SHORT).show()
+                                    showPasswordUpdateDialog = false
+                                } else {
+                                    Toast.makeText(context, "Error: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                                }
+                            }
+                    },
+                    enabled = newPassword.isNotEmpty() && !isUpdating
+                ) {
+                    if (isUpdating) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
+                    else Text("Update")
+                }
+            },
+            dismissButton = {
+                TextButton(onClick = { showPasswordUpdateDialog = false }, enabled = !isUpdating) {
+                    Text("Cancel")
+                }
+            }
+        )
+    }
 
     if (showDatePicker) {
         val dateRangePickerState = rememberDateRangePickerState()
@@ -110,7 +217,8 @@ fun DashboardScreen(
             DashboardHeader(
                 themePreference = themePreference,
                 onCycleTheme = onCycleTheme,
-                onLogout = onLogout
+                onLogout = onLogout,
+                onSecurityClick = { showSecurityOptions = true }
             )
         }
 
@@ -204,7 +312,8 @@ fun DashboardScreen(
 private fun DashboardHeader(
     themePreference: ThemePreference,
     onCycleTheme: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onSecurityClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -244,11 +353,18 @@ private fun DashboardHeader(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
+            IconButton(onClick = onSecurityClick) {
+                Icon(
+                    imageVector = Icons.Rounded.Security,
+                    contentDescription = "Security Settings",
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
             ThemeToggleButton(
                 themePreference = themePreference,
                 onCycle = onCycleTheme
             )
-            Spacer(modifier = Modifier.size(8.dp))
+            Spacer(modifier = Modifier.size(4.dp))
             IconButton(onClick = onLogout) {
                 Icon(
                     imageVector = Icons.AutoMirrored.Rounded.Logout,

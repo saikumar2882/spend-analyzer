@@ -58,6 +58,7 @@ fun HistoryScreen(
     allSpends: List<Spend>,
     initialSearchQuery: String = "",
     initialCategoryFilter: String = ALL_CATEGORIES,
+    onEditSpend: (Spend) -> Unit,
     onDeleteSpend: (Spend) -> Unit,
     onBackClick: () -> Unit
 ) {
@@ -202,6 +203,7 @@ fun HistoryScreen(
                     items(spends, key = { it.id }) { spend ->
                         HistorySpendCard(
                             spend = spend,
+                            onEdit = { onEditSpend(spend) },
                             onDelete = { spendToDelete = spend }
                         )
                     }

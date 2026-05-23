@@ -47,6 +47,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.screens.AddSpendScreen
 import com.alpha.spendtracker.ui.screens.DashboardScreen
 import com.alpha.spendtracker.ui.screens.HistoryScreen
@@ -110,11 +111,14 @@ fun MainContainer(
     onCycleTheme: () -> Unit
 ) {
     var isAuthenticated by remember { mutableStateOf(FirebaseAuth.getInstance().currentUser != null) }
+    var isRegistering by remember { mutableStateOf(false) }
 
     // Listen for auth changes
-    DisposableEffect(Unit) {
+    DisposableEffect(isRegistering) {
         val listener = FirebaseAuth.AuthStateListener { auth ->
-            isAuthenticated = auth.currentUser != null
+            if (!isRegistering) {
+                isAuthenticated = auth.currentUser != null
+            }
         }
         FirebaseAuth.getInstance().addAuthStateListener(listener)
         onDispose {
@@ -122,14 +126,22 @@ fun MainContainer(
         }
     }
 
-    if (!isAuthenticated) {
-        LoginScreen(onLoginSuccess = { isAuthenticated = true })
+    if (!isAuthenticated || isRegistering) {
+        LoginScreen(
+            onLoginSuccess = { 
+                isRegistering = false
+                isAuthenticated = true 
+            },
+            onRegisteringStart = { isRegistering = true },
+            onRegisteringFinished = { isRegistering = false }
+        )
         return
     }
 
     var activeView by rememberSaveable { mutableStateOf(ActiveView.DASHBOARD) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var historyCategoryFilter by rememberSaveable { mutableStateOf("All") }
+    var editingSpend by remember { mutableStateOf<Spend?>(null) }
 
     val allSpends by viewModel.allSpendsFlow.collectAsStateWithLifecycle()
     val analyticsState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -175,7 +187,10 @@ fun MainContainer(
         floatingActionButton = {
             if (activeView != ActiveView.ADD_SPEND) {
                 ExtendedFloatingActionButton(
-                    onClick = { activeView = ActiveView.ADD_SPEND },
+                    onClick = { 
+                        editingSpend = null
+                        activeView = ActiveView.ADD_SPEND 
+                    },
                     icon = { Icon(Icons.Rounded.Add, "Add Spend") },
                     text = { Text("Track Spend") },
                     containerColor = MaterialTheme.colorScheme.primaryContainer,
@@ -226,23 +241,47 @@ fun MainContainer(
                         allSpends = allSpends,
                         initialSearchQuery = historySearchQuery,
                         initialCategoryFilter = historyCategoryFilter,
+                        onEditSpend = { spend ->
+                            editingSpend = spend
+                            activeView = ActiveView.ADD_SPEND
+                        },
                         onDeleteSpend = viewModel::deleteSpend,
                         onBackClick = { activeView = ActiveView.DASHBOARD }
                     )
                     ActiveView.ADD_SPEND -> AddSpendScreen(
-                        onDismiss = { activeView = ActiveView.DASHBOARD },
+                        editingSpend = editingSpend,
+                        onDismiss = { 
+                            editingSpend = null
+                            activeView = ActiveView.DASHBOARD 
+                        },
                         onSave = { newSpend: NewSpend ->
                             val appName = if (newSpend.preset.id == "other")
                                 newSpend.customAppName.trim() else newSpend.preset.displayName
-                            viewModel.addSpend(
-                                appName = appName,
-                                amount = newSpend.amount,
-                                purpose = newSpend.purpose,
-                                category = newSpend.preset.category,
-                                notes = newSpend.notes,
-                                timestamp = newSpend.timestamp
-                            )
-                            Toast.makeText(context, "Spending logged successfully!", Toast.LENGTH_SHORT).show()
+                            
+                            if (editingSpend != null) {
+                                viewModel.updateSpend(
+                                    editingSpend!!.copy(
+                                        appName = appName,
+                                        amount = newSpend.amount,
+                                        purpose = newSpend.purpose,
+                                        category = newSpend.preset.category,
+                                        notes = newSpend.notes,
+                                        timestamp = newSpend.timestamp
+                                    )
+                                )
+                                Toast.makeText(context, "Spending updated successfully!", Toast.LENGTH_SHORT).show()
+                            } else {
+                                viewModel.addSpend(
+                                    appName = appName,
+                                    amount = newSpend.amount,
+                                    purpose = newSpend.purpose,
+                                    category = newSpend.preset.category,
+                                    notes = newSpend.notes,
+                                    timestamp = newSpend.timestamp
+                                )
+                                Toast.makeText(context, "Spending logged successfully!", Toast.LENGTH_SHORT).show()
+                            }
+                            editingSpend = null
                             activeView = ActiveView.DASHBOARD
                         }
                     )

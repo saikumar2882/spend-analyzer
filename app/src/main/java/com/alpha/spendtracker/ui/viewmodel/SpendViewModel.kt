@@ -92,6 +92,12 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
+    fun updateSpend(spend: Spend) {
+        viewModelScope.launch {
+            repository.insert(spend)
+        }
+    }
+
     fun deleteSpend(spend: Spend) {
         viewModelScope.launch {
             repository.delete(spend)

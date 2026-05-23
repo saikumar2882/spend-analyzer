@@ -19,6 +19,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -98,6 +99,7 @@ fun RecentSpendRow(
 @Composable
 fun HistorySpendCard(
     spend: Spend,
+    onEdit: () -> Unit,
     onDelete: () -> Unit
 ) {
     val accent = APP_PRESETS.firstOrNull { it.displayName == spend.appName }?.color ?: Color.Gray
@@ -150,9 +152,9 @@ fun HistorySpendCard(
                 }
             }
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(8.dp)
             ) {
                 Text(
                     text = "₹${formatCurrency(spend.amount)}",
@@ -162,19 +164,35 @@ fun HistorySpendCard(
                     ),
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                IconButton(
-                    onClick = onDelete,
-                    colors = IconButtonDefaults.iconButtonColors(
-                        containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f),
-                        contentColor = MaterialTheme.colorScheme.error
-                    ),
-                    modifier = Modifier.size(36.dp)
-                ) {
-                    Icon(
-                        Icons.Rounded.Delete,
-                        contentDescription = "Delete transaction",
-                        modifier = Modifier.size(18.dp)
-                    )
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    IconButton(
+                        onClick = onEdit,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.15f),
+                            contentColor = MaterialTheme.colorScheme.primary
+                        ),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            androidx.compose.material.icons.Icons.Rounded.Edit,
+                            contentDescription = "Edit transaction",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.12f),
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        modifier = Modifier.size(36.dp)
+                    ) {
+                        Icon(
+                            Icons.Rounded.Delete,
+                            contentDescription = "Delete transaction",
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
                 }
             }
         }

@@ -87,15 +87,26 @@ data class NewSpend(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddSpendScreen(
+    editingSpend: com.alpha.spendtracker.data.Spend? = null,
     onDismiss: () -> Unit,
     onSave: (NewSpend) -> Unit
 ) {
-    var amountInput by rememberSaveable { mutableStateOf("") }
-    var selectedPreset by remember { mutableStateOf(APP_PRESETS.first()) }
-    var purposeInput by rememberSaveable { mutableStateOf(PURPOSE_PRESETS.first()) }
-    var notesInput by rememberSaveable { mutableStateOf("") }
-    var customAppNameInput by rememberSaveable { mutableStateOf("") }
-    var transactionTimestamp by rememberSaveable { mutableLongStateOf(System.currentTimeMillis()) }
+    var amountInput by rememberSaveable { mutableStateOf(editingSpend?.amount?.toString() ?: "") }
+    var selectedPreset by remember { 
+        mutableStateOf(
+            if (editingSpend != null) {
+                APP_PRESETS.find { it.displayName == editingSpend.appName } ?: APP_PRESETS.last()
+            } else {
+                APP_PRESETS.first()
+            }
+        ) 
+    }
+    var purposeInput by rememberSaveable { mutableStateOf(editingSpend?.purpose ?: PURPOSE_PRESETS.first()) }
+    var notesInput by rememberSaveable { mutableStateOf(editingSpend?.notes ?: "") }
+    var customAppNameInput by rememberSaveable { 
+        mutableStateOf(if (selectedPreset.id == "other") editingSpend?.appName ?: "" else "") 
+    }
+    var transactionTimestamp by rememberSaveable { mutableLongStateOf(editingSpend?.timestamp ?: System.currentTimeMillis()) }
     var amountError by remember { mutableStateOf<String?>(null) }
     var customAppError by remember { mutableStateOf<String?>(null) }
 
