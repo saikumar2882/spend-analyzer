@@ -156,6 +156,7 @@ fun MainContainer(
 
     // AI Flow State
     var showAiInput by remember { mutableStateOf(false) } 
+    var showAiHistoryAssistant by remember { mutableStateOf(false) }
     var aiProcessingResult by remember { mutableStateOf<AiTransactionResponse?>(null) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     var discardCallback by remember { mutableStateOf<(() -> Unit)?>(null) }
@@ -171,9 +172,12 @@ fun MainContainer(
     val currentFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val aiPrefs by viewModel.aiPreferences.collectAsStateWithLifecycle()
     val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
+    val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
+    val historyStatus by viewModel.historyStatus.collectAsStateWithLifecycle()
     
     val aiInputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val aiConfirmationSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val aiHistorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     // Closes the discard dialog. If the underlying sheet was hidden by a user
     // gesture (swipe / scrim tap) before the dialog appeared, re-expand it so
@@ -270,7 +274,7 @@ fun MainContainer(
                     NavigationBarItem(
                         selected = activeView == ActiveView.DASHBOARD,
                         onClick = { activeView = ActiveView.DASHBOARD },
-                        icon = { Icon(Icons.Rounded.Dashboard, null) },
+                        icon = { Icon(Icons.Rounded.Dashboard, contentDescription = "Dashboard") },
                         label = { Text("Dashboard") }
                     )
                     NavigationBarItem(
@@ -280,7 +284,7 @@ fun MainContainer(
                             historyCategoryFilter = "All"
                             activeView = ActiveView.HISTORY
                         },
-                        icon = { Icon(Icons.Rounded.History, null) },
+                        icon = { Icon(Icons.Rounded.History, contentDescription = "Spending History") },
                         label = { Text("History") }
                     )
                 }
@@ -306,7 +310,7 @@ fun MainContainer(
                                     showAiInput = true
                                 },
                                 containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                icon = { Icon(Icons.Rounded.AutoAwesome, null) },
+                                icon = { Icon(Icons.Rounded.AutoAwesome, "Track with AI") },
                                 text = { Text("AI Track") }
                             )
                             ExtendedFloatingActionButton(
@@ -316,7 +320,7 @@ fun MainContainer(
                                     activeView = ActiveView.ADD_SPEND
                                 },
                                 containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                icon = { Icon(Icons.Rounded.Edit, null) },
+                                icon = { Icon(Icons.Rounded.Edit, "Track Manually") },
                                 text = { Text("Manual") }
                             )
                         }
@@ -368,7 +372,8 @@ fun MainContainer(
                         onLogout = {
                             FirebaseAuth.getInstance().signOut()
                             showNotification("Logged out successfully", NotificationType.INFO)
-                        }
+                        },
+                        onAiAssistantClick = { showAiHistoryAssistant = true }
                     )
                     ActiveView.HISTORY -> HistoryScreen(
                         allSpends = allSpends,
@@ -382,7 +387,8 @@ fun MainContainer(
                             viewModel.deleteSpend(spend)
                             showNotification("Spend deleted", NotificationType.INFO)
                         },
-                        onBackClick = { activeView = ActiveView.DASHBOARD }
+                        onBackClick = { activeView = ActiveView.DASHBOARD },
+                        onAiAssistantClick = { showAiHistoryAssistant = true }
                     )
                     ActiveView.ADD_SPEND -> AddSpendScreen(
                         editingSpend = editingSpend,
@@ -480,6 +486,16 @@ fun MainContainer(
                 onCancel = dismissAiConfirmation
             )
         }
+    }
+
+    if (showAiHistoryAssistant) {
+        com.alpha.spendtracker.ui.components.AiHistoryAssistantSheet(
+            messages = chatHistory,
+            status = historyStatus,
+            onSendMessage = { viewModel.askAiAboutHistory(it) },
+            onDismiss = { showAiHistoryAssistant = false },
+            sheetState = aiHistorySheetState
+        )
     }
 
     // Discard Dialog

@@ -18,11 +18,13 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.History
@@ -72,7 +74,8 @@ fun DashboardScreen(
     onShowAllClick: () -> Unit,
     onAppClick: (String) -> Unit,
     onLentClick: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onAiAssistantClick: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showSecurityOptions by remember { mutableStateOf(false) }
@@ -221,7 +224,8 @@ fun DashboardScreen(
                 themePreference = themePreference,
                 onCycleTheme = onCycleTheme,
                 onLogout = onLogout,
-                onSecurityClick = { showSecurityOptions = true }
+                onSecurityClick = { showSecurityOptions = true },
+                onAiAssistantClick = onAiAssistantClick
             )
         }
 
@@ -316,7 +320,8 @@ private fun DashboardHeader(
     themePreference: ThemePreference,
     onCycleTheme: () -> Unit,
     onLogout: () -> Unit,
-    onSecurityClick: () -> Unit
+    onSecurityClick: () -> Unit,
+    onAiAssistantClick: () -> Unit
 ) {
     Row(
         modifier = Modifier
@@ -326,25 +331,6 @@ private fun DashboardHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(6.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape)
-                )
-                Text(
-                    text = "OVERVIEW",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        letterSpacing = 1.5.sp
-                    ),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            Spacer(modifier = Modifier.height(2.dp))
             Text(
                 text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineLarge.copy(
@@ -356,6 +342,22 @@ private fun DashboardHeader(
         }
 
         Row(verticalAlignment = Alignment.CenterVertically) {
+            Surface(
+                onClick = onAiAssistantClick,
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                modifier = Modifier.size(40.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.AutoAwesome,
+                        contentDescription = "AI Assistant",
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(24.dp)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(8.dp))
             IconButton(onClick = onSecurityClick) {
                 Icon(
                     imageVector = Icons.Rounded.Security,
@@ -395,28 +397,11 @@ private fun ThemeToggleButton(
         ThemePreference.DARK -> "Theme: dark. Tap to follow system."
     }
 
-    Box(
-        modifier = Modifier
-            .size(46.dp)
-            .background(
-                Brush.horizontalGradient(
-                    listOf(
-                        MaterialTheme.colorScheme.primary,
-                        Color(0xFF7C4DFF),
-                        Color(0xFF3F51B5)
-                    )
-                ),
-                CircleShape
-            )
-            .border(2.dp, Color.White, CircleShape)
-            .clickable(onClick = onCycle),
-        contentAlignment = Alignment.Center
-    ) {
+    IconButton(onClick = onCycle) {
         Icon(
             imageVector = icon,
             contentDescription = description,
-            tint = Color.White,
-            modifier = Modifier.size(22.dp)
+            tint = MaterialTheme.colorScheme.primary
         )
     }
 }

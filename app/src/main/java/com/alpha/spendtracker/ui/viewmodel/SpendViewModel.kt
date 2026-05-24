@@ -41,21 +41,27 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
 
     private val repository: SpendRepository
     private val aiPrefsRepository: AiPreferencesRepository
+    private val chatDao: ChatDao
     private val auth = FirebaseAuth.getInstance()
     private val TAG = "SpendViewModel"
 
     private val _userId = MutableStateFlow(auth.currentUser?.uid ?: "anonymous")
     private var aiJob: Job? = null
+    private var historyJob: Job? = null
+
+    private var currentSessionId: String = ""
 
     init {
         val database = AppDatabase.getDatabase(application)
         repository = SpendRepository(database.spendDao())
+        chatDao = database.chatDao()
         aiPrefsRepository = AiPreferencesRepository(application)
         
         // Start sync if user is already logged in
         auth.currentUser?.let { user ->
             _userId.value = user.uid
             repository.startSync(user.uid, viewModelScope)
+            initializeChatSession(user.uid)
         }
 
         // Listen to auth changes to start/stop sync
@@ -64,9 +70,137 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
             if (uid != null) {
                 _userId.value = uid
                 repository.startSync(uid, viewModelScope)
+                initializeChatSession(uid)
             } else {
                 _userId.value = "anonymous"
                 repository.stopSync()
+            }
+        }
+
+        // Periodic cleanup of old chat messages (12h TTL)
+        viewModelScope.launch {
+            val threshold = System.currentTimeMillis() - 12 * 60 * 60 * 1000
+            chatDao.deleteOldMessages(threshold)
+        }
+    }
+
+    private fun initializeChatSession(userId: String) {
+        viewModelScope.launch {
+            val lastSessionId = chatDao.getLastSessionId(userId)
+            if (lastSessionId != null) {
+                currentSessionId = lastSessionId
+            } else {
+                currentSessionId = java.util.UUID.randomUUID().toString()
+            }
+        }
+    }
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val chatHistory: StateFlow<List<ChatMessage>> = _userId.flatMapLatest { userId ->
+        chatDao.getChatMessages(userId)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    private val _historyStatus = MutableStateFlow<String?>(null)
+    val historyStatus: StateFlow<String?> = _historyStatus
+
+    fun askAiAboutHistory(question: String) {
+        if (question.isBlank()) return
+        
+        historyJob?.cancel()
+        historyJob = viewModelScope.launch {
+            val userId = _userId.value
+            
+            // 1. Rate Limiting Check
+            val todayStart = Calendar.getInstance().apply {
+                set(Calendar.HOUR_OF_DAY, 0)
+                set(Calendar.MINUTE, 0)
+                set(Calendar.SECOND, 0)
+                set(Calendar.MILLISECOND, 0)
+            }.timeInMillis
+
+            val sessionCount = chatDao.getSessionCountSince(userId, todayStart)
+            val msgCountInSession = chatDao.getMessageCountInSession(userId, currentSessionId)
+
+            if (msgCountInSession >= 7) {
+                // Check if we can start a new session
+                if (sessionCount >= 2) {
+                    _historyStatus.value = "Daily limit reached (2 sessions, 7 msgs each)."
+                    return@launch
+                } else {
+                    // Start new session
+                    currentSessionId = java.util.UUID.randomUUID().toString()
+                }
+            } else if (sessionCount == 0) {
+                // First message of the day
+                if (currentSessionId.isEmpty()) {
+                    currentSessionId = java.util.UUID.randomUUID().toString()
+                }
+            }
+
+            // 2. Insert User Message
+            val userMsg = ChatMessage(userId = userId, text = question, isFromUser = true, sessionId = currentSessionId)
+            chatDao.insertMessage(userMsg)
+            _historyStatus.value = "AI is analyzing your history..."
+
+            // 3. Prepare Context
+            val spends = allSpendsFlow.value
+            val contextText = spends.joinToString("\n") { 
+                val date = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(it.timestamp)
+                "- $date: ${it.amount} on ${it.notes} (${it.purpose}) via ${it.appName}"
+            }
+
+            // 4. Call Gemini
+            try {
+                remoteConfig.fetchAndActivate().await()
+                val apiKey = remoteConfig.getString("gemini_api_key")
+                if (apiKey.isBlank()) {
+                    _historyStatus.value = "API Key missing."
+                    return@launch
+                }
+
+                val generativeModel = GenerativeModel(
+                    modelName = "gemini-3.5-flash",
+                    apiKey = apiKey
+                )
+
+                val systemPrompt = """
+                    You are a helpful Expense Tracker Assistant. Use the transaction history below to answer the user's question.
+                    
+                    FORMATTING RULES:
+                    - Use **bold** for amounts, dates, and categories.
+                    - Use bullet points (* or -) for lists and breakdowns.
+                    - IMPORTANT: If multiple transactions belong to the same person or category, GROUP them hierarchically.
+                      Example for multiple lendings:
+                      * **Person Name** (Total: **Amount**)
+                        - **Date**: **Amount** (**Note**)
+                    - Use 2 spaces for indentation in nested lists.
+                    - Keep responses concise, accurate, and professional. 
+                    
+                    HISTORY:
+                    $contextText
+                """.trimIndent()
+
+                val response = generativeModel.generateContent(
+                    content {
+                        text(systemPrompt)
+                        text("USER QUESTION: \"$question\"")
+                    }
+                )
+
+                val responseText = response.text
+                if (!responseText.isNullOrBlank()) {
+                    chatDao.insertMessage(ChatMessage(userId = userId, text = responseText, isFromUser = false, sessionId = currentSessionId))
+                    _historyStatus.value = null
+                } else {
+                    _historyStatus.value = "AI returned an empty response."
+                }
+            } catch (e: Exception) {
+                Log.e(TAG, "History AI Error: ${e.message}", e)
+                _historyStatus.value = "Error: ${e.message}"
             }
         }
     }
