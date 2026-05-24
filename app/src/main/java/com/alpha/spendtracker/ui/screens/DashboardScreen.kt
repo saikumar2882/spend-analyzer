@@ -241,7 +241,6 @@ fun DashboardScreen(
             TotalSpentHeroCard(
                 filterType = currentFilter,
                 totalAmount = analytics.totalAmount,
-                friendLending = analytics.friendLendingTotal,
                 transactionCount = analytics.transactionCount,
                 dateRange = analytics.dateRange,
                 onLentClick = onLentClick

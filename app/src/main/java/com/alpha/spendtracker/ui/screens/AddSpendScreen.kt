@@ -540,6 +540,5 @@ private fun suggestedPurposeFor(preset: AppPreset, current: String): String =
         "swiggy", "zepto", "blinkit" -> "Groceries & Food"
         "amazon", "flipkart", "myntra", "ajio" -> "Shopping & Apparels"
         "credit_card" -> "Credit Card Bill"
-        "friend_lending" -> "Friend Lending"
         else -> current
     }

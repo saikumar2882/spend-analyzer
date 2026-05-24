@@ -33,6 +33,7 @@ import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Handshake
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -53,6 +54,7 @@ import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.screens.AddSpendScreen
 import com.alpha.spendtracker.ui.screens.DashboardScreen
 import com.alpha.spendtracker.ui.screens.HistoryScreen
+import com.alpha.spendtracker.ui.screens.LendBorrowScreen
 import com.alpha.spendtracker.ui.screens.LoginScreen
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
@@ -66,7 +68,7 @@ import com.google.firebase.auth.FirebaseAuth
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class ActiveView { DASHBOARD, HISTORY, ADD_SPEND }
+enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND }
 
 class MainActivity : ComponentActivity() {
     private val spendViewModel: SpendViewModel by viewModels {
@@ -278,6 +280,12 @@ fun MainContainer(
                         label = { Text("Dashboard") }
                     )
                     NavigationBarItem(
+                        selected = activeView == ActiveView.LEND_BORROW,
+                        onClick = { activeView = ActiveView.LEND_BORROW },
+                        icon = { Icon(Icons.Rounded.Handshake, contentDescription = "Lend & Borrow") },
+                        label = { Text("Lend/Borrow") }
+                    )
+                    NavigationBarItem(
                         selected = activeView == ActiveView.HISTORY,
                         onClick = {
                             historySearchQuery = ""
@@ -291,7 +299,7 @@ fun MainContainer(
             }
         },
         floatingActionButton = {
-            if (activeView == ActiveView.DASHBOARD || activeView == ActiveView.HISTORY) {
+            if (activeView == ActiveView.DASHBOARD || activeView == ActiveView.HISTORY || activeView == ActiveView.LEND_BORROW) {
                 var showFabMenu by remember { mutableStateOf(false) }
                 Column(horizontalAlignment = Alignment.End) {
                     AnimatedVisibility(
@@ -348,7 +356,7 @@ fun MainContainer(
                     ActiveView.DASHBOARD -> DashboardScreen(
                         currentFilter = currentFilter,
                         analytics = analyticsState,
-                        recentSpends = allSpends.take(5),
+                        recentSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" }.take(5),
                         themePreference = themePreference,
                         onCycleTheme = onCycleTheme,
                         onFilterSelect = viewModel::setFilter,
@@ -365,18 +373,28 @@ fun MainContainer(
                             activeView = ActiveView.HISTORY
                         },
                         onLentClick = {
-                            historySearchQuery = ""
-                            historyCategoryFilter = "Friend Lending"
-                            activeView = ActiveView.HISTORY
+                            activeView = ActiveView.LEND_BORROW
                         },
                         onLogout = {
                             FirebaseAuth.getInstance().signOut()
                             showNotification("Logged out successfully", NotificationType.INFO)
                         },
-                        onAiAssistantClick = { showAiHistoryAssistant = true }
+                        onAiAssistantClick = { showAiHistoryAssistant = true },
+                    )
+                    ActiveView.LEND_BORROW -> LendBorrowScreen(
+                        allSpends = allSpends,
+                        onEditSpend = { spend ->
+                            editingSpend = spend
+                            activeView = ActiveView.ADD_SPEND
+                        },
+                        onDeleteSpend = { spend ->
+                            viewModel.deleteSpend(spend)
+                            showNotification("Record deleted", NotificationType.INFO)
+                        },
+                        onAiAssistantClick = { showAiHistoryAssistant = true },
                     )
                     ActiveView.HISTORY -> HistoryScreen(
-                        allSpends = allSpends,
+                        allSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" },
                         initialSearchQuery = historySearchQuery,
                         initialCategoryFilter = historyCategoryFilter,
                         onEditSpend = { spend ->
@@ -388,7 +406,7 @@ fun MainContainer(
                             showNotification("Spend deleted", NotificationType.INFO)
                         },
                         onBackClick = { activeView = ActiveView.DASHBOARD },
-                        onAiAssistantClick = { showAiHistoryAssistant = true }
+                        onAiAssistantClick = { showAiHistoryAssistant = true },
                     )
                     ActiveView.ADD_SPEND -> AddSpendScreen(
                         editingSpend = editingSpend,

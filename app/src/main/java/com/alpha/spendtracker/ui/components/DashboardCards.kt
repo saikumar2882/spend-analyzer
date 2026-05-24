@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
-import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -107,7 +106,6 @@ fun TimeFilterSelectorRow(
 fun TotalSpentHeroCard(
     filterType: TimeFilter,
     totalAmount: Double,
-    friendLending: Double,
     transactionCount: Int,
     dateRange: Pair<Long, Long>? = null,
     onLentClick: (() -> Unit)? = null
@@ -229,17 +227,6 @@ fun TotalSpentHeroCard(
                         background = Color.White.copy(alpha = 0.10f),
                         border = Color.White.copy(alpha = 0.15f)
                     )
-
-                    if (friendLending > 0.0) {
-                        GlassChip(
-                            icon = Icons.Rounded.Group,
-                            text = "Lent: ₹${formatCurrency(friendLending)}",
-                            tint = Color(0xFFC6F6D5),
-                            background = Color(0xFF10B981).copy(alpha = 0.18f),
-                            border = Color(0xFF10B981).copy(alpha = 0.3f),
-                            onClick = onLentClick
-                        )
-                    }
                 }
             }
         }

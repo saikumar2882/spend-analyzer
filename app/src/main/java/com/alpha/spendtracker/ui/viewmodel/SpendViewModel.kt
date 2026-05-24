@@ -316,7 +316,8 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
                     - "medicine", "doctor", "hospital" -> "Healthcare & Medical"
                     - "rent", "electricity", "wifi", "recharge" -> "Rent & Utilities"
                     - "credit card bill", "cc bill" -> "Credit Card Bill"
-                    - "lent to friend", "loan" -> "Friend Lending"
+                    - "lent to friend", "gave money" -> "Lending"
+                    - "borrowed from friend", "took loan" -> "Borrowing"
                     - Otherwise -> "Others"
 
                     EXAMPLE:
@@ -451,7 +452,9 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         selectedFilter,
         customDateRange
     ) { spends, filter, range ->
-        calculateAnalytics(filterSpendsByTime(spends, filter, range), filter, range)
+        val filtered = filterSpendsByTime(spends, filter, range)
+            .filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
+        calculateAnalytics(filtered, filter, range)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -560,18 +563,12 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         // Trend Breakdown for beautiful graph (bar/line charts based on day index or calendar buckets)
         val trendPoints = calculateTrendPoints(spends, filter)
 
-        // Count for friend lending specifically to display metrics/badge
-        val friendLendingTotal = spends.filter { 
-            it.purpose == "Friend Lending" || it.appName == "Friend Lending" 
-        }.sumOf { it.amount }
-
         return SpendingAnalytics(
             totalAmount = total,
             categoryBreakdown = categoryTotals,
             purposeBreakdown = purposeTotals,
             appBreakdown = appTotals,
             trendPoints = trendPoints,
-            friendLendingTotal = friendLendingTotal,
             transactionCount = spends.size,
             filterType = filter,
             dateRange = range
@@ -662,7 +659,6 @@ data class SpendingAnalytics(
     val purposeBreakdown: Map<String, Double> = emptyMap(),
     val appBreakdown: List<Pair<String, Double>> = emptyList(),
     val trendPoints: List<TrendPoint> = emptyList(),
-    val friendLendingTotal: Double = 0.0,
     val transactionCount: Int = 0,
     val filterType: TimeFilter = TimeFilter.MONTH,
     val dateRange: Pair<Long, Long>? = null
