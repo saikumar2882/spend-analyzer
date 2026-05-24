@@ -25,8 +25,7 @@ object AiParser {
         "ajio" to listOf("ajio"),
         "icici" to listOf("icici bank", "icici"),
         "yono_sbi" to listOf("yono sbi", "yono", "sbi yono"),
-        "credit_card" to listOf("credit card", "sbi credit", "cc bill", "credit-card"),
-        "friend_lending" to listOf("friend lending", "lent to", "borrowed from", "friend")
+        "credit_card" to listOf("credit card", "sbi credit", "cc bill", "credit-card")
     )
 
     private val PURPOSE_KEYWORDS: Map<String, List<String>> = mapOf(
@@ -76,9 +75,11 @@ object AiParser {
             "credit card bill", "cc bill", "card bill", "credit card payment",
             "credit card"
         ),
-        "Friend Lending" to listOf(
-            "lent", "lent to", "loan", "borrowed", "borrowed from", "owed",
-            "owe", "gave to", "paid friend"
+        "Lending" to listOf(
+            "lent", "lent to", "loan", "gave to", "paid friend", "loaned"
+        ),
+        "Borrowing" to listOf(
+            "borrowed", "borrowed from", "owed", "owe", "took from", "took loan"
         )
     )
 
@@ -157,7 +158,9 @@ object AiParser {
 
         val patterns = listOf(
             // Recipient: "lent/paid/gave/sent N (rs|k)? to <person>"
-            Regex("""\b(?:lent|paid|gave|sent|borrowed)\s+\d+(?:[.,]\d+)?\s*(?:rs\.?|₹|inr|rupees?|k)?\s+to\s+(.+?)(?=\s+$stopAfter\b|$)"""),
+            Regex("""\b(?:lent|paid|gave|sent)\s+\d+(?:[.,]\d+)?\s*(?:rs\.?|₹|inr|rupees?|k)?\s+to\s+(.+?)(?=\s+$stopAfter\b|$)"""),
+            // Source: "borrowed N (rs|k)? from <person>"
+            Regex("""\b(?:borrowed|took)\s+\d+(?:[.,]\d+)?\s*(?:rs\.?|₹|inr|rupees?|k)?\s+from\s+(.+?)(?=\s+$stopAfter\b|$)"""),
             // Subject: "on <thing>" where <thing> isn't a date
             Regex("""\bon\s+(?!$dateLookahead)(.+?)(?=\s+$stopAfter\b|$)"""),
             // Subject: "for <thing>" where <thing> isn't a date

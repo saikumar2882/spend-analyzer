@@ -17,6 +17,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.platform.LocalClipboardManager
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -190,7 +191,8 @@ fun ChatBubble(
     val isUser = message.isFromUser
     val arrangement = if (isUser) Arrangement.End else Arrangement.Start
     
-    val timeFormat = remember { java.text.SimpleDateFormat("HH:mm", java.util.Locale.getDefault()) }
+    val locale = LocalConfiguration.current.locales[0]
+    val timeFormat = remember(locale) { java.text.SimpleDateFormat("HH:mm", locale) }
     val timeString = remember(message.timestamp) { timeFormat.format(java.util.Date(message.timestamp)) }
 
     Row(

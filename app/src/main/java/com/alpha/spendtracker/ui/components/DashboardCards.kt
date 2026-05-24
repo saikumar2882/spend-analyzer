@@ -22,7 +22,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
-import androidx.compose.material.icons.rounded.Group
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -38,12 +37,12 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
-import java.util.Locale
 
 @Composable
 fun TimeFilterSelectorRow(
@@ -107,7 +106,6 @@ fun TimeFilterSelectorRow(
 fun TotalSpentHeroCard(
     filterType: TimeFilter,
     totalAmount: Double,
-    friendLending: Double,
     transactionCount: Int,
     dateRange: Pair<Long, Long>? = null,
     onLentClick: (() -> Unit)? = null
@@ -122,7 +120,8 @@ fun TotalSpentHeroCard(
     }
 
     val subtitleText = if (filterType == TimeFilter.CUSTOM && dateRange != null) {
-        val sdf = java.text.SimpleDateFormat("dd MMM", Locale.getDefault())
+        val locale = LocalConfiguration.current.locales[0]
+        val sdf = remember(locale) { java.text.SimpleDateFormat("dd MMM", locale) }
         "${sdf.format(dateRange.first)} - ${sdf.format(dateRange.second)}"
     } else {
         "$transactionCount logs"
@@ -229,17 +228,6 @@ fun TotalSpentHeroCard(
                         background = Color.White.copy(alpha = 0.10f),
                         border = Color.White.copy(alpha = 0.15f)
                     )
-
-                    if (friendLending > 0.0) {
-                        GlassChip(
-                            icon = Icons.Rounded.Group,
-                            text = "Lent: ₹${formatCurrency(friendLending)}",
-                            tint = Color(0xFFC6F6D5),
-                            background = Color(0xFF10B981).copy(alpha = 0.18f),
-                            border = Color(0xFF10B981).copy(alpha = 0.3f),
-                            onClick = onLentClick
-                        )
-                    }
                 }
             }
         }

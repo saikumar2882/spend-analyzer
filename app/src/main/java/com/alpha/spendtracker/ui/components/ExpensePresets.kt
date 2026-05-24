@@ -30,8 +30,6 @@ val APP_PRESETS = listOf(
     AppPreset("yono_sbi", "Yono SBI", "Banking & Cards", Color(0xFF1E1B4B)),
     AppPreset("credit_card", "SBI Credit Card", "Banking & Cards", Color(0xFF0D9488)),
     
-    AppPreset("friend_lending", "Friend Lending", "Friend Lending", Color(0xFF10B981)),
-    
     AppPreset("other", "Other Platform", "Other", Color(0xFF6B7280))
 )
 
@@ -40,14 +38,14 @@ val CATEGORY_PRESETS = listOf(
     "Quick Commerce",
     "E-Commerce",
     "Banking & Cards",
-    "Friend Lending",
     "Other"
 )
 
 val PURPOSE_PRESETS = listOf(
     "Groceries & Food",
     "Shopping & Apparels",
-    "Friend Lending",
+    "Lending",
+    "Borrowing",
     "Credit Card Bill",
     "Rent & Utilities",
     "Travel & Commute",

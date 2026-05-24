@@ -20,6 +20,7 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -245,6 +246,7 @@ fun SpendingTrendBarChart(
     }
 
     val textMeasurer = rememberTextMeasurer()
+    val locale = LocalConfiguration.current.locales[0]
     val barColor = MaterialTheme.colorScheme.primary
     val gridLineColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     val textStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp)
@@ -345,7 +347,7 @@ fun SpendingTrendBarChart(
                     // Numerical value drawing on top of bar
                     if (point.amount > 0) {
                         val valueText = if (point.amount >= 1000) {
-                            String.format(Locale.getDefault(), "%.1fk", point.amount / 1000)
+                            String.format(locale, "%.1fk", point.amount / 1000)
                         } else {
                             point.amount.toInt().toString()
                         }
