@@ -36,12 +36,16 @@ import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.util.findActivity
-import com.google.android.gms.auth.api.signin.GoogleSignIn
-import com.google.android.gms.auth.api.signin.GoogleSignInOptions
-import com.google.android.gms.common.api.ApiException
-import com.google.firebase.auth.ActionCodeSettings
+import androidx.credentials.CredentialManager
+import androidx.credentials.GetCredentialRequest
+import androidx.credentials.exceptions.GetCredentialException
+import com.google.android.libraries.identity.googleid.GetGoogleIdOption
+import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
+import kotlinx.coroutines.launch
+import java.security.SecureRandom
+import android.util.Base64
 
 @Composable
 fun LoginScreen(
@@ -67,6 +71,8 @@ fun LoginScreen(
     
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
+    val scope = rememberCoroutineScope()
+    val credentialManager = remember { CredentialManager.create(context) }
 
     fun isValidEmail(email: String): Boolean = Patterns.EMAIL_ADDRESS.matcher(email).matches()
     fun isValidPassword(password: String): Boolean {
@@ -228,31 +234,57 @@ fun LoginScreen(
         )
     }
 
-    val gso = remember {
-        GoogleSignInOptions.Builder(GoogleSignInOptions.DEFAULT_SIGN_IN)
-            .requestIdToken(context.getString(com.alpha.spendtracker.R.string.default_web_client_id))
-            .requestEmail()
-            .build()
+    fun generateNonce(): String {
+        val bytes = ByteArray(32)
+        SecureRandom().nextBytes(bytes)
+        return Base64.encodeToString(bytes, Base64.NO_WRAP or Base64.URL_SAFE or Base64.NO_PADDING)
     }
-    val googleSignInClient = remember { GoogleSignIn.getClient(context, gso) }
 
-    val launcher = rememberLauncherForActivityResult(ActivityResultContracts.StartActivityForResult()) { result ->
-        val task = GoogleSignIn.getSignedInAccountFromIntent(result.data)
-        try {
-            val account = task.getResult(ApiException::class.java)!!
-            val credential = GoogleAuthProvider.getCredential(account.idToken, null)
-            auth.signInWithCredential(credential).addOnCompleteListener { authTask ->
-                if (authTask.isSuccessful) {
-                    onShowNotification("Google Sign-In successful!", NotificationType.SUCCESS)
-                    onLoginSuccess()
+    val onGoogleSignIn: () -> Unit = {
+        scope.launch {
+            try {
+                val googleIdOption = GetGoogleIdOption.Builder()
+                    .setFilterByAuthorizedAccounts(false)
+                    .setServerClientId(context.getString(R.string.default_web_client_id))
+                    .setNonce(generateNonce())
+                    .build()
+
+                val request = GetCredentialRequest.Builder()
+                    .addCredentialOption(googleIdOption)
+                    .build()
+
+                val result = credentialManager.getCredential(
+                    request = request,
+                    context = context
+                )
+
+                val credential = result.credential
+                if (credential is androidx.credentials.CustomCredential &&
+                    credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
+                ) {
+                    val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
+                    val idToken = googleIdTokenCredential.idToken
+                    val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
+                    
+                    auth.signInWithCredential(firebaseCredential).addOnCompleteListener { authTask ->
+                        if (authTask.isSuccessful) {
+                            onShowNotification("Google Sign-In successful!", NotificationType.SUCCESS)
+                            onLoginSuccess()
+                        } else {
+                            onShowNotification("Google sign-in failed: ${authTask.exception?.message}", NotificationType.ERROR)
+                            errorMessage = authTask.exception?.message
+                        }
+                    }
                 } else {
-                    onShowNotification("Google sign-in failed.", NotificationType.ERROR)
-                    errorMessage = "Google sign-in failed."
+                    onShowNotification("Unexpected credential type", NotificationType.ERROR)
                 }
+            } catch (e: GetCredentialException) {
+                onShowNotification("Google sign-in error: ${e.message}", NotificationType.ERROR)
+                errorMessage = "Google sign-in error: ${e.message}"
+            } catch (e: Exception) {
+                onShowNotification("An error occurred: ${e.message}", NotificationType.ERROR)
+                errorMessage = e.message
             }
-        } catch (e: ApiException) {
-            onShowNotification("Google sign-in error: ${e.message}", NotificationType.ERROR)
-            errorMessage = "Google sign-in error: ${e.message}"
         }
     }
 
@@ -526,7 +558,7 @@ fun LoginScreen(
                     Spacer(modifier = Modifier.height(20.dp))
 
                     OutlinedButton(
-                        onClick = { launcher.launch(googleSignInClient.signInIntent) },
+                        onClick = onGoogleSignIn,
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(52.dp),

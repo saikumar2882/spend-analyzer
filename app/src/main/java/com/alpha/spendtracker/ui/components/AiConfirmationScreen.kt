@@ -389,7 +389,7 @@ private fun AppPresetDropdown(
                 )
             },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
         )
         ExposedDropdownMenu(
@@ -445,7 +445,7 @@ private fun PurposeDropdown(
             label = { Text("Purpose") },
             leadingIcon = { Icon(Icons.Rounded.Category, contentDescription = null) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
         )
         ExposedDropdownMenu(
