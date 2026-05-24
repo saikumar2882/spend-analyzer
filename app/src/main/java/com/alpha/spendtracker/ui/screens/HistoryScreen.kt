@@ -200,7 +200,7 @@ fun HistoryScreen(
                             )
                         }
                     }
-                    items(spends, key = { it.id }) { spend ->
+                    items(spends, key = { it.uuid }) { spend ->
                         HistorySpendCard(
                             spend = spend,
                             onEdit = { onEditSpend(spend) },

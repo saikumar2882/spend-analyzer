@@ -42,8 +42,11 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.EmptyStateCard
+import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.alpha.spendtracker.ui.components.RecentSpendRow
 import com.alpha.spendtracker.ui.components.SpendingDonutChart
@@ -65,6 +68,7 @@ fun DashboardScreen(
     onCycleTheme: () -> Unit,
     onFilterSelect: (TimeFilter) -> Unit,
     onCustomRangeSelect: (Long, Long) -> Unit,
+    onShowNotification: (String, NotificationType) -> Unit,
     onShowAllClick: () -> Unit,
     onAppClick: (String) -> Unit,
     onLentClick: () -> Unit,
@@ -96,9 +100,9 @@ fun DashboardScreen(
                         auth.sendPasswordResetEmail(email)
                             .addOnCompleteListener { task ->
                                 if (task.isSuccessful) {
-                                    Toast.makeText(context, "Reset email sent to $email", Toast.LENGTH_SHORT).show()
+                                    onShowNotification("Reset email sent to $email", NotificationType.SUCCESS)
                                 } else {
-                                    Toast.makeText(context, "Error: ${task.exception?.message}", Toast.LENGTH_SHORT).show()
+                                    onShowNotification("Error: ${task.exception?.message}", NotificationType.ERROR)
                                 }
                             }
                     }
@@ -141,7 +145,7 @@ fun DashboardScreen(
                 Button(
                     onClick = {
                         if (newPassword.length < 6) {
-                            Toast.makeText(context, "Password should be at least 6 characters", Toast.LENGTH_SHORT).show()
+                            onShowNotification("Password should be at least 6 characters", NotificationType.ERROR)
                             return@Button
                         }
                         isUpdating = true
@@ -149,10 +153,10 @@ fun DashboardScreen(
                             ?.addOnCompleteListener { task ->
                                 isUpdating = false
                                 if (task.isSuccessful) {
-                                    Toast.makeText(context, "Password updated successfully!", Toast.LENGTH_SHORT).show()
+                                    onShowNotification("Password updated successfully!", NotificationType.SUCCESS)
                                     showPasswordUpdateDialog = false
                                 } else {
-                                    Toast.makeText(context, "Error: ${task.exception?.message}", Toast.LENGTH_LONG).show()
+                                    onShowNotification("Error: ${task.exception?.message}", NotificationType.ERROR)
                                 }
                             }
                     },
@@ -296,7 +300,7 @@ fun DashboardScreen(
                 }
             }
 
-            items(recentSpends, key = { it.id }) { spend ->
+            items(recentSpends, key = { it.uuid }) { spend ->
                 RecentSpendRow(
                     spend = spend,
                     onClick = { onAppClick(spend.appName) }
@@ -342,7 +346,7 @@ private fun DashboardHeader(
             }
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "SpendWise",
+                text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
                     letterSpacing = (-0.5).sp

@@ -2,6 +2,7 @@ package com.alpha.spendtracker.ui.components
 
 import android.app.DatePickerDialog
 import android.widget.Toast
+import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
@@ -27,6 +28,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.KeyboardOptions
 import com.alpha.spendtracker.data.AiTransactionResponse
+import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.util.findActivity
 import java.text.SimpleDateFormat
@@ -38,7 +40,8 @@ import java.util.Locale
 fun AiConfirmationScreen(
     extractedData: AiTransactionResponse,
     onConfirm: (NewSpend) -> Unit,
-    onCancel: () -> Unit
+    onCancel: () -> Unit,
+    onShowNotification: (String, NotificationType) -> Unit
 ) {
     val initialPreset = remember(extractedData) {
         APP_PRESETS.firstOrNull { it.id == extractedData.appPresetId }
@@ -68,6 +71,10 @@ fun AiConfirmationScreen(
     val context = LocalContext.current
     val dateFormatter = remember { SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()) }
     val isAiExtractedDate = extractedData.timestamp != null
+
+    BackHandler(enabled = true) {
+        onCancel()
+    }
 
     Column(
         modifier = Modifier
@@ -161,7 +168,7 @@ fun AiConfirmationScreen(
             isAiExtracted = isAiExtractedDate,
             dateFormatter = dateFormatter,
             onPick = { picked -> selectedTimestamp = picked },
-            onPickError = { Toast.makeText(context, it, Toast.LENGTH_SHORT).show() }
+            onPickError = { onShowNotification(it, NotificationType.ERROR) }
         )
 
         Row(

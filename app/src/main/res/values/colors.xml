@@ -7,4 +7,10 @@
     <color name="teal_700">#FF018786</color>
     <color name="black">#FF000000</color>
     <color name="white">#FFFFFFFF</color>
+
+    <!-- Modern Finance Palette -->
+    <color name="finance_green">#00C853</color>
+    <color name="finance_navy">#1A237E</color>
+    <color name="finance_dark">#121212</color>
+    <color name="launcher_background">#FFFFFF</color>
 </resources>
