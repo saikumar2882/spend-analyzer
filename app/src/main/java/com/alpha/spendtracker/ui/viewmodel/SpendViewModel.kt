@@ -14,7 +14,8 @@ import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.RequestOptions
 import com.google.ai.client.generativeai.type.content
 import com.google.firebase.auth.FirebaseAuth
-import com.alpha.spendtracker.BuildConfig
+import com.google.firebase.remoteconfig.FirebaseRemoteConfig
+import com.google.firebase.remoteconfig.remoteConfigSettings
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -24,6 +25,7 @@ import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 import java.util.Calendar
 import java.util.Locale
@@ -75,9 +77,18 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = AiPreferences()
     )
 
-    private val generativeModel by lazy {
-        val apiKey = try { BuildConfig.GEMINI_API_KEY } catch (_: Exception) { "" }
-        GenerativeModel(
+    private val remoteConfig by lazy {
+        FirebaseRemoteConfig.getInstance().apply {
+            val configSettings = remoteConfigSettings {
+                minimumFetchIntervalInSeconds = 3600
+            }
+            setConfigSettingsAsync(configSettings)
+            setDefaultsAsync(mapOf("gemini_api_key" to ""))
+        }
+    }
+
+    private fun getGenerativeModel(apiKey: String): GenerativeModel {
+        return GenerativeModel(
             modelName = "gemini-3.5-flash",
             apiKey = apiKey,
             requestOptions = RequestOptions(apiVersion = "v1")
@@ -126,16 +137,21 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
                 needsAmount = localAmount == null
             )
 
-            // 4. Try Gemini for richer extraction. If anything fails, fall back
-            // to the local result (still useful).
-            val apiKey = try { BuildConfig.GEMINI_API_KEY } catch (_: Exception) { "" }
-            if (apiKey.isBlank()) {
-                aiPrefsRepository.incrementUsage()
-                _aiResult.value = Result.success(baseline)
-                return@launch
-            }
-
+            // 4. Try Gemini for richer extraction.
             try {
+                // Fetch key from Remote Config instead of BuildConfig
+                remoteConfig.fetchAndActivate().await()
+                val apiKey = remoteConfig.getString("gemini_api_key")
+
+                if (apiKey.isBlank()) {
+                    Log.w(TAG, "Gemini API Key is missing in Remote Config")
+                    aiPrefsRepository.incrementUsage()
+                    _aiResult.value = Result.success(baseline)
+                    return@launch
+                }
+
+                val generativeModel = getGenerativeModel(apiKey)
+                
                 val appList = com.alpha.spendtracker.ui.components.APP_PRESETS
                     .joinToString(", ") { it.displayName }
                 val purposeList = com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
@@ -197,7 +213,6 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
                 _aiResult.value = Result.success(merged)
             } catch (e: Exception) {
                 Log.e(TAG, "AI Error, falling back to local parser: ${e.message}", e)
-                // Don't block the user — they typed something meaningful, we have a baseline.
                 aiPrefsRepository.incrementUsage()
                 _aiResult.value = Result.success(baseline)
             }
