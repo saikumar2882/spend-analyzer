@@ -11,11 +11,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.Event
-import androidx.compose.material.icons.rounded.Notes
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -157,7 +157,7 @@ fun AiConfirmationScreen(
             value = notes,
             onValueChange = { notes = it },
             label = { Text("Description") },
-            leadingIcon = { Icon(Icons.Rounded.Notes, contentDescription = null) },
+            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Notes, contentDescription = null) },
             placeholder = { Text("e.g., Biryani") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
@@ -389,7 +389,7 @@ private fun AppPresetDropdown(
                 )
             },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
         )
         ExposedDropdownMenu(
@@ -445,7 +445,7 @@ private fun PurposeDropdown(
             label = { Text("Purpose") },
             leadingIcon = { Icon(Icons.Rounded.Category, contentDescription = null) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
-            modifier = Modifier.menuAnchor().fillMaxWidth(),
+            modifier = Modifier.menuAnchor(MenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
         )
         ExposedDropdownMenu(

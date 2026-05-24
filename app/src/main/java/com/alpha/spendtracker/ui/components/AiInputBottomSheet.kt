@@ -3,7 +3,7 @@ package com.alpha.spendtracker.ui.components
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.layout.*
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Send
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -77,7 +77,7 @@ fun AiInputBottomSheet(
                             },
                             enabled = textInput.isNotBlank()
                         ) {
-                            Icon(Icons.Rounded.Send, contentDescription = "Send")
+                            Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = "Send")
                         }
                     }
                 },
