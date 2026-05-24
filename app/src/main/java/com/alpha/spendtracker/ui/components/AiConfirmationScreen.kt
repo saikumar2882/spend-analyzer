@@ -22,6 +22,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
@@ -69,7 +70,8 @@ fun AiConfirmationScreen(
     }
 
     val context = LocalContext.current
-    val dateFormatter = remember { SimpleDateFormat("EEE, d MMM yyyy", Locale.getDefault()) }
+    val locale = LocalConfiguration.current.locales[0]
+    val dateFormatter = remember(locale) { SimpleDateFormat("EEE, d MMM yyyy", locale) }
     val isAiExtractedDate = extractedData.timestamp != null
 
     BackHandler(enabled = true) {

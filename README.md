@@ -5,7 +5,8 @@ Spendly is a modern, privacy-focused Android application designed to help users 
 ## 🚀 Key Features
 
 - **Intuitive Dashboard**: Overview of your spending with beautiful donut and bar charts.
-- **AI Tracking**: Record expenses naturally using smart parsing of natural language inputs.
+- **Lend & Borrow**: Dedicated tracking for money lent to or borrowed from others, separated from regular expenses with monthly summaries.
+- **AI Tracking**: Record expenses, lendings, and borrowings naturally using smart parsing of natural language inputs.
 - **Categorized Tracking**: Organize expenses into categories like UPI Apps, Quick Commerce, Groceries, Rent, and more.
 - **Detailed History**: Search and filter through your entire spending history.
 - **Cloud Sync**: Automatically backup and sync your data with Firebase Firestore.

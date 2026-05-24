@@ -37,6 +37,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -120,7 +121,8 @@ fun TotalSpentHeroCard(
     }
 
     val subtitleText = if (filterType == TimeFilter.CUSTOM && dateRange != null) {
-        val sdf = java.text.SimpleDateFormat("dd MMM", Locale.getDefault())
+        val locale = LocalConfiguration.current.locales[0]
+        val sdf = remember(locale) { java.text.SimpleDateFormat("dd MMM", locale) }
         "${sdf.format(dateRange.first)} - ${sdf.format(dateRange.second)}"
     } else {
         "$transactionCount logs"
