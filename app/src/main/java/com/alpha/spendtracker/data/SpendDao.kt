@@ -17,6 +17,6 @@ interface SpendDao {
     @Delete
     suspend fun deleteSpend(spend: Spend)
 
-    @Query("DELETE FROM spends WHERE id = :id")
-    suspend fun deleteSpendById(id: Int)
+    @Query("DELETE FROM spends WHERE uuid = :uuid")
+    suspend fun deleteSpendByUuid(uuid: String)
 }

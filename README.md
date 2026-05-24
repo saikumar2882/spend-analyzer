@@ -1,20 +1,22 @@
-# SpendWise - Smart Spend Tracker
+# Spendly - Smart Spend Tracker
 
-SpendWise is a modern, privacy-focused Android application designed to help users track their daily expenses with ease. It features a robust architecture combining local storage for offline speed and cloud synchronization for data safety across devices.
+Spendly is a modern, privacy-focused Android application designed to help users track their daily expenses with ease. It features a robust architecture combining local storage for offline speed and cloud synchronization for data safety across devices.
 
 ## 🚀 Key Features
 
 - **Intuitive Dashboard**: Overview of your spending with beautiful donut and bar charts.
-- **AI Voice & Text Tracking**: Record expenses naturally using voice or text. Smart parsing of natural language inputs.
+- **AI Tracking**: Record expenses naturally using smart parsing of natural language inputs.
 - **Categorized Tracking**: Organize expenses into categories like UPI Apps, Quick Commerce, Groceries, Rent, and more.
 - **Detailed History**: Search and filter through your entire spending history.
 - **Cloud Sync**: Automatically backup and sync your data with Firebase Firestore.
 - **Offline First**: Works perfectly without internet, using Room database as the local source of truth.
 - **Theming**: Supports Light, Dark, and System theme preferences.
+- **Clean UI**: Minimalist design focused on readability and ease of use.
+- **Safety First**: Discard confirmation dialogs ensure you don't accidentally lose your tracking progress.
 
 ## 🔐 Authentication
 
-SpendWise offers multiple secure ways to sign in, all handled via **Firebase Authentication**:
+Spendly offers multiple secure ways to sign in, all handled via **Firebase Authentication**:
 
 - **Google Sign-In**: Quick, one-tap access using your Google account.
 - **Email/Password**: Traditional registration and login with strict security requirements:
@@ -27,7 +29,7 @@ SpendWise offers multiple secure ways to sign in, all handled via **Firebase Aut
 - **UI**: Jetpack Compose (Modern Declarative UI)
 - **Local Database**: Room (with multi-user support)
 - **Backend/Cloud**: Firebase (Auth & Firestore)
-- **AI Integration**: Speech recognition & Gemini AI parsing
+- **AI Integration**: Gemini AI parsing for smart tracking
 - **Architecture**: MVVM (Model-View-ViewModel)
 - **Asynchronous**: Kotlin Coroutines & Flow
 

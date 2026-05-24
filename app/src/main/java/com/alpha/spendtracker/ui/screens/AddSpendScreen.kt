@@ -4,7 +4,6 @@
 package com.alpha.spendtracker.ui.screens
 
 import android.app.DatePickerDialog
-import android.widget.Toast
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -66,6 +65,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.alpha.spendtracker.ui.components.APP_PRESETS
 import com.alpha.spendtracker.ui.components.AppPreset
+import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 import com.alpha.spendtracker.ui.components.PresetGridCard
 import com.alpha.spendtracker.util.findActivity
@@ -89,6 +89,7 @@ data class NewSpend(
 fun AddSpendScreen(
     editingSpend: com.alpha.spendtracker.data.Spend? = null,
     onDismiss: () -> Unit,
+    onShowNotification: (String, NotificationType) -> Unit,
     onSave: (NewSpend) -> Unit
 ) {
     var amountInput by rememberSaveable { mutableStateOf(editingSpend?.amount?.toString() ?: "") }
@@ -201,7 +202,8 @@ fun AddSpendScreen(
             item {
                 DateSelectorRow(
                     timestamp = transactionTimestamp,
-                    onTimestampChange = { transactionTimestamp = it }
+                    onTimestampChange = { transactionTimestamp = it },
+                    onShowNotification = onShowNotification
                 )
             }
 
@@ -376,7 +378,8 @@ private fun AmountInputCard(
 @Composable
 private fun DateSelectorRow(
     timestamp: Long,
-    onTimestampChange: (Long) -> Unit
+    onTimestampChange: (Long) -> Unit,
+    onShowNotification: (String, NotificationType) -> Unit
 ) {
     val context = LocalContext.current
     val now = System.currentTimeMillis()
@@ -410,7 +413,7 @@ private fun DateSelectorRow(
                 )
                 .clickable {
                     val activity = context.findActivity() ?: run {
-                        Toast.makeText(context, "Could not open the date picker", Toast.LENGTH_SHORT).show()
+                        onShowNotification("Could not open the date picker", NotificationType.ERROR)
                         return@clickable
                     }
                     val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }

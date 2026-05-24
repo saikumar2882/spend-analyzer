@@ -32,6 +32,9 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
+import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.util.findActivity
 import com.google.android.gms.auth.api.signin.GoogleSignIn
 import com.google.android.gms.auth.api.signin.GoogleSignInOptions
@@ -43,6 +46,7 @@ import com.google.firebase.auth.GoogleAuthProvider
 @Composable
 fun LoginScreen(
     onLoginSuccess: () -> Unit,
+    onShowNotification: (String, NotificationType) -> Unit,
     onRegisteringStart: () -> Unit = {},
     onRegisteringFinished: () -> Unit = {}
 ) {
@@ -238,10 +242,16 @@ fun LoginScreen(
             val account = task.getResult(ApiException::class.java)!!
             val credential = GoogleAuthProvider.getCredential(account.idToken, null)
             auth.signInWithCredential(credential).addOnCompleteListener { authTask ->
-                if (authTask.isSuccessful) onLoginSuccess()
-                else errorMessage = "Google sign-in failed."
+                if (authTask.isSuccessful) {
+                    onShowNotification("Google Sign-In successful!", NotificationType.SUCCESS)
+                    onLoginSuccess()
+                } else {
+                    onShowNotification("Google sign-in failed.", NotificationType.ERROR)
+                    errorMessage = "Google sign-in failed."
+                }
             }
         } catch (e: ApiException) {
+            onShowNotification("Google sign-in error: ${e.message}", NotificationType.ERROR)
             errorMessage = "Google sign-in error: ${e.message}"
         }
     }
@@ -250,7 +260,7 @@ fun LoginScreen(
         if (!isValidEmail(email) || !isValidPassword(password)) {
             emailTouched = true
             passwordTouched = true
-            Toast.makeText(context, "Enter a valid email and a password of at least 6 characters", Toast.LENGTH_SHORT).show()
+            onShowNotification("Enter a valid email and a password of at least 6 characters", NotificationType.ERROR)
         } else {
             onRegisteringStart()
             isLoading = true
@@ -259,6 +269,7 @@ fun LoginScreen(
                     if (!createTask.isSuccessful) {
                         isLoading = false
                         onRegisteringFinished()
+                        onShowNotification("Error: ${createTask.exception?.message}", NotificationType.ERROR)
                         errorMessage = createTask.exception?.message
                         return@addOnCompleteListener
                     }
@@ -269,8 +280,10 @@ fun LoginScreen(
                             if (sendTask.isSuccessful) {
                                 verificationError = null
                                 showVerificationModal = true
+                                onShowNotification("Verification email sent!", NotificationType.SUCCESS)
                             } else {
                                 onRegisteringFinished()
+                                onShowNotification("Error: ${sendTask.exception?.message}", NotificationType.ERROR)
                                 errorMessage = "Account created, but the verification email could not be sent: " +
                                     "${sendTask.exception?.message}. Try signing in and tap \"Resend\"."
                             }
@@ -314,7 +327,7 @@ fun LoginScreen(
         Spacer(modifier = Modifier.height(20.dp))
 
         Text(
-            text = "SpendWise",
+            text = stringResource(R.string.app_name),
             style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.ExtraBold),
             color = MaterialTheme.colorScheme.primary
         )
@@ -413,6 +426,7 @@ fun LoginScreen(
                         onClick = {
                             if (!isValidEmail(email)) {
                                 emailTouched = true
+                                onShowNotification("Enter a valid email address to receive a reset link.", NotificationType.ERROR)
                                 errorMessage = "Enter a valid email address to receive a reset link."
                                 return@TextButton
                             }
@@ -421,8 +435,10 @@ fun LoginScreen(
                                 .addOnCompleteListener { task ->
                                     isSendingReset = false
                                     if (task.isSuccessful) {
+                                        onShowNotification("A password reset link has been sent to $email.", NotificationType.SUCCESS)
                                         infoMessage = "A password reset link has been sent to $email. Please check your inbox (and spam folder)."
                                     } else {
+                                        onShowNotification(task.exception?.message ?: "Could not send reset email.", NotificationType.ERROR)
                                         errorMessage = task.exception?.message
                                             ?: "Could not send reset email. Please try again."
                                     }
@@ -451,6 +467,7 @@ fun LoginScreen(
                                 .addOnCompleteListener { signInTask ->
                                     if (!signInTask.isSuccessful) {
                                         isLoading = false
+                                        onShowNotification(signInTask.exception?.message ?: "Login failed.", NotificationType.ERROR)
                                         errorMessage = signInTask.exception?.message ?: "Login failed. Please check your credentials or internet connection."
                                         return@addOnCompleteListener
                                     }
@@ -458,17 +475,21 @@ fun LoginScreen(
                                         isLoading = false
                                         if (reloadTask.isSuccessful) {
                                             if (auth.currentUser?.isEmailVerified == true) {
+                                                onShowNotification("Login successful!", NotificationType.SUCCESS)
                                                 onLoginSuccess()
                                             } else {
                                                 auth.signOut()
                                                 verificationError = null
                                                 showVerificationModal = true
+                                                onShowNotification("Please verify your email.", NotificationType.INFO)
                                             }
                                         } else {
                                             // Even if reload fails (e.g. network), try to check current state
                                             if (auth.currentUser?.isEmailVerified == true) {
+                                                onShowNotification("Login successful!", NotificationType.SUCCESS)
                                                 onLoginSuccess()
                                             } else {
+                                                onShowNotification("Sign-in successful, but couldn't verify email status.", NotificationType.ERROR)
                                                 errorMessage = "Sign-in successful, but couldn't verify email status: ${reloadTask.exception?.message}"
                                                 auth.signOut()
                                             }

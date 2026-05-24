@@ -16,6 +16,7 @@ import com.google.ai.client.generativeai.type.content
 import com.google.firebase.auth.FirebaseAuth
 import com.alpha.spendtracker.BuildConfig
 import kotlinx.coroutines.ExperimentalCoroutinesApi
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -41,18 +42,32 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     private val auth = FirebaseAuth.getInstance()
     private val TAG = "SpendViewModel"
 
+    private val _userId = MutableStateFlow(auth.currentUser?.uid ?: "anonymous")
+    private var aiJob: Job? = null
+
     init {
         val database = AppDatabase.getDatabase(application)
         repository = SpendRepository(database.spendDao())
         aiPrefsRepository = AiPreferencesRepository(application)
         
-        // Listen to auth changes
+        // Start sync if user is already logged in
+        auth.currentUser?.let { user ->
+            _userId.value = user.uid
+            repository.startSync(user.uid, viewModelScope)
+        }
+
+        // Listen to auth changes to start/stop sync
         auth.addAuthStateListener { firebaseAuth ->
-            _userId.value = firebaseAuth.currentUser?.uid ?: "anonymous"
+            val uid = firebaseAuth.currentUser?.uid
+            if (uid != null) {
+                _userId.value = uid
+                repository.startSync(uid, viewModelScope)
+            } else {
+                _userId.value = "anonymous"
+                repository.stopSync()
+            }
         }
     }
-
-    private val _userId = MutableStateFlow(auth.currentUser?.uid ?: "anonymous")
 
     val aiPreferences = aiPrefsRepository.aiPreferencesFlow.stateIn(
         scope = viewModelScope,
@@ -73,12 +88,13 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     val aiResult: StateFlow<Result<AiTransactionResponse>?> = _aiResult
 
     fun processAiInput(text: String) {
-        viewModelScope.launch {
+        aiJob?.cancel()
+        aiJob = viewModelScope.launch {
             val prefs = aiPreferences.value
 
             // 1. Check Rate Limit
-            if (prefs.dailyUsageCount >= 10) {
-                _aiResult.value = Result.failure(Exception("Daily limit reached (10/day). Please try again tomorrow."))
+            if (prefs.dailyUsageCount >= 15) {
+                _aiResult.value = Result.failure(Exception("Daily limit reached (15/day). Please try again tomorrow."))
                 return@launch
             }
 
@@ -256,6 +272,12 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         _aiResult.value = null
     }
 
+    fun cancelAiInput() {
+        aiJob?.cancel()
+        aiJob = null
+        _aiResult.value = null
+    }
+
     fun updateAiSettings(currency: String, app: String, purpose: String) {
         viewModelScope.launch {
             aiPrefsRepository.updateSettings(currency, app, purpose)
@@ -321,9 +343,9 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         }
     }
 
-    fun deleteSpendById(id: Int) {
+    fun deleteSpendByUuid(uuid: String) {
         viewModelScope.launch {
-            repository.deleteById(id, _userId.value)
+            repository.deleteByUuid(uuid, _userId.value)
         }
     }
 
