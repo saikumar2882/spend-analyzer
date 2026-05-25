@@ -9,13 +9,19 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Person
+import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.rounded.Timer
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.text.AnnotatedString
@@ -23,12 +29,14 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.ChatMessage
+import com.alpha.spendtracker.ui.viewmodel.AiErrorType
+import com.alpha.spendtracker.ui.viewmodel.AiHistoryStatus
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
 fun AiHistoryAssistantSheet(
     messages: List<ChatMessage>,
-    status: String?,
+    status: AiHistoryStatus,
     onSendMessage: (String) -> Unit,
     onDismiss: () -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState()
@@ -37,9 +45,12 @@ fun AiHistoryAssistantSheet(
     val listState = rememberLazyListState()
     val clipboardManager = LocalClipboardManager.current
     
-    // Calculate remaining messages in session (Limit is 7)
-    val userMessagesCount = messages.count { it.isFromUser }
-    val remainingMessages = (7 - userMessagesCount).coerceAtLeast(0)
+    // Calculate remaining messages in current session (Limit is 7)
+    val lastMessage = messages.lastOrNull()
+    val userMessagesInCurrentSession = if (lastMessage != null) {
+        messages.count { it.sessionId == lastMessage.sessionId && it.isFromUser }
+    } else 0
+    val remainingMessages = (7 - userMessagesInCurrentSession).coerceAtLeast(0)
 
     val examples = remember {
         listOf(
@@ -116,15 +127,9 @@ fun AiHistoryAssistantSheet(
                                 }
                             )
                         }
-                        if (status != null) {
-                            item {
-                                Text(
-                                    text = status,
-                                    style = MaterialTheme.typography.labelSmall,
-                                    color = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.padding(8.dp)
-                                )
-                            }
+                        
+                        item {
+                            AiStatusIndicator(status)
                         }
                     }
                 }
@@ -179,6 +184,104 @@ fun AiHistoryAssistantSheet(
             }
             
             Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun AiStatusIndicator(status: AiHistoryStatus) {
+    when (status) {
+        is AiHistoryStatus.Idle -> {}
+        is AiHistoryStatus.Analyzing -> {
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
+                CircularProgressIndicator(
+                    modifier = Modifier.size(16.dp),
+                    strokeWidth = 2.dp,
+                    color = MaterialTheme.colorScheme.primary
+                )
+                Text(
+                    text = "AI is analyzing your history...",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+        is AiHistoryStatus.Error -> {
+            val icon: ImageVector
+            val title: String
+            val color: Color
+
+            when (status.type) {
+                AiErrorType.SERVER_RATE_LIMIT -> {
+                    icon = Icons.Rounded.Timer
+                    title = "Server Busy (Quota Exceeded)"
+                    color = MaterialTheme.colorScheme.error
+                }
+                AiErrorType.CLIENT_RATE_LIMIT -> {
+                    icon = Icons.Rounded.Block
+                    title = "Daily Limit Reached"
+                    color = MaterialTheme.colorScheme.error
+                }
+                AiErrorType.API_KEY_MISSING -> {
+                    icon = Icons.Rounded.Settings
+                    title = "Configuration Error"
+                    color = MaterialTheme.colorScheme.secondary
+                }
+                else -> {
+                    icon = Icons.Rounded.ErrorOutline
+                    title = "Unexpected Error"
+                    color = MaterialTheme.colorScheme.error
+                }
+            }
+
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(8.dp),
+                color = color.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, color.copy(alpha = 0.2f))
+            ) {
+                Column(modifier = Modifier.padding(12.dp)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Icon(
+                            imageVector = icon,
+                            contentDescription = null,
+                            tint = color,
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = color
+                        )
+                    }
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = status.message,
+                        style = MaterialTheme.typography.bodySmall,
+                        color = color.copy(alpha = 0.8f)
+                    )
+                    
+                    if (status.type == AiErrorType.SERVER_RATE_LIMIT) {
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text(
+                            text = "Please wait a moment before trying again. Google limits free-tier requests per minute.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = color.copy(alpha = 0.7f)
+                        )
+                    }
+                }
+            }
         }
     }
 }

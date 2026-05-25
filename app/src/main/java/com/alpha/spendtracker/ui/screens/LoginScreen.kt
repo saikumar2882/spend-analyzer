@@ -70,6 +70,7 @@ fun LoginScreen(
     var passwordTouched by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
+    val googleServerClientId = stringResource(R.string.default_web_client_id)
     val auth = FirebaseAuth.getInstance()
     val scope = rememberCoroutineScope()
     val credentialManager = remember { CredentialManager.create(context) }
@@ -245,7 +246,7 @@ fun LoginScreen(
             try {
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
-                    .setServerClientId(context.getString(R.string.default_web_client_id))
+                    .setServerClientId(googleServerClientId)
                     .setNonce(generateNonce())
                     .build()
 

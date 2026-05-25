@@ -20,6 +20,9 @@ interface ChatDao {
     @Query("SELECT COUNT(*) FROM chat_messages WHERE userId = :userId AND sessionId = :sessionId AND isFromUser = 1")
     suspend fun getMessageCountInSession(userId: String, sessionId: String): Int
 
+    @Query("SELECT COUNT(*) > 0 FROM chat_messages WHERE userId = :userId AND sessionId = :sessionId AND timestamp > :since")
+    suspend fun isSessionActiveSince(userId: String, sessionId: String, since: Long): Boolean
+
     @Query("SELECT sessionId FROM chat_messages WHERE userId = :userId ORDER BY timestamp DESC LIMIT 1")
     suspend fun getLastSessionId(userId: String): String?
 }
