@@ -125,19 +125,20 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
             val sessionCount = chatDao.getSessionCountSince(userId, todayStart)
             val msgCountInSession = chatDao.getMessageCountInSession(userId, currentSessionId)
 
+            // 1a. If the current session is full, try to start a new one
             if (msgCountInSession >= 7) {
-                // Check if we can start a new session
                 if (sessionCount >= 2) {
                     _historyStatus.value = "Daily limit reached (2 sessions, 7 msgs each)."
                     return@launch
                 } else {
-                    // Start new session
                     currentSessionId = java.util.UUID.randomUUID().toString()
                 }
-            } else if (sessionCount == 0) {
-                // First message of the day
-                if (currentSessionId.isEmpty()) {
-                    currentSessionId = java.util.UUID.randomUUID().toString()
+            } else {
+                // 1b. If we are starting a fresh session today, check if we already hit the session limit
+                val isCurrentSessionActiveToday = chatDao.isSessionActiveSince(userId, currentSessionId, todayStart)
+                if (!isCurrentSessionActiveToday && sessionCount >= 2) {
+                    _historyStatus.value = "Daily limit reached (2 sessions per day)."
+                    return@launch
                 }
             }
 

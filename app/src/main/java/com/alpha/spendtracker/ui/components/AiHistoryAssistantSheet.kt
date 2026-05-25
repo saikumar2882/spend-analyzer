@@ -37,9 +37,12 @@ fun AiHistoryAssistantSheet(
     val listState = rememberLazyListState()
     val clipboardManager = LocalClipboardManager.current
     
-    // Calculate remaining messages in session (Limit is 7)
-    val userMessagesCount = messages.count { it.isFromUser }
-    val remainingMessages = (7 - userMessagesCount).coerceAtLeast(0)
+    // Calculate remaining messages in current session (Limit is 7)
+    val lastMessage = messages.lastOrNull()
+    val userMessagesInCurrentSession = if (lastMessage != null) {
+        messages.count { it.sessionId == lastMessage.sessionId && it.isFromUser }
+    } else 0
+    val remainingMessages = (7 - userMessagesInCurrentSession).coerceAtLeast(0)
 
     val examples = remember {
         listOf(
