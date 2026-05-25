@@ -81,12 +81,6 @@ fun HistoryScreen(
         }
     }
 
-    val currentMonthName = remember { formatMonth(System.currentTimeMillis()) }
-    val currentMonthTotal = remember(filteredHistory) {
-        filteredHistory.filter { formatMonth(it.timestamp) == currentMonthName }
-            .sumOf { it.amount }
-    }
-
     if (spendToDelete != null) {
         DeleteConfirmationDialog(
             spend = spendToDelete!!,
@@ -180,9 +174,7 @@ fun HistoryScreen(
         if (filteredHistory.isNotEmpty()) {
             FilterSummaryBar(
                 count = filteredHistory.size,
-                total = filteredHistory.sumOf { it.amount },
-                currentMonthTotal = currentMonthTotal,
-                currentMonthName = currentMonthName
+                total = filteredHistory.sumOf { it.amount }
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -234,54 +226,28 @@ fun HistoryScreen(
 @Composable
 private fun FilterSummaryBar(
     count: Int, 
-    total: Double,
-    currentMonthTotal: Double,
-    currentMonthName: String
+    total: Double
 ) {
     Surface(
         color = MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.4f),
         shape = RoundedCornerShape(12.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
-        Column(modifier = Modifier.padding(12.dp)) {
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "Viewing $count transaction(s)",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-                Text(
-                    text = "Total Sum: ₹${formatCurrency(total)}",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
-                )
-            }
-            
-            HorizontalDivider(
-                modifier = Modifier.padding(vertical = 8.dp),
-                color = MaterialTheme.colorScheme.onSecondaryContainer.copy(alpha = 0.1f)
+        Row(
+            modifier = Modifier.padding(12.dp).fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "Viewing $count transaction(s)",
+                style = MaterialTheme.typography.labelMedium,
+                color = MaterialTheme.colorScheme.onSecondaryContainer
             )
-            
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Text(
-                    text = "$currentMonthName Spending",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSecondaryContainer
-                )
-                Text(
-                    text = "₹${formatCurrency(currentMonthTotal)}",
-                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.secondary
-                )
-            }
+            Text(
+                text = "Total Sum: ₹${formatCurrency(total)}",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 }

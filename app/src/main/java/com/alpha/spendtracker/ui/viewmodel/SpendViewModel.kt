@@ -57,7 +57,10 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     private val aiPrefsRepository: AiPreferencesRepository
     private val chatDao: ChatDao
     private val auth = FirebaseAuth.getInstance()
-    private val TAG = "SpendViewModel"
+
+    companion object {
+        private const val TAG = "SpendViewModel"
+    }
 
     private val _userId = MutableStateFlow(auth.currentUser?.uid ?: "anonymous")
     private var aiJob: Job? = null
@@ -101,11 +104,7 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     private fun initializeChatSession(userId: String) {
         viewModelScope.launch {
             val lastSessionId = chatDao.getLastSessionId(userId)
-            if (lastSessionId != null) {
-                currentSessionId = lastSessionId
-            } else {
-                currentSessionId = java.util.UUID.randomUUID().toString()
-            }
+            currentSessionId = lastSessionId ?: java.util.UUID.randomUUID().toString()
         }
     }
 
@@ -456,12 +455,6 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         _aiResult.value = null
     }
 
-    fun updateAiSettings(currency: String, app: String, purpose: String) {
-        viewModelScope.launch {
-            aiPrefsRepository.updateSettings(currency, app, purpose)
-        }
-    }
-
     // Raw spends flow from Room database filtered by current user
     @OptIn(ExperimentalCoroutinesApi::class)
     val allSpendsFlow: StateFlow<List<Spend>> = _userId.flatMapLatest { userId ->
@@ -520,12 +513,6 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     fun deleteSpend(spend: Spend) {
         viewModelScope.launch {
             repository.delete(spend)
-        }
-    }
-
-    fun deleteSpendByUuid(uuid: String) {
-        viewModelScope.launch {
-            repository.deleteByUuid(uuid, _userId.value)
         }
     }
 
