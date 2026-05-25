@@ -113,6 +113,9 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         historyJob?.cancel()
         historyJob = viewModelScope.launch {
             val userId = _userId.value
+            if (currentSessionId.isEmpty()) {
+                currentSessionId = java.util.UUID.randomUUID().toString()
+            }
             
             // 1. Rate Limiting Check
             val todayStart = Calendar.getInstance().apply {
