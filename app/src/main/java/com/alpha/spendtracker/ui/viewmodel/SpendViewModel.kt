@@ -34,6 +34,20 @@ enum class TimeFilter {
     DAY, WEEK, MONTH, YEAR, ALL, CUSTOM
 }
 
+sealed class AiHistoryStatus {
+    object Idle : AiHistoryStatus()
+    object Analyzing : AiHistoryStatus()
+    data class Error(val message: String, val type: AiErrorType) : AiHistoryStatus()
+}
+
+enum class AiErrorType {
+    SERVER_RATE_LIMIT,
+    CLIENT_RATE_LIMIT,
+    API_KEY_MISSING,
+    EMPTY_RESPONSE,
+    GENERIC
+}
+
 /**
  * Main ViewModel to manage Spending Tracker operations, analytics, and states
  */
@@ -104,8 +118,8 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         initialValue = emptyList()
     )
 
-    private val _historyStatus = MutableStateFlow<String?>(null)
-    val historyStatus: StateFlow<String?> = _historyStatus
+    private val _historyStatus = MutableStateFlow<AiHistoryStatus>(AiHistoryStatus.Idle)
+    val historyStatus: StateFlow<AiHistoryStatus> = _historyStatus
 
     fun askAiAboutHistory(question: String) {
         if (question.isBlank()) return
@@ -117,7 +131,7 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
                 currentSessionId = java.util.UUID.randomUUID().toString()
             }
             
-            // 1. Rate Limiting Check
+            // 1. Rate Limiting Check (Client Side)
             val todayStart = Calendar.getInstance().apply {
                 set(Calendar.HOUR_OF_DAY, 0)
                 set(Calendar.MINUTE, 0)
@@ -128,19 +142,23 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
             val sessionCount = chatDao.getSessionCountSince(userId, todayStart)
             val msgCountInSession = chatDao.getMessageCountInSession(userId, currentSessionId)
 
-            // 1a. If the current session is full, try to start a new one
             if (msgCountInSession >= 7) {
                 if (sessionCount >= 2) {
-                    _historyStatus.value = "Daily limit reached (2 sessions, 7 msgs each)."
+                    _historyStatus.value = AiHistoryStatus.Error(
+                        "You've reached your daily limit of 2 sessions (7 messages each).",
+                        AiErrorType.CLIENT_RATE_LIMIT
+                    )
                     return@launch
                 } else {
                     currentSessionId = java.util.UUID.randomUUID().toString()
                 }
             } else {
-                // 1b. If we are starting a fresh session today, check if we already hit the session limit
                 val isCurrentSessionActiveToday = chatDao.isSessionActiveSince(userId, currentSessionId, todayStart)
                 if (!isCurrentSessionActiveToday && sessionCount >= 2) {
-                    _historyStatus.value = "Daily limit reached (2 sessions per day)."
+                    _historyStatus.value = AiHistoryStatus.Error(
+                        "You've reached your daily limit of 2 sessions.",
+                        AiErrorType.CLIENT_RATE_LIMIT
+                    )
                     return@launch
                 }
             }
@@ -148,7 +166,7 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
             // 2. Insert User Message
             val userMsg = ChatMessage(userId = userId, text = question, isFromUser = true, sessionId = currentSessionId)
             chatDao.insertMessage(userMsg)
-            _historyStatus.value = "AI is analyzing your history..."
+            _historyStatus.value = AiHistoryStatus.Analyzing
 
             // 3. Prepare Context
             val spends = allSpendsFlow.value
@@ -162,12 +180,12 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
                 remoteConfig.fetchAndActivate().await()
                 val apiKey = remoteConfig.getString("gemini_api_key")
                 if (apiKey.isBlank()) {
-                    _historyStatus.value = "API Key missing."
+                    _historyStatus.value = AiHistoryStatus.Error("AI configuration is missing.", AiErrorType.API_KEY_MISSING)
                     return@launch
                 }
 
                 val generativeModel = GenerativeModel(
-                    modelName = "gemini-3.5-flash",
+                    modelName = "gemini-1.5-flash",
                     apiKey = apiKey
                 )
 
@@ -198,13 +216,19 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
                 val responseText = response.text
                 if (!responseText.isNullOrBlank()) {
                     chatDao.insertMessage(ChatMessage(userId = userId, text = responseText, isFromUser = false, sessionId = currentSessionId))
-                    _historyStatus.value = null
+                    _historyStatus.value = AiHistoryStatus.Idle
                 } else {
-                    _historyStatus.value = "AI returned an empty response."
+                    _historyStatus.value = AiHistoryStatus.Error("The AI didn't provide a response.", AiErrorType.EMPTY_RESPONSE)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "History AI Error: ${e.message}", e)
-                _historyStatus.value = "Error: ${e.message}"
+                val errorMsg = e.message ?: "An unexpected error occurred."
+                val errorType = if (errorMsg.contains("quota", ignoreCase = true) || errorMsg.contains("rate limit", ignoreCase = true)) {
+                    AiErrorType.SERVER_RATE_LIMIT
+                } else {
+                    AiErrorType.GENERIC
+                }
+                _historyStatus.value = AiHistoryStatus.Error(errorMsg, errorType)
             }
         }
     }
@@ -227,7 +251,7 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun getGenerativeModel(apiKey: String): GenerativeModel {
         return GenerativeModel(
-            modelName = "gemini-3.5-flash",
+            modelName = "gemini-1.5-flash",
             apiKey = apiKey,
             requestOptions = RequestOptions(apiVersion = "v1")
         )
