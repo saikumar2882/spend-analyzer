@@ -42,6 +42,10 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alpha.spendtracker.ui.theme.BrandAccentMint
+import com.alpha.spendtracker.ui.theme.BrandGradientEnd
+import com.alpha.spendtracker.ui.theme.BrandGradientMid
+import com.alpha.spendtracker.ui.theme.BrandGradientStart
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 
 @Composable
@@ -62,40 +66,45 @@ fun TimeFilterSelectorRow(
         )
     }
 
-    Row(
-        modifier = modifier
-            .fillMaxWidth()
-            .padding(vertical = 4.dp),
-        horizontalArrangement = Arrangement.spacedBy(4.dp),
-        verticalAlignment = Alignment.CenterVertically
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        shape = RoundedCornerShape(18.dp)
     ) {
-        options.forEach { (type, label) ->
-            val isSelected = selected == type
-            Surface(
-                onClick = { 
-                    if (type == TimeFilter.CUSTOM) onCustomClick()
-                    else onSelect(type)
-                },
-                modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(16.dp),
-                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surface,
-                border = if (isSelected) null
-                         else BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.4f))
-            ) {
-                Box(
-                    modifier = Modifier.padding(vertical = 8.dp),
-                    contentAlignment = Alignment.Center
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            options.forEach { (type, label) ->
+                val isSelected = selected == type
+                Surface(
+                    onClick = {
+                        if (type == TimeFilter.CUSTOM) onCustomClick()
+                        else onSelect(type)
+                    },
+                    modifier = Modifier.weight(1f),
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.primary
+                    else Color.Transparent,
+                    shadowElevation = if (isSelected) 4.dp else 0.dp
                 ) {
-                    Text(
-                        text = label,
-                        style = MaterialTheme.typography.labelMedium.copy(
-                            fontWeight = FontWeight.Bold,
-                            fontSize = 11.sp
-                        ),
-                        color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                                else MaterialTheme.colorScheme.onSurfaceVariant
-                    )
+                    Box(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.Bold,
+                                fontSize = 11.sp
+                            ),
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
                 }
             }
         }
@@ -111,12 +120,12 @@ fun TotalSpentHeroCard(
     onLentClick: (() -> Unit)? = null
 ) {
     val titleText = when (filterType) {
-        TimeFilter.DAY -> "Today's Total Spend"
-        TimeFilter.WEEK -> "This Week's Outflow"
-        TimeFilter.MONTH -> "This Month's Spending"
-        TimeFilter.YEAR -> "Annual Total Spent"
-        TimeFilter.ALL -> "Total Aggregated Outflow"
-        TimeFilter.CUSTOM -> "Custom Range Outflow"
+        TimeFilter.DAY -> "Today's Spend"
+        TimeFilter.WEEK -> "This Week"
+        TimeFilter.MONTH -> "This Month"
+        TimeFilter.YEAR -> "This Year"
+        TimeFilter.ALL -> "All Time"
+        TimeFilter.CUSTOM -> "Custom Range"
     }
 
     val subtitleText = if (filterType == TimeFilter.CUSTOM && dateRange != null) {
@@ -124,82 +133,95 @@ fun TotalSpentHeroCard(
         val sdf = remember(locale) { java.text.SimpleDateFormat("dd MMM", locale) }
         "${sdf.format(dateRange.first)} - ${sdf.format(dateRange.second)}"
     } else {
-        "$transactionCount logs"
+        "$transactionCount transactions"
     }
 
     Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .border(
-                1.5.dp,
-                Brush.linearGradient(
-                    listOf(
-                        Color.White.copy(alpha = 0.28f),
-                        Color.White.copy(alpha = 0.05f)
-                    )
-                ),
-                RoundedCornerShape(24.dp)
-            ),
-        shape = RoundedCornerShape(24.dp),
+        modifier = Modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(28.dp),
         colors = CardDefaults.cardColors(
             containerColor = Color.Transparent,
             contentColor = Color.White
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 8.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
     ) {
         Box(
             modifier = Modifier
                 .background(
                     Brush.linearGradient(
                         colors = listOf(
-                            Color(0xFF5E35B1),
-                            Color(0xFF7C4DFF),
-                            Color(0xFF3F51B5)
+                            BrandGradientStart,
+                            BrandGradientMid,
+                            BrandGradientEnd
                         )
                     )
                 )
-                .padding(24.dp)
         ) {
-            Column {
+            // Decorative blurred orbs
+            Box(
+                modifier = Modifier
+                    .size(180.dp)
+                    .padding(start = 200.dp, top = 0.dp)
+                    .background(Color.White.copy(alpha = 0.10f), CircleShape)
+            )
+            Box(
+                modifier = Modifier
+                    .size(120.dp)
+                    .padding(start = 0.dp, top = 140.dp)
+                    .background(BrandAccentMint.copy(alpha = 0.18f), CircleShape)
+            )
+
+            Column(modifier = Modifier.padding(24.dp)) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .background(BrandAccentMint, CircleShape)
+                    )
+                    Text(
+                        text = titleText.uppercase(),
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.4.sp
+                        ),
+                        color = Color.White.copy(alpha = 0.85f)
+                    )
+                }
+                Spacer(modifier = Modifier.height(10.dp))
+
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.SpaceBetween,
-                    verticalAlignment = Alignment.Top
+                    verticalAlignment = Alignment.Bottom
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.spacedBy(6.dp)
-                        ) {
-                            Box(
-                                modifier = Modifier
-                                    .size(8.dp)
-                                    .background(Color(0xFF00FFCC), CircleShape)
+                        Row(verticalAlignment = Alignment.Bottom) {
+                            Text(
+                                text = "₹",
+                                style = MaterialTheme.typography.headlineSmall.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                ),
+                                color = Color.White.copy(alpha = 0.85f),
+                                modifier = Modifier.padding(end = 4.dp, bottom = 6.dp)
                             )
                             Text(
-                                text = titleText.uppercase(),
-                                style = MaterialTheme.typography.labelLarge.copy(
-                                    fontWeight = FontWeight.Bold,
-                                    letterSpacing = 1.2.sp
+                                text = formatCurrency(totalAmount),
+                                style = MaterialTheme.typography.displayMedium.copy(
+                                    fontWeight = FontWeight.Black,
+                                    letterSpacing = (-1).sp
                                 ),
-                                color = Color.White.copy(alpha = 0.85f)
+                                color = Color.White
                             )
                         }
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Text(
-                            text = "₹${formatCurrency(totalAmount)}",
-                            style = MaterialTheme.typography.displayMedium.copy(
-                                fontWeight = FontWeight.ExtraBold,
-                                letterSpacing = (-0.5).sp
-                            ),
-                            color = Color.White
-                        )
                     }
 
                     Surface(
-                        color = Color.White.copy(alpha = 0.15f),
+                        color = Color.White.copy(alpha = 0.18f),
                         shape = CircleShape,
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.25f))
+                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
                     ) {
                         Icon(
                             Icons.Rounded.AccountBalanceWallet,
@@ -213,21 +235,32 @@ fun TotalSpentHeroCard(
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
-                HorizontalDivider(color = Color.White.copy(alpha = 0.15f), thickness = 1.dp)
-                Spacer(modifier = Modifier.height(16.dp))
+                HorizontalDivider(color = Color.White.copy(alpha = 0.18f), thickness = 1.dp)
+                Spacer(modifier = Modifier.height(14.dp))
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.SpaceBetween,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     GlassChip(
                         icon = Icons.AutoMirrored.Rounded.ReceiptLong,
                         text = subtitleText,
-                        tint = Color.White.copy(alpha = 0.95f),
-                        background = Color.White.copy(alpha = 0.10f),
-                        border = Color.White.copy(alpha = 0.15f)
+                        tint = Color.White,
+                        background = Color.White.copy(alpha = 0.16f),
+                        border = Color.White.copy(alpha = 0.22f)
                     )
+                    if (onLentClick != null) {
+                        Spacer(modifier = Modifier.weight(1f))
+                        GlassChip(
+                            icon = Icons.Rounded.Savings,
+                            text = "Lend / Borrow",
+                            tint = Color.White,
+                            background = BrandAccentMint.copy(alpha = 0.22f),
+                            border = BrandAccentMint.copy(alpha = 0.45f),
+                            onClick = onLentClick
+                        )
+                    }
                 }
             }
         }
@@ -252,7 +285,7 @@ private fun GlassChip(
     ) {
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp)
         ) {
             Icon(icon, contentDescription = null, modifier = Modifier.size(14.dp), tint = tint)
             Spacer(modifier = Modifier.width(6.dp))
@@ -276,21 +309,43 @@ fun TopAppsRankingCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f)
-        )
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            Text(
-                text = "Most Active Wallets / Apps",
-                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface,
-                modifier = Modifier.padding(bottom = 12.dp)
-            )
+        Column(modifier = Modifier.padding(20.dp)) {
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp),
+                modifier = Modifier.padding(bottom = 16.dp)
+            ) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                            RoundedCornerShape(8.dp)
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = "★",
+                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.primary
+                    )
+                }
+                Text(
+                    text = "Top Apps & Wallets",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
 
             val maxAmt = appBreakdown.maxOfOrNull { it.second } ?: 1.0
 
-            appBreakdown.take(4).forEach { (app, amount) ->
-                val accent = APP_PRESETS.firstOrNull { it.displayName == app }?.color ?: Color.Gray
+            appBreakdown.take(4).forEachIndexed { index, (app, amount) ->
+                val accent = APP_PRESETS.firstOrNull { it.displayName == app }?.color ?: MaterialTheme.colorScheme.primary
                 val fraction = (amount / maxAmt.coerceAtLeast(1.0)).toFloat()
                     .coerceIn(0f, 1f)
 
@@ -299,7 +354,7 @@ fun TopAppsRankingCard(
                         .fillMaxWidth()
                         .clip(RoundedCornerShape(12.dp))
                         .clickable { onAppClick(app) }
-                        .padding(vertical = 6.dp, horizontal = 8.dp)
+                        .padding(vertical = 8.dp, horizontal = 4.dp)
                 ) {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -307,15 +362,25 @@ fun TopAppsRankingCard(
                         verticalAlignment = Alignment.CenterVertically
                     ) {
                         Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = "${index + 1}",
+                                style = MaterialTheme.typography.labelMedium.copy(
+                                    fontWeight = FontWeight.Bold
+                                ),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(end = 10.dp)
+                            )
                             Box(
                                 modifier = Modifier
-                                    .size(8.dp)
+                                    .size(10.dp)
                                     .background(accent, CircleShape)
                             )
-                            Spacer(modifier = Modifier.width(8.dp))
+                            Spacer(modifier = Modifier.width(10.dp))
                             Text(
                                 text = app,
-                                style = MaterialTheme.typography.bodyMedium,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.SemiBold
+                                ),
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -327,18 +392,26 @@ fun TopAppsRankingCard(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Box(
                         modifier = Modifier
                             .fillMaxWidth()
                             .height(6.dp)
-                            .background(MaterialTheme.colorScheme.surfaceVariant, RoundedCornerShape(3.dp))
+                            .background(
+                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
+                                RoundedCornerShape(3.dp)
+                            )
                     ) {
                         Box(
                             modifier = Modifier
                                 .fillMaxWidth(fraction = fraction)
                                 .height(6.dp)
-                                .background(accent, RoundedCornerShape(3.dp))
+                                .background(
+                                    Brush.horizontalGradient(
+                                        listOf(accent.copy(alpha = 0.7f), accent)
+                                    ),
+                                    RoundedCornerShape(3.dp)
+                                )
                         )
                     }
                 }
@@ -355,31 +428,47 @@ fun EmptyStateCard() {
             .padding(vertical = 12.dp),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.2f)
-        )
+            containerColor = MaterialTheme.colorScheme.surface
+        ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
     ) {
         Column(
             modifier = Modifier
-                .padding(24.dp)
+                .padding(28.dp)
                 .fillMaxWidth(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Icon(
-                Icons.Rounded.Savings,
-                contentDescription = null,
-                modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
-            )
-            Spacer(modifier = Modifier.height(12.dp))
+            Box(
+                modifier = Modifier
+                    .size(72.dp)
+                    .background(
+                        Brush.linearGradient(
+                            listOf(
+                                MaterialTheme.colorScheme.primary.copy(alpha = 0.20f),
+                                MaterialTheme.colorScheme.tertiary.copy(alpha = 0.20f)
+                            )
+                        ),
+                        CircleShape
+                    ),
+                contentAlignment = Alignment.Center
+            ) {
+                Icon(
+                    Icons.Rounded.Savings,
+                    contentDescription = null,
+                    modifier = Modifier.size(36.dp),
+                    tint = MaterialTheme.colorScheme.primary
+                )
+            }
+            Spacer(modifier = Modifier.height(16.dp))
             Text(
                 text = "Ready to start tracking?",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
-            Spacer(modifier = Modifier.height(4.dp))
+            Spacer(modifier = Modifier.height(6.dp))
             Text(
-                text = "Tap 'Track Spend' below to log your transactions from Swiggy, Zepto, Paytm, and more — see summaries instantly.",
+                text = "Tap 'Track Spend' below to log transactions from Swiggy, Zepto, Paytm, and more — see summaries instantly.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center

@@ -63,6 +63,7 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.ui.components.APP_PRESETS
 import com.alpha.spendtracker.ui.components.AppPreset
 import com.alpha.spendtracker.ui.components.NotificationType
@@ -274,17 +275,21 @@ fun AddSpendScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(54.dp),
-                    shape = RoundedCornerShape(16.dp),
+                        .height(56.dp),
+                    shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
+                    ),
+                    elevation = ButtonDefaults.buttonElevation(
+                        defaultElevation = 6.dp,
+                        pressedElevation = 2.dp
                     )
                 ) {
-                    Icon(Icons.Rounded.CheckCircle, contentDescription = null)
-                    Spacer(modifier = Modifier.width(8.dp))
+                    Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        "Save Expense Details",
+                        "Save Transaction",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -309,45 +314,57 @@ private fun AmountInputCard(
     isError: Boolean,
     errorMessage: String?
 ) {
+    val borderColor = if (isError) MaterialTheme.colorScheme.error
+    else MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
     Surface(
         color = if (isError)
-            MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f)
+            MaterialTheme.colorScheme.error.copy(alpha = 0.10f)
         else
-            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f),
-        shape = RoundedCornerShape(24.dp),
+            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+        shape = RoundedCornerShape(28.dp),
+        border = androidx.compose.foundation.BorderStroke(1.5.dp, borderColor),
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(20.dp),
+            modifier = Modifier.padding(vertical = 28.dp, horizontal = 20.dp),
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Text(
                 text = "AMOUNT SPENT",
-                style = MaterialTheme.typography.labelMedium,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.5.sp
+                ),
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
+            Spacer(modifier = Modifier.height(8.dp))
             Row(
-                verticalAlignment = Alignment.CenterVertically,
+                verticalAlignment = Alignment.Bottom,
                 horizontalArrangement = Arrangement.Center,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = "₹",
-                    style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.primary
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.padding(bottom = 6.dp, end = 4.dp)
                 )
-                Spacer(modifier = Modifier.width(4.dp))
                 TextField(
                     value = amount,
                     onValueChange = { input ->
                         if (input.all { it.isDigit() || it == '.' }) onAmountChange(input)
                     },
                     placeholder = {
-                        Text("0.00", color = MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                        Text(
+                            "0.00",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
+                            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black)
+                        )
                     },
-                    textStyle = MaterialTheme.typography.displayMedium.copy(
-                        fontWeight = FontWeight.Bold,
-                        textAlign = TextAlign.Start
+                    textStyle = MaterialTheme.typography.displaySmall.copy(
+                        fontWeight = FontWeight.Black,
+                        textAlign = TextAlign.Start,
+                        color = MaterialTheme.colorScheme.onSurface
                     ),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     isError = isError,
@@ -360,14 +377,14 @@ private fun AmountInputCard(
                         unfocusedIndicatorColor = Color.Transparent,
                         errorIndicatorColor = Color.Transparent
                     ),
-                    modifier = Modifier.width(200.dp)
+                    modifier = Modifier.width(220.dp)
                 )
             }
             if (errorMessage != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = errorMessage,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.error
                 )
             }

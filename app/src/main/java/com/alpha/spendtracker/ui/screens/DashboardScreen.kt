@@ -48,6 +48,7 @@ import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.EmptyStateCard
+import com.alpha.spendtracker.ui.components.InsightsCard
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.alpha.spendtracker.ui.components.RecentSpendRow
@@ -80,9 +81,36 @@ fun DashboardScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var showSecurityOptions by remember { mutableStateOf(false) }
     var showPasswordUpdateDialog by remember { mutableStateOf(false) }
-    
+    var showProfileDialog by remember { mutableStateOf(false) }
+
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
+    var displayName by remember { mutableStateOf(auth.currentUser?.displayName.orEmpty()) }
+
+    if (showProfileDialog) {
+        ProfileDialog(
+            currentName = displayName,
+            email = auth.currentUser?.email.orEmpty(),
+            onDismiss = { showProfileDialog = false },
+            onSave = { newName ->
+                val request = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                    .setDisplayName(newName)
+                    .build()
+                auth.currentUser?.updateProfile(request)?.addOnCompleteListener { task ->
+                    if (task.isSuccessful) {
+                        displayName = newName
+                        showProfileDialog = false
+                        onShowNotification("Profile updated", NotificationType.SUCCESS)
+                    } else {
+                        onShowNotification(
+                            "Error: ${task.exception?.message ?: "Could not save"}",
+                            NotificationType.ERROR
+                        )
+                    }
+                }
+            }
+        )
+    }
 
     if (showSecurityOptions) {
         AlertDialog(
@@ -216,14 +244,16 @@ fun DashboardScreen(
         modifier = Modifier
             .fillMaxSize()
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(16.dp),
-        contentPadding = PaddingValues(top = 16.dp, bottom = 80.dp)
+        verticalArrangement = Arrangement.spacedBy(20.dp),
+        contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
     ) {
         item {
             DashboardHeader(
+                displayName = displayName,
                 themePreference = themePreference,
                 onCycleTheme = onCycleTheme,
                 onLogout = onLogout,
+                onProfileClick = { showProfileDialog = true },
                 onSecurityClick = { showSecurityOptions = true },
                 onAiAssistantClick = onAiAssistantClick
             )
@@ -250,12 +280,8 @@ fun DashboardScreen(
         if (analytics.transactionCount > 0) {
             item {
                 Column {
-                    Text(
-                        text = "Category Breakdown",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        modifier = Modifier.padding(bottom = 8.dp)
-                    )
+                    SectionHeader(title = "Category Breakdown")
+                    Spacer(modifier = Modifier.height(10.dp))
                     SpendingDonutChart(
                         categoryBreakdown = analytics.categoryBreakdown,
                         modifier = Modifier.fillMaxWidth()
@@ -276,6 +302,8 @@ fun DashboardScreen(
                     onAppClick = onAppClick
                 )
             }
+
+            item { InsightsCard(analytics = analytics) }
         } else {
             item { EmptyStateCard() }
         }
@@ -287,13 +315,13 @@ fun DashboardScreen(
                     horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Text(
-                        text = "Recent Spending's",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    SectionHeader(title = "Recent Activity")
                     TextButton(onClick = onShowAllClick) {
-                        Text("See All History")
+                        Text(
+                            "See all",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                        )
+                        Spacer(modifier = Modifier.width(4.dp))
                         Icon(
                             Icons.Rounded.History,
                             contentDescription = "Show history",
@@ -308,99 +336,238 @@ fun DashboardScreen(
                     spend = spend,
                     onClick = { onAppClick(spend.appName) }
                 )
-                Spacer(modifier = Modifier.height(4.dp))
             }
         }
+    }
+}
+
+@Composable
+private fun SectionHeader(title: String) {
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(width = 4.dp, height = 18.dp)
+                .background(
+                    MaterialTheme.colorScheme.primary,
+                    androidx.compose.foundation.shape.RoundedCornerShape(2.dp)
+                )
+        )
+        Spacer(modifier = Modifier.width(10.dp))
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface
+        )
     }
 }
 
 @Composable
 private fun DashboardHeader(
+    displayName: String,
     themePreference: ThemePreference,
     onCycleTheme: () -> Unit,
     onLogout: () -> Unit,
+    onProfileClick: () -> Unit,
     onSecurityClick: () -> Unit,
     onAiAssistantClick: () -> Unit
 ) {
+    val firstName = displayName.trim().split(" ").firstOrNull().orEmpty()
+    val greeting = if (firstName.isBlank()) "Hi there 👋" else "Hi, $firstName 👋"
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 12.dp),
+            .padding(vertical = 8.dp),
         horizontalArrangement = Arrangement.SpaceBetween,
         verticalAlignment = Alignment.CenterVertically
     ) {
-        Column(modifier = Modifier.weight(1f)) {
+        Column(
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onProfileClick)
+        ) {
+            Text(
+                text = greeting,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    letterSpacing = 0.5.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            Spacer(modifier = Modifier.size(2.dp))
             Text(
                 text = stringResource(R.string.app_name),
                 style = MaterialTheme.typography.headlineLarge.copy(
                     fontWeight = FontWeight.ExtraBold,
-                    letterSpacing = (-0.5).sp
+                    letterSpacing = (-0.6).sp
                 ),
                 color = MaterialTheme.colorScheme.onSurface
             )
         }
 
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Surface(
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            HeaderActionButton(
+                icon = Icons.Rounded.AutoAwesome,
                 onClick = onAiAssistantClick,
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Rounded.AutoAwesome,
-                        contentDescription = "AI Assistant",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(24.dp)
-                    )
-                }
-            }
-            Spacer(modifier = Modifier.width(8.dp))
-            IconButton(onClick = onSecurityClick) {
-                Icon(
-                    imageVector = Icons.Rounded.Security,
-                    contentDescription = "Security Settings",
-                    tint = MaterialTheme.colorScheme.primary
-                )
-            }
-            ThemeToggleButton(
-                themePreference = themePreference,
-                onCycle = onCycleTheme
+                contentDescription = "AI Assistant",
+                tint = MaterialTheme.colorScheme.primary,
+                background = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
             )
-            Spacer(modifier = Modifier.size(4.dp))
-            IconButton(onClick = onLogout) {
-                Icon(
-                    imageVector = Icons.AutoMirrored.Rounded.Logout,
-                    contentDescription = "Logout",
-                    tint = MaterialTheme.colorScheme.error
-                )
-            }
+            HeaderActionButton(
+                icon = Icons.Rounded.Security,
+                onClick = onSecurityClick,
+                contentDescription = "Security Settings",
+                tint = MaterialTheme.colorScheme.onSurface,
+                background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+            )
+            HeaderActionButton(
+                icon = when (themePreference) {
+                    ThemePreference.SYSTEM -> Icons.Rounded.BrightnessAuto
+                    ThemePreference.LIGHT -> Icons.Rounded.LightMode
+                    ThemePreference.DARK -> Icons.Rounded.DarkMode
+                },
+                onClick = onCycleTheme,
+                contentDescription = when (themePreference) {
+                    ThemePreference.SYSTEM -> "Theme: follow system. Tap to switch to light."
+                    ThemePreference.LIGHT -> "Theme: light. Tap to switch to dark."
+                    ThemePreference.DARK -> "Theme: dark. Tap to follow system."
+                },
+                tint = MaterialTheme.colorScheme.onSurface,
+                background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+            )
+            HeaderActionButton(
+                icon = Icons.AutoMirrored.Rounded.Logout,
+                onClick = onLogout,
+                contentDescription = "Logout",
+                tint = MaterialTheme.colorScheme.error,
+                background = MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
+            )
         }
     }
 }
 
 @Composable
-private fun ThemeToggleButton(
-    themePreference: ThemePreference,
-    onCycle: () -> Unit
+private fun HeaderActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    onClick: () -> Unit,
+    contentDescription: String,
+    tint: Color,
+    background: Color
 ) {
-    val icon = when (themePreference) {
-        ThemePreference.SYSTEM -> Icons.Rounded.BrightnessAuto
-        ThemePreference.LIGHT -> Icons.Rounded.LightMode
-        ThemePreference.DARK -> Icons.Rounded.DarkMode
-    }
-    val description = when (themePreference) {
-        ThemePreference.SYSTEM -> "Theme: follow system. Tap to switch to light."
-        ThemePreference.LIGHT -> "Theme: light. Tap to switch to dark."
-        ThemePreference.DARK -> "Theme: dark. Tap to follow system."
-    }
-
-    IconButton(onClick = onCycle) {
-        Icon(
-            imageVector = icon,
-            contentDescription = description,
-            tint = MaterialTheme.colorScheme.primary
-        )
+    Surface(
+        onClick = onClick,
+        shape = CircleShape,
+        color = background,
+        modifier = Modifier.size(40.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                imageVector = icon,
+                contentDescription = contentDescription,
+                tint = tint,
+                modifier = Modifier.size(20.dp)
+            )
+        }
     }
 }
+
+@Composable
+private fun ProfileDialog(
+    currentName: String,
+    email: String,
+    onDismiss: () -> Unit,
+    onSave: (String) -> Unit
+) {
+    var nameInput by remember { mutableStateOf(currentName) }
+    var isSaving by remember { mutableStateOf(false) }
+    val initial = currentName.trim().firstOrNull()?.uppercase()
+        ?: email.firstOrNull()?.uppercase() ?: "?"
+
+    AlertDialog(
+        onDismissRequest = { if (!isSaving) onDismiss() },
+        title = { Text("Your Profile", style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)) },
+        text = {
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Box(
+                    modifier = Modifier
+                        .size(80.dp)
+                        .background(
+                            Brush.linearGradient(
+                                listOf(
+                                    com.alpha.spendtracker.ui.theme.BrandGradientStart,
+                                    com.alpha.spendtracker.ui.theme.BrandGradientMid,
+                                    com.alpha.spendtracker.ui.theme.BrandGradientEnd
+                                )
+                            ),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Text(
+                        text = initial,
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontWeight = FontWeight.Black
+                        ),
+                        color = Color.White
+                    )
+                }
+                Spacer(modifier = Modifier.height(14.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(10.dp)
+                ) {
+                    Text(
+                        text = email.ifBlank { "—" },
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+                Spacer(modifier = Modifier.height(18.dp))
+                OutlinedTextField(
+                    value = nameInput,
+                    onValueChange = { if (it.length <= 60) nameInput = it },
+                    label = { Text("Full name") },
+                    placeholder = { Text("e.g., Tsai Kumar") },
+                    singleLine = true,
+                    enabled = !isSaving,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = androidx.compose.foundation.shape.RoundedCornerShape(14.dp),
+                    supportingText = { Text("Used for greetings across the app") }
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Profile photos aren't available on the free plan.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                )
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    val trimmed = nameInput.trim()
+                    if (trimmed == currentName.trim() || trimmed.isEmpty()) {
+                        onDismiss()
+                        return@Button
+                    }
+                    isSaving = true
+                    onSave(trimmed)
+                },
+                enabled = !isSaving
+            ) {
+                if (isSaving) {
+                    CircularProgressIndicator(modifier = Modifier.size(18.dp), strokeWidth = 2.dp)
+                } else {
+                    Text("Save")
+                }
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Close") }
+        }
+    )
+}
+

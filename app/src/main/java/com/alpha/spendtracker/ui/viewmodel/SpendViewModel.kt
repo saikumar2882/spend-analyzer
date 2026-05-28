@@ -473,9 +473,10 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         selectedFilter,
         customDateRange
     ) { spends, filter, range ->
-        val filtered = filterSpendsByTime(spends, filter, range)
-            .filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
-        calculateAnalytics(filtered, filter, range)
+        val expenseSpends = spends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
+        val filtered = filterSpendsByTime(expenseSpends, filter, range)
+        val previousTotal = calculatePreviousPeriodTotal(expenseSpends, filter, range)
+        calculateAnalytics(filtered, filter, range, previousTotal)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -554,9 +555,19 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     }
 
     // Helper: Calculate advanced metrics and grouping data categories for high-fidelity dashboards
-    private fun calculateAnalytics(spends: List<Spend>, filter: TimeFilter, range: Pair<Long, Long>? = null): SpendingAnalytics {
+    private fun calculateAnalytics(
+        spends: List<Spend>,
+        filter: TimeFilter,
+        range: Pair<Long, Long>? = null,
+        previousPeriodTotal: Double = 0.0
+    ): SpendingAnalytics {
         if (spends.isEmpty()) {
-            return SpendingAnalytics(totalAmount = 0.0, filterType = filter, dateRange = range)
+            return SpendingAnalytics(
+                totalAmount = 0.0,
+                filterType = filter,
+                dateRange = range,
+                previousPeriodTotal = previousPeriodTotal
+            )
         }
 
         val total = spends.sumOf { it.amount }
@@ -578,6 +589,13 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         // Trend Breakdown for beautiful graph (bar/line charts based on day index or calendar buckets)
         val trendPoints = calculateTrendPoints(spends, filter)
 
+        val topCategory = categoryTotals.maxByOrNull { it.value }?.toPair()
+        val (elapsedDays, totalPeriodDays) = periodDaysInfo(filter, range)
+        val dailyAverage = if (elapsedDays > 0) total / elapsedDays else 0.0
+        val projectedTotal = if (totalPeriodDays != null && elapsedDays in 1 until totalPeriodDays) {
+            dailyAverage * totalPeriodDays
+        } else null
+
         return SpendingAnalytics(
             totalAmount = total,
             categoryBreakdown = categoryTotals,
@@ -586,9 +604,126 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
             trendPoints = trendPoints,
             transactionCount = spends.size,
             filterType = filter,
-            dateRange = range
+            dateRange = range,
+            previousPeriodTotal = previousPeriodTotal,
+            dailyAverage = dailyAverage,
+            projectedTotal = projectedTotal,
+            topCategory = topCategory
         )
     }
+
+    /**
+     * Sum of expenses in the period immediately preceding the current one.
+     * Returns 0.0 for ALL (no previous defined). For CUSTOM, uses an equal-length window
+     * ending just before the current range start.
+     */
+    private fun calculatePreviousPeriodTotal(
+        spends: List<Spend>,
+        filter: TimeFilter,
+        range: Pair<Long, Long>?
+    ): Double {
+        if (filter == TimeFilter.ALL || spends.isEmpty()) return 0.0
+
+        val (start, end) = when (filter) {
+            TimeFilter.DAY -> {
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                    add(Calendar.DAY_OF_MONTH, -1)
+                }
+                val s = cal.timeInMillis
+                cal.add(Calendar.DAY_OF_MONTH, 1)
+                s to cal.timeInMillis - 1
+            }
+            TimeFilter.WEEK -> {
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                    set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+                    add(Calendar.WEEK_OF_YEAR, -1)
+                }
+                val s = cal.timeInMillis
+                cal.add(Calendar.WEEK_OF_YEAR, 1)
+                s to cal.timeInMillis - 1
+            }
+            TimeFilter.MONTH -> {
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                    set(Calendar.DAY_OF_MONTH, 1)
+                    add(Calendar.MONTH, -1)
+                }
+                val s = cal.timeInMillis
+                cal.add(Calendar.MONTH, 1)
+                s to cal.timeInMillis - 1
+            }
+            TimeFilter.YEAR -> {
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                    set(Calendar.DAY_OF_YEAR, 1)
+                    add(Calendar.YEAR, -1)
+                }
+                val s = cal.timeInMillis
+                cal.add(Calendar.YEAR, 1)
+                s to cal.timeInMillis - 1
+            }
+            TimeFilter.CUSTOM -> {
+                if (range == null) return 0.0
+                val span = range.second - range.first
+                (range.first - span - 1) to (range.first - 1)
+            }
+            TimeFilter.ALL -> return 0.0
+        }
+
+        return spends.filter { it.timestamp in start..end }.sumOf { it.amount }
+    }
+
+    /**
+     * Returns (elapsedDays, totalPeriodDays). totalPeriodDays is null when the period
+     * has no fixed length (ALL) — projection is then meaningless.
+     */
+    private fun periodDaysInfo(filter: TimeFilter, range: Pair<Long, Long>?): Pair<Int, Int?> {
+        val now = System.currentTimeMillis()
+        val dayMs = 24L * 60 * 60 * 1000
+        return when (filter) {
+            TimeFilter.DAY -> 1 to 1
+            TimeFilter.WEEK -> {
+                val cal = Calendar.getInstance().apply {
+                    set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+                    set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+                    set(Calendar.DAY_OF_WEEK, firstDayOfWeek)
+                }
+                val elapsed = (((now - cal.timeInMillis) / dayMs) + 1).toInt().coerceIn(1, 7)
+                elapsed to 7
+            }
+            TimeFilter.MONTH -> {
+                val cal = Calendar.getInstance()
+                val today = cal.get(Calendar.DAY_OF_MONTH)
+                val daysInMonth = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
+                today to daysInMonth
+            }
+            TimeFilter.YEAR -> {
+                val cal = Calendar.getInstance()
+                val today = cal.get(Calendar.DAY_OF_YEAR)
+                val daysInYear = cal.getActualMaximum(Calendar.DAY_OF_YEAR)
+                today to daysInYear
+            }
+            TimeFilter.ALL -> {
+                // Use earliest spend timestamp would require the list; fall back to no projection.
+                1 to null
+            }
+            TimeFilter.CUSTOM -> {
+                if (range == null) return 1 to null
+                val span = (((range.second - range.first) / dayMs) + 1).toInt().coerceAtLeast(1)
+                val capped = now.coerceAtMost(range.second)
+                val elapsed = (((capped - range.first) / dayMs) + 1).toInt().coerceIn(1, span)
+                elapsed to span
+            }
+        }
+    }
+
+    private val firstDayOfWeek: Int get() = Calendar.getInstance().firstDayOfWeek
 
     private fun calculateTrendPoints(spends: List<Spend>, filter: TimeFilter): List<TrendPoint> {
         val calendar = Calendar.getInstance()
@@ -676,7 +811,11 @@ data class SpendingAnalytics(
     val trendPoints: List<TrendPoint> = emptyList(),
     val transactionCount: Int = 0,
     val filterType: TimeFilter = TimeFilter.MONTH,
-    val dateRange: Pair<Long, Long>? = null
+    val dateRange: Pair<Long, Long>? = null,
+    val previousPeriodTotal: Double = 0.0,
+    val dailyAverage: Double = 0.0,
+    val projectedTotal: Double? = null,
+    val topCategory: Pair<String, Double>? = null
 )
 
 /**

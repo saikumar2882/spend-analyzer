@@ -19,7 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.draw.clip
+import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -29,6 +29,9 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.ChatMessage
+import com.alpha.spendtracker.ui.theme.BrandGradientEnd
+import com.alpha.spendtracker.ui.theme.BrandGradientMid
+import com.alpha.spendtracker.ui.theme.BrandGradientStart
 import com.alpha.spendtracker.ui.viewmodel.AiErrorType
 import com.alpha.spendtracker.ui.viewmodel.AiHistoryStatus
 
@@ -44,8 +47,7 @@ fun AiHistoryAssistantSheet(
     var textInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val clipboardManager = LocalClipboardManager.current
-    
-    // Calculate remaining messages in current session (Limit is 7)
+
     val lastMessage = messages.lastOrNull()
     val userMessagesInCurrentSession = if (lastMessage != null) {
         messages.count { it.sessionId == lastMessage.sessionId && it.isFromUser }
@@ -54,10 +56,12 @@ fun AiHistoryAssistantSheet(
 
     val examples = remember {
         listOf(
-            "Summarize May month spending",
-            "Who did I lend money to?",
-            "How much did I spend on food today?",
-            "Detailed summary of this month"
+            "Summarize my spending this month",
+            "Who do I owe money to right now?",
+            "What did I spend on food this week?",
+            "Top 3 categories of last month",
+            "Compare May vs April spending",
+            "Show all my lendings grouped by person"
         )
     }
 
@@ -74,45 +78,72 @@ fun AiHistoryAssistantSheet(
     ) {
         Column(
             modifier = Modifier
-                .fillMaxHeight(0.85f)
+                .fillMaxHeight(0.88f)
                 .fillMaxWidth()
-                .padding(16.dp)
+                .padding(horizontal = 16.dp)
         ) {
+            // Header
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 16.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    text = "How can I help you today?",
-                    style = MaterialTheme.typography.titleLarge,
-                    fontWeight = FontWeight.Bold
-                )
-                
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .size(40.dp)
+                            .background(
+                                Brush.linearGradient(
+                                    listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)
+                                ),
+                                CircleShape
+                            ),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Icon(
+                            Icons.Rounded.AutoAwesome,
+                            contentDescription = null,
+                            tint = Color.White,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Text(
+                            text = "Spend Assistant",
+                            style = MaterialTheme.typography.titleLarge.copy(
+                                fontWeight = FontWeight.ExtraBold,
+                                letterSpacing = (-0.3).sp
+                            ),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Ask anything about your history",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                val chipColor = if (remainingMessages <= 1) MaterialTheme.colorScheme.error
+                else MaterialTheme.colorScheme.primary
                 Surface(
-                    color = if (remainingMessages <= 1) MaterialTheme.colorScheme.errorContainer 
-                            else MaterialTheme.colorScheme.secondaryContainer,
-                    shape = RoundedCornerShape(12.dp)
+                    color = chipColor.copy(alpha = 0.14f),
+                    shape = RoundedCornerShape(12.dp),
+                    border = BorderStroke(1.dp, chipColor.copy(alpha = 0.35f))
                 ) {
                     Text(
-                        text = "$remainingMessages/7",
-                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        text = "$remainingMessages/7 left",
+                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                        color = if (remainingMessages <= 1) MaterialTheme.colorScheme.onErrorContainer 
-                                else MaterialTheme.colorScheme.onSecondaryContainer
+                        color = chipColor
                     )
                 }
             }
 
             Box(modifier = Modifier.weight(1f)) {
                 if (messages.isEmpty()) {
-                    Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                        Text(
-                            "Ask me anything about your spending history",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.outline
-                        )
-                    }
+                    EmptyChatState(examples = examples, onExampleClick = { textInput = it })
                 } else {
                     LazyColumn(
                         state = listState,
@@ -127,27 +158,35 @@ fun AiHistoryAssistantSheet(
                                 }
                             )
                         }
-                        
-                        item {
-                            AiStatusIndicator(status)
-                        }
+                        item { AiStatusIndicator(status) }
                     }
                 }
             }
 
-            Spacer(modifier = Modifier.height(16.dp))
+            Spacer(modifier = Modifier.height(12.dp))
 
-            // Persistent Suggestions
-            LazyRow(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(horizontal = 4.dp)
-            ) {
-                items(examples) { example ->
-                    SuggestionChip(
-                        onClick = { textInput = example },
-                        label = { Text(example, fontSize = 11.sp) }
-                    )
+            // Persistent example chips (only when there's already a conversation)
+            if (messages.isNotEmpty()) {
+                LazyRow(
+                    modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(horizontal = 2.dp)
+                ) {
+                    items(examples) { example ->
+                        Surface(
+                            onClick = { textInput = example },
+                            shape = RoundedCornerShape(12.dp),
+                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
+                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                        ) {
+                            Text(
+                                example,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 }
             }
 
@@ -158,32 +197,126 @@ fun AiHistoryAssistantSheet(
                     modifier = Modifier.fillMaxWidth(),
                     placeholder = { Text("Ask about your history…") },
                     trailingIcon = {
-                        IconButton(
+                        Surface(
                             onClick = {
                                 if (textInput.isNotBlank()) {
                                     onSendMessage(textInput)
                                     textInput = ""
                                 }
                             },
-                            enabled = textInput.isNotBlank()
+                            enabled = textInput.isNotBlank(),
+                            shape = CircleShape,
+                            color = if (textInput.isNotBlank()) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.surfaceVariant,
+                            modifier = Modifier.size(38.dp)
                         ) {
-                            Icon(Icons.AutoMirrored.Rounded.Send, contentDescription = "Send message")
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.AutoMirrored.Rounded.Send,
+                                    contentDescription = "Send message",
+                                    tint = if (textInput.isNotBlank()) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
+                                )
+                            }
                         }
                     },
                     shape = RoundedCornerShape(24.dp)
                 )
-                
-                Spacer(modifier = Modifier.height(4.dp))
-                
+
+                Spacer(modifier = Modifier.height(6.dp))
+
                 Text(
-                    text = "AI-powered history analysis. Insights may vary based on your recorded transactions.",
+                    text = "AI-powered. Answers depend on your recorded transactions.",
                     style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                    color = MaterialTheme.colorScheme.outline.copy(alpha = 0.7f),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
                     modifier = Modifier.padding(horizontal = 12.dp)
                 )
             }
-            
+
             Spacer(modifier = Modifier.height(24.dp))
+        }
+    }
+}
+
+@Composable
+private fun EmptyChatState(
+    examples: List<String>,
+    onExampleClick: (String) -> Unit
+) {
+    Column(
+        modifier = Modifier.fillMaxSize(),
+        horizontalAlignment = Alignment.CenterHorizontally,
+        verticalArrangement = Arrangement.Center
+    ) {
+        Box(
+            modifier = Modifier
+                .size(72.dp)
+                .background(
+                    Brush.linearGradient(
+                        listOf(
+                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
+                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
+                        )
+                    ),
+                    CircleShape
+                ),
+            contentAlignment = Alignment.Center
+        ) {
+            Icon(
+                Icons.Rounded.AutoAwesome,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(32.dp)
+            )
+        }
+        Spacer(modifier = Modifier.height(14.dp))
+        Text(
+            "How can I help today?",
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            "Pick a quick question or type your own",
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
+        )
+        Spacer(modifier = Modifier.height(20.dp))
+
+        FlowRow(
+            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            examples.forEach { ex ->
+                Surface(
+                    onClick = { onExampleClick(ex) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = MaterialTheme.colorScheme.surface,
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                ) {
+                    Row(
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Box(
+                            modifier = Modifier
+                                .size(6.dp)
+                                .background(
+                                    MaterialTheme.colorScheme.primary,
+                                    CircleShape
+                                )
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            ex,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                }
+            }
         }
     }
 }
@@ -206,8 +339,8 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "AI is analyzing your history...",
-                    style = MaterialTheme.typography.bodySmall,
+                    text = "AI is analyzing your history…",
+                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -220,7 +353,7 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
             when (status.type) {
                 AiErrorType.SERVER_RATE_LIMIT -> {
                     icon = Icons.Rounded.Timer
-                    title = "Server Busy (Quota Exceeded)"
+                    title = "Server Busy"
                     color = MaterialTheme.colorScheme.error
                 }
                 AiErrorType.CLIENT_RATE_LIMIT -> {
@@ -244,11 +377,11 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp),
-                color = color.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, color.copy(alpha = 0.2f))
+                color = color.copy(alpha = 0.10f),
+                shape = RoundedCornerShape(14.dp),
+                border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(14.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -265,19 +398,19 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
                             color = color
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
                     Text(
                         text = status.message,
                         style = MaterialTheme.typography.bodySmall,
-                        color = color.copy(alpha = 0.8f)
+                        color = color.copy(alpha = 0.85f)
                     )
-                    
+
                     if (status.type == AiErrorType.SERVER_RATE_LIMIT) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Please wait a moment before trying again. Google limits free-tier requests per minute.",
+                            text = "Please wait a moment before trying again — free-tier requests are rate-limited.",
                             style = MaterialTheme.typography.labelSmall,
-                            color = color.copy(alpha = 0.7f)
+                            color = color.copy(alpha = 0.75f)
                         )
                     }
                 }
@@ -293,7 +426,7 @@ fun ChatBubble(
 ) {
     val isUser = message.isFromUser
     val arrangement = if (isUser) Arrangement.End else Arrangement.Start
-    
+
     val locale = LocalConfiguration.current.locales[0]
     val timeFormat = remember(locale) { java.text.SimpleDateFormat("HH:mm", locale) }
     val timeString = remember(message.timestamp) { timeFormat.format(java.util.Date(message.timestamp)) }
@@ -301,7 +434,7 @@ fun ChatBubble(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp), // Increased for airy feel
+            .padding(vertical = 6.dp),
         horizontalArrangement = arrangement,
         verticalAlignment = Alignment.Top
     ) {
@@ -314,24 +447,31 @@ fun ChatBubble(
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
         ) {
             Surface(
-                color = if (isUser) MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f)
-                        else MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f),
-                shape = RoundedCornerShape(16.dp),
-                border = BorderStroke(1.dp, if (isUser) MaterialTheme.colorScheme.outlineVariant 
-                        else MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)),
+                color = if (isUser) MaterialTheme.colorScheme.primary
+                else MaterialTheme.colorScheme.surface,
+                shape = RoundedCornerShape(
+                    topStart = 18.dp,
+                    topEnd = 18.dp,
+                    bottomEnd = if (isUser) 4.dp else 18.dp,
+                    bottomStart = if (isUser) 18.dp else 4.dp
+                ),
+                border = if (isUser) null else BorderStroke(
+                    1.dp,
+                    MaterialTheme.colorScheme.outlineVariant
+                ),
                 modifier = Modifier.widthIn(max = 280.dp)
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(14.dp)) {
                     if (isUser) {
                         Text(
                             text = message.text,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            color = MaterialTheme.colorScheme.onPrimary,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     } else {
                         MarkdownText(
                             text = message.text,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
+                            color = MaterialTheme.colorScheme.onSurface,
                             style = MaterialTheme.typography.bodyMedium
                         )
                     }
@@ -346,10 +486,10 @@ fun ChatBubble(
                         Text(
                             text = timeString,
                             style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp),
-                            color = (if (isUser) MaterialTheme.colorScheme.onSurfaceVariant 
-                                    else MaterialTheme.colorScheme.onPrimaryContainer).copy(alpha = 0.5f)
+                            color = (if (isUser) MaterialTheme.colorScheme.onPrimary
+                            else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.6f)
                         )
-                        
+
                         IconButton(
                             onClick = onCopy,
                             modifier = Modifier.size(24.dp)
@@ -357,8 +497,8 @@ fun ChatBubble(
                             Icon(
                                 imageVector = Icons.Rounded.ContentCopy,
                                 contentDescription = "Copy message",
-                                tint = (if (isUser) MaterialTheme.colorScheme.onSurfaceVariant 
-                                        else MaterialTheme.colorScheme.onPrimaryContainer).copy(alpha = 0.5f),
+                                tint = (if (isUser) MaterialTheme.colorScheme.onPrimary
+                                else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.7f),
                                 modifier = Modifier.size(14.dp)
                             )
                         }
@@ -376,20 +516,23 @@ fun ChatBubble(
 
 @Composable
 private fun AiAvatar() {
-    Surface(
-        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
-        shape = CircleShape,
-        modifier = Modifier.size(32.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+    Box(
+        modifier = Modifier
+            .size(32.dp)
+            .background(
+                Brush.linearGradient(
+                    listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)
+                ),
+                CircleShape
+            ),
+        contentAlignment = Alignment.Center
     ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                imageVector = Icons.Rounded.AutoAwesome,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(18.dp)
-            )
-        }
+        Icon(
+            imageVector = Icons.Rounded.AutoAwesome,
+            contentDescription = null,
+            tint = Color.White,
+            modifier = Modifier.size(16.dp)
+        )
     }
 }
 
@@ -399,13 +542,13 @@ private fun UserAvatar() {
         color = MaterialTheme.colorScheme.surfaceVariant,
         shape = CircleShape,
         modifier = Modifier.size(32.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.2f))
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
                 imageVector = Icons.Rounded.Person,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.outline,
+                tint = MaterialTheme.colorScheme.onSurfaceVariant,
                 modifier = Modifier.size(18.dp)
             )
         }
