@@ -184,7 +184,7 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
                 }
 
                 val generativeModel = GenerativeModel(
-                    modelName = "gemini-3.5-flash",
+                    modelName = "gemini-1.5-flash",
                     apiKey = apiKey
                 )
 
@@ -250,7 +250,7 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
 
     private fun getGenerativeModel(apiKey: String): GenerativeModel {
         return GenerativeModel(
-            modelName = "gemini-3.5-flash",
+            modelName = "gemini-1.5-flash",
             apiKey = apiKey,
             requestOptions = RequestOptions(apiVersion = "v1")
         )
@@ -473,10 +473,9 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         selectedFilter,
         customDateRange
     ) { spends, filter, range ->
-        val expenseSpends = spends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
-        val filtered = filterSpendsByTime(expenseSpends, filter, range)
-        val previousTotal = calculatePreviousPeriodTotal(expenseSpends, filter, range)
-        calculateAnalytics(filtered, filter, range, previousTotal)
+        val filtered = filterSpendsByTime(spends, filter, range)
+            .filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
+        calculateAnalytics(filtered, filter, range)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -588,13 +587,6 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
 
         // Trend Breakdown for beautiful graph (bar/line charts based on day index or calendar buckets)
         val trendPoints = calculateTrendPoints(spends, filter)
-
-        val topCategory = categoryTotals.maxByOrNull { it.value }?.toPair()
-        val (elapsedDays, totalPeriodDays) = periodDaysInfo(filter, range)
-        val dailyAverage = if (elapsedDays > 0) total / elapsedDays else 0.0
-        val projectedTotal = if (totalPeriodDays != null && elapsedDays in 1 until totalPeriodDays) {
-            dailyAverage * totalPeriodDays
-        } else null
 
         return SpendingAnalytics(
             totalAmount = total,

@@ -19,7 +19,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalClipboardManager
@@ -29,9 +29,6 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.ChatMessage
-import com.alpha.spendtracker.ui.theme.BrandGradientEnd
-import com.alpha.spendtracker.ui.theme.BrandGradientMid
-import com.alpha.spendtracker.ui.theme.BrandGradientStart
 import com.alpha.spendtracker.ui.viewmodel.AiErrorType
 import com.alpha.spendtracker.ui.viewmodel.AiHistoryStatus
 
@@ -47,7 +44,8 @@ fun AiHistoryAssistantSheet(
     var textInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
     val clipboardManager = LocalClipboardManager.current
-
+    
+    // Calculate remaining messages in current session (Limit is 7)
     val lastMessage = messages.lastOrNull()
     val userMessagesInCurrentSession = if (lastMessage != null) {
         messages.count { it.sessionId == lastMessage.sessionId && it.isFromUser }
@@ -158,7 +156,10 @@ fun AiHistoryAssistantSheet(
                                 }
                             )
                         }
-                        item { AiStatusIndicator(status) }
+                        
+                        item {
+                            AiStatusIndicator(status)
+                        }
                     }
                 }
             }
@@ -240,88 +241,6 @@ fun AiHistoryAssistantSheet(
 }
 
 @Composable
-private fun EmptyChatState(
-    examples: List<String>,
-    onExampleClick: (String) -> Unit
-) {
-    Column(
-        modifier = Modifier.fillMaxSize(),
-        horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
-    ) {
-        Box(
-            modifier = Modifier
-                .size(72.dp)
-                .background(
-                    Brush.linearGradient(
-                        listOf(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.2f),
-                            MaterialTheme.colorScheme.tertiary.copy(alpha = 0.2f)
-                        )
-                    ),
-                    CircleShape
-                ),
-            contentAlignment = Alignment.Center
-        ) {
-            Icon(
-                Icons.Rounded.AutoAwesome,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(32.dp)
-            )
-        }
-        Spacer(modifier = Modifier.height(14.dp))
-        Text(
-            "How can I help today?",
-            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-            color = MaterialTheme.colorScheme.onSurface
-        )
-        Spacer(modifier = Modifier.height(4.dp))
-        Text(
-            "Pick a quick question or type your own",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(20.dp))
-
-        FlowRow(
-            modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            examples.forEach { ex ->
-                Surface(
-                    onClick = { onExampleClick(ex) },
-                    shape = RoundedCornerShape(14.dp),
-                    color = MaterialTheme.colorScheme.surface,
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .size(6.dp)
-                                .background(
-                                    MaterialTheme.colorScheme.primary,
-                                    CircleShape
-                                )
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            ex,
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
 private fun AiStatusIndicator(status: AiHistoryStatus) {
     when (status) {
         is AiHistoryStatus.Idle -> {}
@@ -339,8 +258,8 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
                     color = MaterialTheme.colorScheme.primary
                 )
                 Text(
-                    text = "AI is analyzing your history…",
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    text = "AI is analyzing your history...",
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
             }
@@ -353,7 +272,7 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
             when (status.type) {
                 AiErrorType.SERVER_RATE_LIMIT -> {
                     icon = Icons.Rounded.Timer
-                    title = "Server Busy"
+                    title = "Server Busy (Quota Exceeded)"
                     color = MaterialTheme.colorScheme.error
                 }
                 AiErrorType.CLIENT_RATE_LIMIT -> {
@@ -377,11 +296,11 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
                 modifier = Modifier
                     .fillMaxWidth()
                     .padding(8.dp),
-                color = color.copy(alpha = 0.10f),
-                shape = RoundedCornerShape(14.dp),
-                border = BorderStroke(1.dp, color.copy(alpha = 0.3f))
+                color = color.copy(alpha = 0.1f),
+                shape = RoundedCornerShape(12.dp),
+                border = BorderStroke(1.dp, color.copy(alpha = 0.2f))
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         horizontalArrangement = Arrangement.spacedBy(8.dp)
@@ -398,19 +317,19 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
                             color = color
                         )
                     }
-                    Spacer(modifier = Modifier.height(6.dp))
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
                         text = status.message,
                         style = MaterialTheme.typography.bodySmall,
-                        color = color.copy(alpha = 0.85f)
+                        color = color.copy(alpha = 0.8f)
                     )
-
+                    
                     if (status.type == AiErrorType.SERVER_RATE_LIMIT) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Please wait a moment before trying again — free-tier requests are rate-limited.",
+                            text = "Please wait a moment before trying again. Google limits free-tier requests per minute.",
                             style = MaterialTheme.typography.labelSmall,
-                            color = color.copy(alpha = 0.75f)
+                            color = color.copy(alpha = 0.7f)
                         )
                     }
                 }
@@ -426,7 +345,7 @@ fun ChatBubble(
 ) {
     val isUser = message.isFromUser
     val arrangement = if (isUser) Arrangement.End else Arrangement.Start
-
+    
     val locale = LocalConfiguration.current.locales[0]
     val timeFormat = remember(locale) { java.text.SimpleDateFormat("HH:mm", locale) }
     val timeString = remember(message.timestamp) { timeFormat.format(java.util.Date(message.timestamp)) }

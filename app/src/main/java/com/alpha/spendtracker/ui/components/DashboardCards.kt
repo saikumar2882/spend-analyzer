@@ -250,17 +250,6 @@ fun TotalSpentHeroCard(
                         background = Color.White.copy(alpha = 0.16f),
                         border = Color.White.copy(alpha = 0.22f)
                     )
-                    if (onLentClick != null) {
-                        Spacer(modifier = Modifier.weight(1f))
-                        GlassChip(
-                            icon = Icons.Rounded.Savings,
-                            text = "Lend / Borrow",
-                            tint = Color.White,
-                            background = BrandAccentMint.copy(alpha = 0.22f),
-                            border = BrandAccentMint.copy(alpha = 0.45f),
-                            onClick = onLentClick
-                        )
-                    }
                 }
             }
         }
