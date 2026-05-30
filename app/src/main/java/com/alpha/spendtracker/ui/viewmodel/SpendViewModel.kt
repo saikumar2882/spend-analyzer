@@ -588,6 +588,13 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
         // Trend Breakdown for beautiful graph (bar/line charts based on day index or calendar buckets)
         val trendPoints = calculateTrendPoints(spends, filter)
 
+        val topCategory = categoryTotals.maxByOrNull { it.value }?.toPair()
+        val (elapsedDays, totalPeriodDays) = periodDaysInfo(filter, range)
+        val dailyAverage = if (elapsedDays > 0) total / elapsedDays else 0.0
+        val projectedTotal = if (totalPeriodDays != null && elapsedDays in 1 until totalPeriodDays) {
+            dailyAverage * totalPeriodDays
+        } else null
+
         return SpendingAnalytics(
             totalAmount = total,
             categoryBreakdown = categoryTotals,
