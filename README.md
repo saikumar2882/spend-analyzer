@@ -68,3 +68,85 @@ service cloud.firestore {
   }
 }
 ```
+
+## 🔄 App Workflow
+
+### Workflow Description
+1.  **Authentication**: Users sign in via Google or Email. A unique `userId` is assigned to maintain data privacy.
+2.  **Dashboard**: The app fetches local data from **Room DB** to show immediate analytics.
+3.  **Data Entry**:
+    *   **Manual**: User fills out amount, app, and purpose.
+    *   **AI (Smart)**: User types a natural sentence (e.g., "Paid 500 for lunch via GPay"). **Gemini AI** parses this into structured data.
+4.  **Processing**: Data is first saved to the local **Room Database** (Offline-first).
+5.  **Synchronization**: The **Repository** layer triggers a background sync to **Firebase Firestore** for cloud backup.
+6.  **Insights**: The **Analytics Engine** groups data to generate donut/bar charts and provides an **AI Chat Assistant** for historical queries.
+
+### Flowchart
+
+![App Workflow](./app/src/main/assets/img.png)
+
+## 📖 User Manual
+
+### Introduction
+**Spend Tracker** is a comprehensive personal finance management tool designed to help you monitor your expenses, visualize spending habits, and manage debts with the help of AI-powered insights.
+
+### 1. Getting Started
+#### Login & Security
+*   **Authentication**: Securely log in using your email and password.
+*   **Reset Password**: If you forget your password, use the "Forgot Password" option in the Account Security menu to receive a reset link via email.
+*   **Update Password**: Change your password anytime from the **Dashboard > Security Settings** (shield icon).
+
+### 2. Dashboard Overview
+The Dashboard is your financial control center:
+*   **Spending Summary**: View your total spent and transaction count for a specific period.
+*   **Time Filters**: Quickly switch between Today, Week, Month, Year, or a **Custom Date Range**.
+*   **Category Breakdown**: An interactive donut chart showing which categories (Food, Shopping, etc.) consume your budget.
+*   **Spending Trends**: A bar chart visualizing your spending patterns over time.
+*   **Top Apps**: See which applications or wallets (like Swiggy, Amazon, Zomato) you use the most.
+*   **Recent Activity**: A quick glance at your latest transactions.
+
+### 3. Managing Transactions
+#### Logging a New Expense
+1.  **Manual Entry**:
+    *   Tap the **Add** button.
+    *   **Amount**: Enter the exact amount spent.
+    *   **App/Wallet**: Select from presets or choose "Other".
+    *   **Date**: Defaults to today, but can be customized.
+    *   **Purpose**: Select a category or type a custom one.
+    *   **Notes**: Add optional details.
+2.  **Quick AI Entry**:
+    *   In the **Add** screen (or through the AI prompt), you can simply type or say what you spent.
+    *   Example: *"Spent 300 on biryani using PhonePe"*
+    *   The AI will automatically parse the amount, app, and purpose for you!
+    *   **Daily Limit**: Note that AI processing has a daily request limit shown in the input box.
+
+#### Editing & Deleting
+*   Navigate to **History** or **Lend/Borrow**.
+*   Tap on any transaction card to **Edit** its details.
+*   Long-press or use the delete action to remove a transaction after confirmation.
+
+### 4. History & Advanced Filtering
+View every rupee spent in the **History Screen**:
+*   **Search**: Use the search bar to find transactions by App Name, Purpose, or Notes.
+*   **Filter**: Use category chips to isolate specific types of spending (e.g., only "Food").
+*   **Monthly Grouping**: Transactions are automatically grouped by month with sub-totals for easy tracking.
+
+### 5. Lending & Borrowing
+Keep track of money owed or borrowed:
+*   Use the **Lend & Borrow** screen to separate these special transactions.
+*   Toggle between the **Lending** and **Borrowing** tabs to see your current balances.
+
+### 6. AI History Assistant
+Leverage AI to understand your finances:
+*   Tap the **AI Assistant** (sparkle icon) on any major screen.
+*   Ask questions like "How much did I spend on food last month?" or "What are my biggest expenses?"
+*   Get conversational insights and summaries of your financial data.
+
+### 7. Personalization
+*   **Theme Switching**: Cycle between **Light Mode**, **Dark Mode**, and **System Default** using the theme icon on the Dashboard.
+*   **Notifications**: The app provides real-time feedback for successful saves, errors, and security updates.
+
+### 8. Tips for Success
+*   **Be Descriptive**: Use the "Notes" field to remember specific details about unusual expenses.
+*   **Review Weekly**: Use the "This Week" filter every Sunday to stay on top of your budget.
+*   **Categorize Correctly**: Consistently using the same categories makes the "Category Breakdown" chart more accurate.
