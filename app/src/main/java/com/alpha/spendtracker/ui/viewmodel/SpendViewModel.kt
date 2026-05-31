@@ -234,6 +234,18 @@ class SpendViewModel @Inject constructor(
         initialValue = AiPreferences()
     )
 
+    fun updateAiPreferences(currency: String, app: String, purpose: String) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateSettings(currency, app, purpose)
+        }
+    }
+
+    fun updateBiometricEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateBiometricEnabled(enabled)
+        }
+    }
+
     private val remoteConfig by lazy {
         FirebaseRemoteConfig.getInstance().apply {
             val configSettings = remoteConfigSettings {

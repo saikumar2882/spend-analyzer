@@ -43,8 +43,12 @@ import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.draw.scale
+import androidx.compose.ui.draw.blur
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.Spend
+import com.alpha.spendtracker.data.AiPreferences
+import com.alpha.spendtracker.ui.components.AiSettingsDialog
 import com.alpha.spendtracker.ui.components.EmptyStateCard
 import com.alpha.spendtracker.ui.components.InsightsCard
 import com.alpha.spendtracker.ui.components.NotificationType
@@ -65,6 +69,7 @@ fun DashboardScreen(
     analytics: SpendingAnalytics,
     recentSpends: List<Spend>,
     themePreference: ThemePreference,
+    aiPreferences: AiPreferences,
     onCycleTheme: () -> Unit,
     onFilterSelect: (TimeFilter) -> Unit,
     onCustomRangeSelect: (Long, Long) -> Unit,
@@ -74,12 +79,16 @@ fun DashboardScreen(
     onLentClick: () -> Unit,
     onTransactionsClick: () -> Unit,
     onLogout: () -> Unit,
-    onAiAssistantClick: () -> Unit
+    onAiAssistantClick: () -> Unit,
+    onUpdateAiPreferences: (String, String, String) -> Unit,
+    onToggleBiometrics: (Boolean) -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showSecurityOptions by remember { mutableStateOf(false) }
     var showPasswordUpdateDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
+    var showAiSettingsDialog by remember { mutableStateOf(false) }
+    var menuExpanded by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
@@ -238,10 +247,23 @@ fun DashboardScreen(
         }
     }
 
+    if (showAiSettingsDialog) {
+        AiSettingsDialog(
+            currentPrefs = aiPreferences,
+            onSave = { currency, app, purpose ->
+                onUpdateAiPreferences(currency, app, purpose)
+                showAiSettingsDialog = false
+                onShowNotification("Default settings updated", NotificationType.SUCCESS)
+            },
+            onDismiss = { showAiSettingsDialog = false }
+        )
+    }
+
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp),
+            .padding(horizontal = 16.dp)
+            .blur(if (menuExpanded) 12.dp else 0.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
         contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
     ) {
@@ -253,7 +275,12 @@ fun DashboardScreen(
                 onLogout = onLogout,
                 onProfileClick = { showProfileDialog = true },
                 onSecurityClick = { showSecurityOptions = true },
-                onAiAssistantClick = onAiAssistantClick
+                onAiAssistantClick = onAiAssistantClick,
+                onAiSettingsClick = { showAiSettingsDialog = true },
+                isBiometricEnabled = aiPreferences.isBiometricEnabled,
+                onToggleBiometrics = onToggleBiometrics,
+                menuExpanded = menuExpanded,
+                onMenuExpandedChange = { menuExpanded = it }
             )
         }
 
@@ -364,7 +391,12 @@ private fun DashboardHeader(
     onLogout: () -> Unit,
     onProfileClick: () -> Unit,
     onSecurityClick: () -> Unit,
-    onAiAssistantClick: () -> Unit
+    onAiAssistantClick: () -> Unit,
+    onAiSettingsClick: () -> Unit,
+    isBiometricEnabled: Boolean,
+    onToggleBiometrics: (Boolean) -> Unit,
+    menuExpanded: Boolean,
+    onMenuExpandedChange: (Boolean) -> Unit
 ) {
     val firstName = displayName.trim().split(" ").firstOrNull().orEmpty()
     val greeting = if (firstName.isBlank()) "Hi there 👋" else "Hi, $firstName 👋"
@@ -411,13 +443,6 @@ private fun DashboardHeader(
                 background = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
             )
             HeaderActionButton(
-                icon = Icons.Rounded.Security,
-                onClick = onSecurityClick,
-                contentDescription = "Security Settings",
-                tint = MaterialTheme.colorScheme.onSurface,
-                background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-            )
-            HeaderActionButton(
                 icon = when (themePreference) {
                     ThemePreference.SYSTEM -> Icons.Rounded.BrightnessAuto
                     ThemePreference.LIGHT -> Icons.Rounded.LightMode
@@ -432,13 +457,75 @@ private fun DashboardHeader(
                 tint = MaterialTheme.colorScheme.onSurface,
                 background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
             )
-            HeaderActionButton(
-                icon = Icons.AutoMirrored.Rounded.Logout,
-                onClick = onLogout,
-                contentDescription = "Logout",
-                tint = MaterialTheme.colorScheme.error,
-                background = MaterialTheme.colorScheme.error.copy(alpha = 0.12f)
-            )
+            
+            Box {
+                HeaderActionButton(
+                    icon = Icons.Rounded.Menu,
+                    onClick = { onMenuExpandedChange(true) },
+                    contentDescription = "Menu",
+                    tint = MaterialTheme.colorScheme.onSurface,
+                    background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                )
+                DropdownMenu(
+                    expanded = menuExpanded,
+                    onDismissRequest = { onMenuExpandedChange(false) }
+                ) {
+                    DropdownMenuItem(
+                        text = { Text("Profile") },
+                        leadingIcon = { Icon(Icons.Rounded.Person, null) },
+                        onClick = {
+                            onMenuExpandedChange(false)
+                            onProfileClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Security") },
+                        leadingIcon = { Icon(Icons.Rounded.Security, null) },
+                        onClick = {
+                            onMenuExpandedChange(false)
+                            onSecurityClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("App Defaults") },
+                        leadingIcon = { Icon(Icons.Rounded.Settings, null) },
+                        onClick = {
+                            onMenuExpandedChange(false)
+                            onAiSettingsClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Biometrics") },
+                        leadingIcon = { 
+                            Icon(
+                                Icons.Rounded.Fingerprint, 
+                                tint = if (isBiometricEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
+                                contentDescription = null
+                            ) 
+                        },
+                        trailingIcon = {
+                            Switch(
+                                checked = isBiometricEnabled,
+                                onCheckedChange = { 
+                                    onToggleBiometrics(it)
+                                },
+                                modifier = Modifier.scale(0.7f)
+                            )
+                        },
+                        onClick = { onToggleBiometrics(!isBiometricEnabled) }
+                    )
+                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
+                    DropdownMenuItem(
+                        text = { Text("Sign Out") },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = MaterialTheme.colorScheme.error) },
+                        onClick = {
+                            onMenuExpandedChange(false)
+                            onLogout()
+                        },
+                        colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
+                    )
+                }
+            }
         }
     }
 }
