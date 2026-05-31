@@ -469,9 +469,13 @@ class SpendViewModel @Inject constructor(
         selectedFilter,
         customDateRange
     ) { spends, filter, range ->
-        val filtered = filterSpendsByTime(spends, filter, range)
-            .filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
-        calculateAnalytics(filtered, filter, range)
+        // Exclude lending/borrowing from main dashboard analytics
+        val userSpends = spends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
+        
+        val filtered = filterSpendsByTime(userSpends, filter, range)
+        val prevTotal = calculatePreviousPeriodTotal(userSpends, filter, range)
+        
+        calculateAnalytics(filtered, filter, range, prevTotal)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),

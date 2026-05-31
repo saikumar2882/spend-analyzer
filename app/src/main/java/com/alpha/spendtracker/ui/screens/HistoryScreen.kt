@@ -3,6 +3,11 @@
  */
 package com.alpha.spendtracker.ui.screens
 
+import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.expandVertically
+import androidx.compose.animation.fadeIn
+import androidx.compose.animation.fadeOut
+import androidx.compose.animation.shrinkVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -26,6 +31,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
@@ -53,8 +59,10 @@ import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.CATEGORY_PRESETS
 import com.alpha.spendtracker.ui.components.HistorySpendCard
 import com.alpha.spendtracker.ui.components.formatCurrency
+import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.alpha.spendtracker.util.formatDate
 import com.alpha.spendtracker.util.formatMonth
+import java.util.Calendar
 
 private const val ALL_CATEGORIES = "All"
 
@@ -63,6 +71,8 @@ fun HistoryScreen(
     allSpends: List<Spend>,
     initialSearchQuery: String = "",
     initialCategoryFilter: String = ALL_CATEGORIES,
+    initialTimeFilter: TimeFilter = TimeFilter.ALL,
+    initialDateRange: Pair<Long, Long>? = null,
     onEditSpend: (Spend) -> Unit,
     onDeleteSpend: (Spend) -> Unit,
     onBackClick: () -> Unit,
@@ -70,17 +80,68 @@ fun HistoryScreen(
 ) {
     var searchQuery by rememberSaveable(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var selectedCategory by rememberSaveable(initialCategoryFilter) { mutableStateOf(initialCategoryFilter) }
+    var selectedTimeFilter by rememberSaveable(initialTimeFilter) { mutableStateOf(initialTimeFilter) }
+    var customDateRange by remember { mutableStateOf(initialDateRange) }
     var spendToDelete by remember { mutableStateOf<Spend?>(null) }
+    var showFilters by rememberSaveable { 
+        mutableStateOf(initialTimeFilter != TimeFilter.ALL || initialCategoryFilter != ALL_CATEGORIES) 
+    }
 
-    val filteredHistory = remember(allSpends, searchQuery, selectedCategory) {
+    val filteredHistory = remember(allSpends, searchQuery, selectedCategory, selectedTimeFilter, customDateRange) {
         val q = searchQuery.trim()
+        val calendar = Calendar.getInstance()
+        val startOfToday = calendar.apply {
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val filterStartTime: Long
+        val filterEndTime: Long
+
+        when (selectedTimeFilter) {
+            TimeFilter.DAY -> {
+                filterStartTime = startOfToday
+                filterEndTime = Long.MAX_VALUE
+            }
+            TimeFilter.WEEK -> {
+                calendar.timeInMillis = startOfToday
+                calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
+                filterStartTime = calendar.timeInMillis
+                filterEndTime = Long.MAX_VALUE
+            }
+            TimeFilter.MONTH -> {
+                calendar.timeInMillis = startOfToday
+                calendar.set(Calendar.DAY_OF_MONTH, 1)
+                filterStartTime = calendar.timeInMillis
+                filterEndTime = Long.MAX_VALUE
+            }
+            TimeFilter.YEAR -> {
+                calendar.timeInMillis = startOfToday
+                calendar.set(Calendar.DAY_OF_YEAR, 1)
+                filterStartTime = calendar.timeInMillis
+                filterEndTime = Long.MAX_VALUE
+            }
+            TimeFilter.CUSTOM -> {
+                filterStartTime = customDateRange?.first ?: 0L
+                filterEndTime = customDateRange?.second ?: Long.MAX_VALUE
+            }
+            TimeFilter.ALL -> {
+                filterStartTime = 0L
+                filterEndTime = Long.MAX_VALUE
+            }
+        }
+
         allSpends.filter { spend ->
             val matchesQuery = q.isEmpty() ||
                 spend.appName.contains(q, ignoreCase = true) ||
                 spend.purpose.contains(q, ignoreCase = true) ||
                 spend.notes.contains(q, ignoreCase = true)
             val matchesCategory = selectedCategory == ALL_CATEGORIES || spend.category == selectedCategory
-            matchesQuery && matchesCategory
+            val matchesTime = spend.timestamp in filterStartTime..filterEndTime
+            
+            matchesQuery && matchesCategory && matchesTime
         }
     }
 
@@ -146,43 +207,104 @@ fun HistoryScreen(
             }
         }
 
-        OutlinedTextField(
-            value = searchQuery,
-            onValueChange = { searchQuery = it },
-            placeholder = { Text("Search by app, purpose, or notes…") },
-            leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
-            trailingIcon = {
-                if (searchQuery.isNotEmpty()) {
-                    IconButton(onClick = { searchQuery = "" }) {
-                        Icon(Icons.Rounded.Clear, contentDescription = "Clear search")
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            OutlinedTextField(
+                value = searchQuery,
+                onValueChange = { searchQuery = it },
+                placeholder = { Text("Search by app, purpose…") },
+                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
+                trailingIcon = {
+                    if (searchQuery.isNotEmpty()) {
+                        IconButton(onClick = { searchQuery = "" }) {
+                            Icon(Icons.Rounded.Clear, contentDescription = "Clear search")
+                        }
+                    }
+                },
+                singleLine = true,
+                modifier = Modifier.weight(1f),
+                shape = RoundedCornerShape(18.dp)
+            )
+
+            IconButton(
+                onClick = { showFilters = !showFilters },
+                modifier = Modifier
+                    .size(48.dp)
+                    .background(
+                        if (showFilters) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        RoundedCornerShape(16.dp)
+                    )
+            ) {
+                Icon(
+                    Icons.Rounded.Tune,
+                    contentDescription = "Toggle filters",
+                    tint = if (showFilters) MaterialTheme.colorScheme.onPrimaryContainer 
+                           else MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+
+        AnimatedVisibility(
+            visible = showFilters,
+            enter = fadeIn() + expandVertically(),
+            exit = fadeOut() + shrinkVertically()
+        ) {
+            Column {
+                Spacer(modifier = Modifier.height(12.dp))
+
+                val categoryFilters = remember { listOf(ALL_CATEGORIES) + CATEGORY_PRESETS }
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .height(44.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items(categoryFilters, key = { it }) { name ->
+                        FilterChip(
+                            selected = selectedCategory == name,
+                            onClick = { selectedCategory = name },
+                            label = { Text(name) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
                     }
                 }
-            },
-            singleLine = true,
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(18.dp)
-        )
 
-        Spacer(modifier = Modifier.height(12.dp))
-
-        val filters = remember { listOf(ALL_CATEGORIES) + CATEGORY_PRESETS }
-        LazyRow(
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(44.dp),
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            items(filters, key = { it }) { name ->
-                FilterChip(
-                    selected = selectedCategory == name,
-                    onClick = { selectedCategory = name },
-                    label = { Text(name) },
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                val timeFilters = remember {
+                    listOf(
+                        TimeFilter.ALL to "All Time",
+                        TimeFilter.DAY to "Today",
+                        TimeFilter.WEEK to "This Week",
+                        TimeFilter.MONTH to "This Month",
+                        TimeFilter.YEAR to "This Year"
                     )
-                )
+                }
+                LazyRow(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(vertical = 4.dp),
+                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    items(timeFilters, key = { it.first.name }) { (filter, label) ->
+                        FilterChip(
+                            selected = selectedTimeFilter == filter,
+                            onClick = { selectedTimeFilter = filter },
+                            label = { Text(label, fontSize = 12.sp) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
+                }
             }
         }
 
