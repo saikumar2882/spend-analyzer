@@ -65,6 +65,7 @@ import com.alpha.spendtracker.ui.theme.isDark
 import com.alpha.spendtracker.ui.theme.next
 import com.alpha.spendtracker.ui.theme.rememberThemePreference
 import com.alpha.spendtracker.ui.viewmodel.SpendViewModel
+import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import androidx.work.ExistingPeriodicWorkPolicy
@@ -203,11 +204,13 @@ fun MainContainer(
     var activeView by rememberSaveable { mutableStateOf(ActiveView.DASHBOARD) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var historyCategoryFilter by rememberSaveable { mutableStateOf("All") }
+    var historyTimeFilter by rememberSaveable { mutableStateOf<TimeFilter>(TimeFilter.ALL) }
     var editingSpend by remember { mutableStateOf<Spend?>(null) }
 
     val allSpends by viewModel.allSpendsFlow.collectAsStateWithLifecycle()
     val analyticsState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
+    val customDateRange by viewModel.customDateRange.collectAsStateWithLifecycle()
     val aiPrefs by viewModel.aiPreferences.collectAsStateWithLifecycle()
     val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
     val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
@@ -326,6 +329,7 @@ fun MainContainer(
                         onClick = {
                             historySearchQuery = ""
                             historyCategoryFilter = "All"
+                            historyTimeFilter = TimeFilter.ALL
                             activeView = ActiveView.HISTORY
                         },
                         icon = { Icon(Icons.Rounded.History, contentDescription = "Spending History") },
@@ -401,15 +405,23 @@ fun MainContainer(
                         onShowAllClick = {
                             historySearchQuery = ""
                             historyCategoryFilter = "All"
+                            historyTimeFilter = TimeFilter.ALL
                             activeView = ActiveView.HISTORY
                         },
                         onAppClick = { appName ->
                             historySearchQuery = appName
                             historyCategoryFilter = "All"
+                            historyTimeFilter = TimeFilter.ALL
                             activeView = ActiveView.HISTORY
                         },
                         onLentClick = {
                             activeView = ActiveView.LEND_BORROW
+                        },
+                        onTransactionsClick = {
+                            historySearchQuery = ""
+                            historyCategoryFilter = "All"
+                            historyTimeFilter = currentFilter
+                            activeView = ActiveView.HISTORY
                         },
                         onLogout = {
                             FirebaseAuth.getInstance().signOut()
@@ -433,6 +445,8 @@ fun MainContainer(
                         allSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" },
                         initialSearchQuery = historySearchQuery,
                         initialCategoryFilter = historyCategoryFilter,
+                        initialTimeFilter = historyTimeFilter,
+                        initialDateRange = customDateRange,
                         onEditSpend = { spend ->
                             editingSpend = spend
                             activeView = ActiveView.ADD_SPEND

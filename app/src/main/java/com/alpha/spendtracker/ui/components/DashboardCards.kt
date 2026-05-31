@@ -22,6 +22,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.Handshake
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
@@ -117,7 +118,8 @@ fun TotalSpentHeroCard(
     totalAmount: Double,
     transactionCount: Int,
     dateRange: Pair<Long, Long>? = null,
-    onLentClick: (() -> Unit)? = null
+    onLentClick: (() -> Unit)? = null,
+    onTransactionsClick: (() -> Unit)? = null
 ) {
     val titleText = when (filterType) {
         TimeFilter.DAY -> "Today's Spend"
@@ -240,7 +242,7 @@ fun TotalSpentHeroCard(
 
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     GlassChip(
@@ -248,7 +250,17 @@ fun TotalSpentHeroCard(
                         text = subtitleText,
                         tint = Color.White,
                         background = Color.White.copy(alpha = 0.16f),
-                        border = Color.White.copy(alpha = 0.22f)
+                        border = Color.White.copy(alpha = 0.22f),
+                        onClick = onTransactionsClick
+                    )
+
+                    GlassChip(
+                        icon = Icons.Rounded.Handshake,
+                        text = "Lend / Borrow",
+                        tint = Color.White,
+                        background = Color.White.copy(alpha = 0.16f),
+                        border = Color.White.copy(alpha = 0.22f),
+                        onClick = onLentClick
                     )
                 }
             }
@@ -283,128 +295,6 @@ private fun GlassChip(
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                 color = tint
             )
-        }
-    }
-}
-
-@Composable
-fun TopAppsRankingCard(
-    appBreakdown: List<Pair<String, Double>>,
-    onAppClick: (String) -> Unit
-) {
-    if (appBreakdown.isEmpty()) return
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(24.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-    ) {
-        Column(modifier = Modifier.padding(20.dp)) {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(10.dp),
-                modifier = Modifier.padding(bottom = 16.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(28.dp)
-                        .background(
-                            MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
-                            RoundedCornerShape(8.dp)
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = "★",
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                }
-                Text(
-                    text = "Top Apps & Wallets",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-
-            val maxAmt = appBreakdown.maxOfOrNull { it.second } ?: 1.0
-
-            appBreakdown.take(4).forEachIndexed { index, (app, amount) ->
-                val accent = APP_PRESETS.firstOrNull { it.displayName == app }?.color ?: MaterialTheme.colorScheme.primary
-                val fraction = (amount / maxAmt.coerceAtLeast(1.0)).toFloat()
-                    .coerceIn(0f, 1f)
-
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
-                        .clickable { onAppClick(app) }
-                        .padding(vertical = 8.dp, horizontal = 4.dp)
-                ) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(
-                                text = "${index + 1}",
-                                style = MaterialTheme.typography.labelMedium.copy(
-                                    fontWeight = FontWeight.Bold
-                                ),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.padding(end = 10.dp)
-                            )
-                            Box(
-                                modifier = Modifier
-                                    .size(10.dp)
-                                    .background(accent, CircleShape)
-                            )
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Text(
-                                text = app,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.SemiBold
-                                ),
-                                color = MaterialTheme.colorScheme.onSurface,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
-                        Text(
-                            text = "₹${formatCurrency(amount)}",
-                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
-                        )
-                    }
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Box(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .height(6.dp)
-                            .background(
-                                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                                RoundedCornerShape(3.dp)
-                            )
-                    ) {
-                        Box(
-                            modifier = Modifier
-                                .fillMaxWidth(fraction = fraction)
-                                .height(6.dp)
-                                .background(
-                                    Brush.horizontalGradient(
-                                        listOf(accent.copy(alpha = 0.7f), accent)
-                                    ),
-                                    RoundedCornerShape(3.dp)
-                                )
-                        )
-                    }
-                }
-            }
         }
     }
 }

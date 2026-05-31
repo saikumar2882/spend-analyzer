@@ -26,10 +26,22 @@ fun LendBorrowScreen(
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Lending", "Borrowing")
+    var spendToDelete by remember { mutableStateOf<Spend?>(null) }
 
     val filteredSpends = remember(allSpends, selectedTab) {
         val purpose = if (selectedTab == 0) "Lending" else "Borrowing"
         allSpends.filter { it.purpose == purpose }
+    }
+
+    if (spendToDelete != null) {
+        DeleteConfirmationDialog(
+            spend = spendToDelete!!,
+            onConfirm = {
+                onDeleteSpend(spendToDelete!!)
+                spendToDelete = null
+            },
+            onDismiss = { spendToDelete = null }
+        )
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
@@ -127,11 +139,73 @@ fun LendBorrowScreen(
                         HistorySpendCard(
                             spend = spend,
                             onEdit = { onEditSpend(spend) },
-                            onDelete = { onDeleteSpend(spend) }
+                            onDelete = { spendToDelete = spend }
                         )
                     }
                 }
             }
         }
     }
+}
+
+@Composable
+private fun DeleteConfirmationDialog(
+    spend: Spend,
+    onConfirm: () -> Unit,
+    onDismiss: () -> Unit
+) {
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "Delete Record?",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Are you sure you want to delete this record?",
+                    style = MaterialTheme.typography.bodyMedium
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                    shape = RoundedCornerShape(8.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.padding(12.dp)) {
+                        Text(
+                            text = spend.appName,
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "₹${formatCurrency(spend.amount)} - ${spend.purpose}",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            TextButton(
+                onClick = onConfirm,
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = MaterialTheme.colorScheme.error
+                )
+            ) {
+                Text("Delete", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("Cancel")
+            }
+        },
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surface,
+        tonalElevation = 6.dp
+    )
 }

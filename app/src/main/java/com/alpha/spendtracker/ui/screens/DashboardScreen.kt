@@ -20,15 +20,8 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
-import androidx.compose.foundation.horizontalScroll
-import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.*
@@ -38,7 +31,6 @@ import androidx.compose.material.icons.rounded.Security
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.*
-import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -46,7 +38,6 @@ import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
@@ -62,7 +53,6 @@ import com.alpha.spendtracker.ui.components.RecentSpendRow
 import com.alpha.spendtracker.ui.components.SpendingDonutChart
 import com.alpha.spendtracker.ui.components.SpendingTrendBarChart
 import com.alpha.spendtracker.ui.components.TimeFilterSelectorRow
-import com.alpha.spendtracker.ui.components.TopAppsRankingCard
 import com.alpha.spendtracker.ui.components.TotalSpentHeroCard
 import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
@@ -82,6 +72,7 @@ fun DashboardScreen(
     onShowAllClick: () -> Unit,
     onAppClick: (String) -> Unit,
     onLentClick: () -> Unit,
+    onTransactionsClick: () -> Unit,
     onLogout: () -> Unit,
     onAiAssistantClick: () -> Unit
 ) {
@@ -280,7 +271,8 @@ fun DashboardScreen(
                 totalAmount = analytics.totalAmount,
                 transactionCount = analytics.transactionCount,
                 dateRange = analytics.dateRange,
-                onLentClick = onLentClick
+                onLentClick = onLentClick,
+                onTransactionsClick = onTransactionsClick
             )
         }
 
@@ -303,13 +295,6 @@ fun DashboardScreen(
                 SpendingTrendBarChart(
                     trendPoints = analytics.trendPoints,
                     modifier = Modifier.fillMaxWidth()
-                )
-            }
-
-            item {
-                TopAppsRankingCard(
-                    appBreakdown = analytics.appBreakdown,
-                    onAppClick = onAppClick
                 )
             }
 
