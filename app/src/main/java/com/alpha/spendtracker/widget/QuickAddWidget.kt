@@ -16,19 +16,21 @@ import androidx.glance.background
 import androidx.glance.layout.padding
 import androidx.glance.text.TextStyle
 import androidx.compose.ui.unit.dp
+import androidx.glance.Button
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.MainActivity
 
 class QuickAddWidget : GlanceAppWidget() {
     override suspend fun provideGlance(context: Context, id: GlanceId) {
         provideContent {
             Column(
-                modifier = GlanceModifier.fillMaxSize().background(androidx.glance.unit.ColorProvider(android.graphics.Color.WHITE)),
+                modifier = GlanceModifier.fillMaxSize().background(R.color.white),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
-                Text(text = "Spendly", style = TextStyle(color = ColorProvider(android.graphics.Color.BLACK)))
+                Text(text = "Spendly", style = TextStyle(color = ColorProvider(R.color.black)))
                 Row(modifier = GlanceModifier.padding(8.dp)) {
-                    androidx.glance.Button(
+                    Button(
                         text = "Quick AI Log",
                         onClick = actionStartActivity<MainActivity>()
                     )

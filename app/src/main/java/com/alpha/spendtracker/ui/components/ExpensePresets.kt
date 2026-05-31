@@ -28,8 +28,7 @@ val APP_PRESETS = listOf(
     
     AppPreset("icici", "ICICI Bank", "Banking & Cards", Color(0xFFE05F04)),
     AppPreset("yono_sbi", "Yono SBI", "Banking & Cards", Color(0xFF1E1B4B)),
-    AppPreset("credit_card", "SBI Credit Card", "Banking & Cards", Color(0xFF0D9488)),
-    
+
     AppPreset("other", "Other Platform", "Other", Color(0xFF6B7280))
 )
 

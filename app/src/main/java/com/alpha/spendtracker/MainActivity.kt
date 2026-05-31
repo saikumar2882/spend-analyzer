@@ -5,7 +5,6 @@ package com.alpha.spendtracker
 
 import android.content.Intent
 import android.os.Bundle
-import androidx.activity.ComponentActivity
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
@@ -39,7 +38,11 @@ import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
+import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
+import androidx.compose.ui.input.nestedscroll.NestedScrollSource
+import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -50,7 +53,6 @@ import com.alpha.spendtracker.data.AiTransactionResponse
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.AiConfirmationScreen
 import com.alpha.spendtracker.ui.components.AiInputBottomSheet
-import com.alpha.spendtracker.ui.components.AiSettingsDialog
 import com.alpha.spendtracker.ui.components.AppNotification
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.screens.AddSpendScreen
@@ -92,7 +94,7 @@ class MainActivity : FragmentActivity() {
                     viewModel = spendViewModel,
                     themePreference = themePref.value,
                     onCycleTheme = { themePref.value = themePref.value.next() },
-                    intent = intent
+                    intent = intent,
                 )
             }
         }
@@ -129,7 +131,7 @@ class MainActivity : FragmentActivity() {
     fun handleEmailLink(intent: Intent?, onShowNotification: (String, NotificationType) -> Unit) {
         val auth = FirebaseAuth.getInstance()
         val link = intent?.data?.toString()
-        if (link != null && auth.isSignInWithEmailLink(link)) {
+        if (link != null && (auth.isSignInWithEmailLink(link))) {
             val email = "" 
             auth.signInWithEmailLink(email, link)
                 .addOnCompleteListener { task ->
@@ -153,7 +155,7 @@ fun MainContainer(
 ) {
     val auth = remember { FirebaseAuth.getInstance() }
     var currentUser by remember { mutableStateOf(auth.currentUser) }
-    var isRegistering by remember { mutableStateOf(false) }
+    var isRegistering by remember { mutableStateOf(value = false) }
     
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
@@ -182,11 +184,20 @@ fun MainContainer(
     }
 
     if (currentUser == null || isRegistering) {
+        val currentIsRegistering = isRegistering
         LoginScreen(
-            onLoginSuccess = { isRegistering = false },
+            onLoginSuccess = { 
+                if (currentIsRegistering) {
+                    isRegistering = false
+                }
+            },
             onShowNotification = { msg, type -> showNotification(msg, type) },
-            onRegisteringStart = { isRegistering = true },
-            onRegisteringFinished = { isRegistering = false }
+            onRegisteringStart = { 
+                isRegistering = true 
+            },
+            onRegisteringFinished = { 
+                isRegistering = false 
+            }
         )
         return
     }
@@ -202,7 +213,7 @@ fun MainContainer(
     var activeView by rememberSaveable { mutableStateOf(ActiveView.DASHBOARD) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var historyCategoryFilter by rememberSaveable { mutableStateOf("All") }
-    var historyTimeFilter by rememberSaveable { mutableStateOf<TimeFilter>(TimeFilter.ALL) }
+    var historyTimeFilter by rememberSaveable { mutableStateOf(TimeFilter.ALL) }
     var editingSpend by remember { mutableStateOf<Spend?>(null) }
 
     val allSpends by viewModel.allSpendsFlow.collectAsStateWithLifecycle()
@@ -313,6 +324,18 @@ fun MainContainer(
 
     BackHandler(enabled = activeView != ActiveView.DASHBOARD) { activeView = ActiveView.DASHBOARD }
 
+    // Collapse the "Track Spend" FAB to an icon while scrolling down; expand on scroll up.
+    var fabExpanded by remember { mutableStateOf(true) }
+    val fabScrollConnection = remember {
+        object : NestedScrollConnection {
+            override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
+                if (available.y < -1f) fabExpanded = false
+                else if (available.y > 1f) fabExpanded = true
+                return Offset.Zero
+            }
+        }
+    }
+
     Scaffold(
         modifier = Modifier.fillMaxSize().statusBarsPadding(),
         bottomBar = {
@@ -381,8 +404,9 @@ fun MainContainer(
                     }
                     ExtendedFloatingActionButton(
                         onClick = { showFabMenu = !showFabMenu },
-                        icon = { 
-                            Icon(Icons.Rounded.Add, null, modifier = Modifier.graphicsLayer { rotationZ = if (showFabMenu) 45f else 0f }) 
+                        expanded = fabExpanded || showFabMenu,
+                        icon = {
+                            Icon(Icons.Rounded.Add, null, modifier = Modifier.graphicsLayer { rotationZ = if (showFabMenu) 45f else 0f })
                         },
                         text = { Text(if (showFabMenu) "Close Tracking" else "Track Spend") },
                         containerColor = if (showFabMenu) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
@@ -392,7 +416,12 @@ fun MainContainer(
             }
         }
     ) { innerPadding ->
-        Box(modifier = Modifier.fillMaxSize().padding(innerPadding)) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .padding(innerPadding)
+                .nestedScroll(fabScrollConnection)
+        ) {
             AnimatedContent(
                 targetState = activeView,
                 transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
@@ -402,7 +431,10 @@ fun MainContainer(
                     ActiveView.DASHBOARD -> DashboardScreen(
                         currentFilter = currentFilter,
                         analytics = analyticsState,
-                        recentSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" }.take(5),
+                        recentSpends = allSpends.asSequence()
+                            .filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
+                            .take(5)
+                            .toList(),
                         themePreference = themePreference,
                         aiPreferences = aiPrefs,
                         onCycleTheme = onCycleTheme,
@@ -448,7 +480,6 @@ fun MainContainer(
                             viewModel.deleteSpend(spend)
                             showNotification("Record deleted", NotificationType.INFO)
                         },
-                        onAiAssistantClick = { showAiHistoryAssistant = true },
                     )
                     ActiveView.HISTORY -> HistoryScreen(
                         allSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" },
@@ -463,9 +494,7 @@ fun MainContainer(
                         onDeleteSpend = { spend ->
                             viewModel.deleteSpend(spend)
                             showNotification("Spend deleted", NotificationType.INFO)
-                        },
-                        onBackClick = { activeView = ActiveView.DASHBOARD },
-                        onAiAssistantClick = { showAiHistoryAssistant = true },
+                        }
                     )
                     ActiveView.ADD_SPEND -> AddSpendScreen(
                         editingSpend = editingSpend,

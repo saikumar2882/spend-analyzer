@@ -22,6 +22,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.rounded.*
@@ -49,6 +50,7 @@ import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.ui.components.AiSettingsDialog
+import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.EmptyStateCard
 import com.alpha.spendtracker.ui.components.InsightsCard
 import com.alpha.spendtracker.ui.components.NotificationType
@@ -213,38 +215,15 @@ fun DashboardScreen(
     }
 
     if (showDatePicker) {
-        val dateRangePickerState = rememberDateRangePickerState()
-        DatePickerDialog(
-            onDismissRequest = { showDatePicker = false },
-            confirmButton = {
-                TextButton(
-                    onClick = {
-                        val start = dateRangePickerState.selectedStartDateMillis
-                        val end = dateRangePickerState.selectedEndDateMillis
-                        if (start != null && end != null) {
-                            onCustomRangeSelect(start, end)
-                        }
-                        showDatePicker = false
-                    },
-                    enabled = dateRangePickerState.selectedStartDateMillis != null && 
-                             dateRangePickerState.selectedEndDateMillis != null
-                ) {
-                    Text("Confirm")
-                }
-            },
-            dismissButton = {
-                TextButton(onClick = { showDatePicker = false }) {
-                    Text("Cancel")
-                }
+        DateRangePickerModal(
+            initialStart = null,
+            initialEnd = null,
+            onDismiss = { showDatePicker = false },
+            onConfirm = { start, end ->
+                onCustomRangeSelect(start, end)
+                showDatePicker = false
             }
-        ) {
-            DateRangePicker(
-                state = dateRangePickerState,
-                title = { Text("Select Date Range", modifier = Modifier.padding(16.dp)) },
-                showModeToggle = false,
-                modifier = Modifier.weight(1f)
-            )
-        }
+        )
     }
 
     if (showAiSettingsDialog) {
@@ -540,9 +519,9 @@ private fun HeaderActionButton(
 ) {
     Surface(
         onClick = onClick,
-        shape = CircleShape,
+        shape = RoundedCornerShape(14.dp),
         color = background,
-        modifier = Modifier.size(40.dp)
+        modifier = Modifier.size(42.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(

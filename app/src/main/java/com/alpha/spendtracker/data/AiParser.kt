@@ -24,8 +24,7 @@ object AiParser {
         "myntra" to listOf("myntra"),
         "ajio" to listOf("ajio"),
         "icici" to listOf("icici bank", "icici"),
-        "yono_sbi" to listOf("yono sbi", "yono", "sbi yono"),
-        "credit_card" to listOf("credit card", "sbi credit", "cc bill", "credit-card")
+        "yono_sbi" to listOf("yono sbi", "yono", "sbi yono")
     )
 
     private val PURPOSE_KEYWORDS: Map<String, List<String>> = mapOf(
