@@ -174,17 +174,17 @@ fun AiInputBottomSheet(
                 onValueChange = { if (it.length <= 500) textInput = it },
                 modifier = Modifier.fillMaxWidth(),
                 enabled = !isProcessing,
-                placeholder = { Text("e.g. Spent ₹420 on swiggy biryani via gpay") },
+                placeholder = { Text("Spent 420 on swiggy biryani via gpay") },
                 supportingText = {
                     Row(
                         modifier = Modifier.fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween
                     ) {
-                        Text("Plain English works — date, app, amount", style = MaterialTheme.typography.labelSmall)
+                        Text("Input —> date, app, amount, purpose", style = MaterialTheme.typography.labelSmall)
                         Text("${textInput.length}/500", style = MaterialTheme.typography.labelSmall)
                     }
                 },
-                minLines = 3,
+                minLines = 2,
                 shape = RoundedCornerShape(18.dp),
                 trailingIcon = {
                     if (isProcessing) {
@@ -239,14 +239,11 @@ fun AiInputBottomSheet(
                     }
                     val examples = remember {
                         listOf(
-                            "Spent 320 on biryani via phonepe yesterday",
                             "₹250 uber ride to office on gpay",
                             "Lent 1000 to Arjun last friday",
                             "Bought groceries from zepto for 540",
-                            "Paid 1499 netflix subscription on amazon pay",
                             "Recharged jio for 299 today",
                             "Borrowed 2000 from Priya",
-                            "Coffee at starbucks 380 on credit card"
                         )
                     }
                     androidx.compose.foundation.layout.FlowRow(

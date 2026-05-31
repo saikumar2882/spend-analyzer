@@ -3,8 +3,11 @@
  */
 package com.alpha.spendtracker.ui.components
 
+import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -30,8 +33,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.remember
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
@@ -49,9 +55,16 @@ fun RecentSpendRow(
     val accent = APP_PRESETS.firstOrNull { it.displayName == spend.appName }?.color ?: MaterialTheme.colorScheme.primary
     val subtitle = spend.notes.ifBlank { spend.purpose }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.98f else 1f, label = "recentRowScale")
+
     Card(
         onClick = onClick,
-        modifier = Modifier.fillMaxWidth(),
+        interactionSource = interactionSource,
+        modifier = Modifier
+            .fillMaxWidth()
+            .scale(scale),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
@@ -113,12 +126,13 @@ fun RecentSpendRow(
 fun HistorySpendCard(
     spend: Spend,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val accent = APP_PRESETS.firstOrNull { it.displayName == spend.appName }?.color ?: MaterialTheme.colorScheme.primary
 
     Card(
-        modifier = Modifier.fillMaxWidth(),
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
@@ -136,7 +150,7 @@ fun HistorySpendCard(
             )
             Row(
                 modifier = Modifier
-                    .padding(14.dp)
+                    .padding(horizontal = 12.dp, vertical = 11.dp)
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -145,39 +159,43 @@ fun HistorySpendCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    AppAvatar(name = spend.appName, color = accent, size = 46.dp)
-                    Spacer(modifier = Modifier.width(14.dp))
+                    AppAvatar(name = spend.appName, color = accent, size = 42.dp)
+                    Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         SpendCardHeader(appName = spend.appName, category = spend.category, accent = accent)
-                        Text(
-                            text = spend.purpose,
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = spend.purpose,
+                                style = MaterialTheme.typography.bodyMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
                             )
-                        )
+                            Text(
+                                text = " · ${formatShortDate(spend.timestamp)}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
+                            )
+                        }
                         if (spend.notes.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(1.dp))
                             Text(
                                 text = spend.notes,
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 2,
+                                maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        Text(
-                            text = formatShortDate(spend.timestamp),
-                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
-                        )
                     }
                 }
 
+                Spacer(modifier = Modifier.width(10.dp))
+
                 Column(
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     Text(
                         text = "₹${formatCurrency(spend.amount)}",
@@ -194,7 +212,7 @@ fun HistorySpendCard(
                                 containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
                                 contentColor = MaterialTheme.colorScheme.primary
                             ),
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 Icons.Rounded.Edit,
@@ -208,7 +226,7 @@ fun HistorySpendCard(
                                 containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
                                 contentColor = MaterialTheme.colorScheme.error
                             ),
-                            modifier = Modifier.size(36.dp)
+                            modifier = Modifier.size(34.dp)
                         ) {
                             Icon(
                                 Icons.Rounded.Delete,
@@ -271,8 +289,13 @@ fun PresetGridCard(
         MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
     }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressed by interactionSource.collectIsPressedAsState()
+    val scale by animateFloatAsState(if (pressed) 0.95f else 1f, label = "presetScale")
+
     Surface(
         onClick = onClick,
+        interactionSource = interactionSource,
         color = surfaceColor,
         shape = RoundedCornerShape(16.dp),
         border = if (isSelected) BorderStroke(2.dp, preset.color)
@@ -280,6 +303,7 @@ fun PresetGridCard(
         modifier = Modifier
             .fillMaxWidth()
             .height(76.dp)
+            .scale(scale)
     ) {
         Column(
             modifier = Modifier.padding(8.dp),

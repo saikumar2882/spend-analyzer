@@ -27,15 +27,14 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
-import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -56,11 +55,12 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.CATEGORY_PRESETS
+import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.HistorySpendCard
 import com.alpha.spendtracker.ui.components.formatCurrency
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
-import com.alpha.spendtracker.util.formatDate
 import com.alpha.spendtracker.util.formatMonth
+import com.alpha.spendtracker.util.formatShortDate
 import java.util.Calendar
 
 private const val ALL_CATEGORIES = "All"
@@ -74,16 +74,15 @@ fun HistoryScreen(
     initialDateRange: Pair<Long, Long>? = null,
     onEditSpend: (Spend) -> Unit,
     onDeleteSpend: (Spend) -> Unit,
-    onBackClick: () -> Unit,
-    onAiAssistantClick: () -> Unit
 ) {
     var searchQuery by rememberSaveable(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var selectedCategory by rememberSaveable(initialCategoryFilter) { mutableStateOf(initialCategoryFilter) }
     var selectedTimeFilter by rememberSaveable(initialTimeFilter) { mutableStateOf(initialTimeFilter) }
     var customDateRange by remember { mutableStateOf(initialDateRange) }
+    var showDatePicker by remember { mutableStateOf(value = false) }
     var spendToDelete by remember { mutableStateOf<Spend?>(null) }
     var showFilters by rememberSaveable { 
-        mutableStateOf(initialTimeFilter != TimeFilter.ALL || initialCategoryFilter != ALL_CATEGORIES) 
+        mutableStateOf((initialTimeFilter != TimeFilter.ALL) || (initialCategoryFilter != ALL_CATEGORIES)) 
     }
 
     val filteredHistory = remember(allSpends, searchQuery, selectedCategory, selectedTimeFilter, customDateRange) {
@@ -106,19 +105,19 @@ fun HistoryScreen(
             }
             TimeFilter.WEEK -> {
                 calendar.timeInMillis = startOfToday
-                calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
+                calendar[Calendar.DAY_OF_WEEK] = calendar.firstDayOfWeek
                 filterStartTime = calendar.timeInMillis
                 filterEndTime = Long.MAX_VALUE
             }
             TimeFilter.MONTH -> {
                 calendar.timeInMillis = startOfToday
-                calendar.set(Calendar.DAY_OF_MONTH, 1)
+                calendar[Calendar.DAY_OF_MONTH] = 1
                 filterStartTime = calendar.timeInMillis
                 filterEndTime = Long.MAX_VALUE
             }
             TimeFilter.YEAR -> {
                 calendar.timeInMillis = startOfToday
-                calendar.set(Calendar.DAY_OF_YEAR, 1)
+                calendar[Calendar.DAY_OF_YEAR] = 1
                 filterStartTime = calendar.timeInMillis
                 filterEndTime = Long.MAX_VALUE
             }
@@ -137,21 +136,24 @@ fun HistoryScreen(
                 spend.appName.contains(q, ignoreCase = true) ||
                 spend.purpose.contains(q, ignoreCase = true) ||
                 spend.notes.contains(q, ignoreCase = true)
-            val matchesCategory = selectedCategory == ALL_CATEGORIES || spend.category == selectedCategory
-            val matchesTime = spend.timestamp in filterStartTime..filterEndTime
+            val matchesCategory = (selectedCategory == ALL_CATEGORIES) || (spend.category == selectedCategory)
+            val matchesTime = spend.timestamp in (filterStartTime..filterEndTime)
             
             matchesQuery && matchesCategory && matchesTime
         }
     }
 
     if (spendToDelete != null) {
+        val currentSpendToDelete = spendToDelete!!
         DeleteConfirmationDialog(
-            spend = spendToDelete!!,
+            spend = currentSpendToDelete,
             onConfirm = {
-                onDeleteSpend(spendToDelete!!)
+                onDeleteSpend(currentSpendToDelete)
                 spendToDelete = null
             },
-            onDismiss = { spendToDelete = null }
+            onDismiss = {
+                spendToDelete = null
+            }
         )
     }
 
@@ -171,7 +173,7 @@ fun HistoryScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("app, purpose,..") },
+                placeholder = { Text("App, purpose,..") },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
@@ -186,8 +188,6 @@ fun HistoryScreen(
             )
 
             FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
-
-            AiAssistantButton(onClick = onAiAssistantClick)
         }
 
         AnimatedVisibility(
@@ -246,15 +246,51 @@ fun HistoryScreen(
                             )
                         )
                     }
+                    item(key = "custom") {
+                        val range = customDateRange
+                        val customLabel = if ((selectedTimeFilter == TimeFilter.CUSTOM) && (range != null)) {
+                            "${formatShortDate(range.first)} – ${formatShortDate(range.second)}"
+                        } else {
+                            "Custom"
+                        }
+                        FilterChip(
+                            selected = selectedTimeFilter == TimeFilter.CUSTOM,
+                            onClick = { showDatePicker = true },
+                            label = { Text(customLabel, fontSize = 12.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.DateRange,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
                 }
             }
+        }
+
+        if (showDatePicker) {
+            DateRangePickerModal(
+                initialStart = customDateRange?.first,
+                initialEnd = customDateRange?.second,
+                onDismiss = { showDatePicker = false },
+                onConfirm = { start, end ->
+                    customDateRange = start to end
+                    selectedTimeFilter = TimeFilter.CUSTOM
+                    showDatePicker = false
+                }
+            )
         }
 
         Spacer(modifier = Modifier.height(8.dp))
 
         if (filteredHistory.isNotEmpty()) {
             FilterSummaryBar(
-                count = filteredHistory.size,
                 total = filteredHistory.sumOf { it.amount }
             )
             Spacer(modifier = Modifier.height(12.dp))
@@ -265,7 +301,7 @@ fun HistoryScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
                 val grouped = filteredHistory.groupBy { formatMonth(it.timestamp) }
@@ -295,7 +331,8 @@ fun HistoryScreen(
                         HistorySpendCard(
                             spend = spend,
                             onEdit = { onEditSpend(spend) },
-                            onDelete = { spendToDelete = spend }
+                            onDelete = { spendToDelete = spend },
+                            modifier = Modifier.animateItem()
                         )
                     }
                 }
@@ -325,27 +362,7 @@ private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AiAssistantButton(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-        modifier = Modifier.size(52.dp)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                Icons.Rounded.AutoAwesome,
-                contentDescription = "Ask AI History Assistant",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-    }
-}
-
-@Composable
 private fun FilterSummaryBar(
-    count: Int,
     total: Double
 ) {
     Surface(
@@ -366,7 +383,7 @@ private fun FilterSummaryBar(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "$count transactions",
+                    text = "Total Spend",
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface
                 )

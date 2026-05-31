@@ -5,29 +5,35 @@ import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
+import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.DateRange
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.Spend
+import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.HistorySpendCard
 import com.alpha.spendtracker.ui.components.formatCurrency
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.alpha.spendtracker.util.formatMonth
+import com.alpha.spendtracker.util.formatShortDate
 import java.util.Calendar
 
 @Composable
@@ -35,7 +41,6 @@ fun LendBorrowScreen(
     allSpends: List<Spend>,
     onEditSpend: (Spend) -> Unit,
     onDeleteSpend: (Spend) -> Unit,
-    onAiAssistantClick: () -> Unit,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
     val tabs = listOf("Lending", "Borrowing")
@@ -43,12 +48,14 @@ fun LendBorrowScreen(
     
     var searchQuery by rememberSaveable { mutableStateOf("") }
     var selectedTimeFilter by rememberSaveable { mutableStateOf(TimeFilter.ALL) }
-    var showFilters by rememberSaveable { mutableStateOf(false) }
+    var customDateRange by remember { mutableStateOf<Pair<Long, Long>?>(null) }
+    var showDatePicker by remember { mutableStateOf(value = false) }
+    var showFilters by rememberSaveable { mutableStateOf(value = false) }
 
-    val filteredSpends = remember(allSpends, selectedTab, searchQuery, selectedTimeFilter) {
+    val filteredSpends = remember(allSpends, selectedTab, searchQuery, selectedTimeFilter, customDateRange) {
         val purpose = if (selectedTab == 0) "Lending" else "Borrowing"
         val q = searchQuery.trim()
-        
+
         val calendar = Calendar.getInstance()
         val startOfToday = calendar.apply {
             set(Calendar.HOUR_OF_DAY, 0)
@@ -57,69 +64,74 @@ fun LendBorrowScreen(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
-        val filterStartTime: Long = when (selectedTimeFilter) {
-            TimeFilter.DAY -> startOfToday
+        val filterStartTime: Long
+        val filterEndTime: Long
+        when (selectedTimeFilter) {
+            TimeFilter.DAY -> {
+                filterStartTime = startOfToday
+                filterEndTime = Long.MAX_VALUE
+            }
             TimeFilter.WEEK -> {
                 calendar.timeInMillis = startOfToday
-                calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
-                calendar.timeInMillis
+                calendar[Calendar.DAY_OF_WEEK] = calendar.firstDayOfWeek
+                filterStartTime = calendar.timeInMillis
+                filterEndTime = Long.MAX_VALUE
             }
             TimeFilter.MONTH -> {
                 calendar.timeInMillis = startOfToday
-                calendar.set(Calendar.DAY_OF_MONTH, 1)
-                calendar.timeInMillis
+                calendar[Calendar.DAY_OF_MONTH] = 1
+                filterStartTime = calendar.timeInMillis
+                filterEndTime = Long.MAX_VALUE
             }
             TimeFilter.YEAR -> {
                 calendar.timeInMillis = startOfToday
-                calendar.set(Calendar.DAY_OF_YEAR, 1)
-                calendar.timeInMillis
+                calendar[Calendar.DAY_OF_YEAR] = 1
+                filterStartTime = calendar.timeInMillis
+                filterEndTime = Long.MAX_VALUE
             }
-            else -> 0L
+            TimeFilter.CUSTOM -> {
+                filterStartTime = customDateRange?.first ?: 0L
+                filterEndTime = customDateRange?.second ?: Long.MAX_VALUE
+            }
+            else -> {
+                filterStartTime = 0L
+                filterEndTime = Long.MAX_VALUE
+            }
         }
 
         allSpends.filter { spend ->
             val matchesPurpose = spend.purpose == purpose
-            val matchesQuery = q.isEmpty() || 
-                spend.notes.contains(q, ignoreCase = true) || 
+            val matchesQuery = q.isEmpty() ||
+                spend.notes.contains(q, ignoreCase = true) ||
                 spend.appName.contains(q, ignoreCase = true)
-            val matchesTime = spend.timestamp >= filterStartTime
-            
+            val matchesTime = spend.timestamp in (filterStartTime..filterEndTime)
+
             matchesPurpose && matchesQuery && matchesTime
         }
     }
 
     if (spendToDelete != null) {
+        val currentSpendToDelete = spendToDelete!!
         DeleteConfirmationDialog(
-            spend = spendToDelete!!,
+            spend = currentSpendToDelete,
             onConfirm = {
-                onDeleteSpend(spendToDelete!!)
+                onDeleteSpend(currentSpendToDelete)
                 spendToDelete = null
             },
-            onDismiss = { spendToDelete = null }
+            onDismiss = {
+                spendToDelete = null
+            }
         )
     }
 
     Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        SecondaryTabRow(
-            selectedTabIndex = selectedTab,
-            containerColor = MaterialTheme.colorScheme.surface,
-            contentColor = MaterialTheme.colorScheme.primary,
-            indicator = {
-                TabRowDefaults.SecondaryIndicator(
-                    Modifier.tabIndicatorOffset(selectedTab)
-                )
-            }
-        ) {
-            tabs.forEachIndexed { index, title ->
-                Tab(
-                    selected = selectedTab == index,
-                    onClick = { selectedTab = index },
-                    text = { Text(title, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal) }
-                )
-            }
-        }
+        SegmentedTabs(
+            tabs = tabs,
+            selectedIndex = selectedTab,
+            onSelect = { selectedTab = it }
+        )
 
         Spacer(modifier = Modifier.height(12.dp))
 
@@ -147,8 +159,6 @@ fun LendBorrowScreen(
             )
 
             FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
-
-            AiAssistantButton(onClick = onAiAssistantClick)
         }
 
         AnimatedVisibility(
@@ -183,8 +193,45 @@ fun LendBorrowScreen(
                             )
                         )
                     }
+                    item(key = "custom") {
+                        val range = customDateRange
+                        val customLabel = if ((selectedTimeFilter == TimeFilter.CUSTOM) && (range != null)) {
+                            "${formatShortDate(range.first)} – ${formatShortDate(range.second)}"
+                        } else {
+                            "Custom"
+                        }
+                        FilterChip(
+                            selected = selectedTimeFilter == TimeFilter.CUSTOM,
+                            onClick = { showDatePicker = true },
+                            label = { Text(customLabel, fontSize = 12.sp) },
+                            leadingIcon = {
+                                Icon(
+                                    Icons.Rounded.DateRange,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
+                            )
+                        )
+                    }
                 }
             }
+        }
+
+        if (showDatePicker) {
+            DateRangePickerModal(
+                initialStart = customDateRange?.first,
+                initialEnd = customDateRange?.second,
+                onDismiss = { showDatePicker = false },
+                onConfirm = { start, end ->
+                    customDateRange = start to end
+                    selectedTimeFilter = TimeFilter.CUSTOM
+                    showDatePicker = false
+                }
+            )
         }
 
         Spacer(modifier = Modifier.height(12.dp))
@@ -200,16 +247,25 @@ fun LendBorrowScreen(
 
         if (filteredSpends.isEmpty()) {
             Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
-                Text(
-                    text = "No ${tabs[selectedTab].lowercase()} records yet.",
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Icon(
+                        Icons.Rounded.SwapHoriz,
+                        contentDescription = null,
+                        modifier = Modifier.size(52.dp),
+                        tint = MaterialTheme.colorScheme.outline
+                    )
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Text(
+                        text = "No ${tabs[selectedTab].lowercase()} records yet",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
             }
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(10.dp),
+                verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
                 val grouped = filteredSpends.groupBy { formatMonth(it.timestamp) }
@@ -243,7 +299,49 @@ fun LendBorrowScreen(
                         HistorySpendCard(
                             spend = spend,
                             onEdit = { onEditSpend(spend) },
-                            onDelete = { spendToDelete = spend }
+                            onDelete = { spendToDelete = spend },
+                            modifier = Modifier.animateItem()
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun SegmentedTabs(
+    tabs: List<String>,
+    selectedIndex: Int,
+    onSelect: (Int) -> Unit
+) {
+    Surface(
+        shape = RoundedCornerShape(18.dp),
+        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Row(
+            modifier = Modifier.padding(4.dp),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            tabs.forEachIndexed { index, title ->
+                val isSelected = index == selectedIndex
+                Surface(
+                    onClick = { onSelect(index) },
+                    shape = RoundedCornerShape(14.dp),
+                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    Box(
+                        modifier = Modifier.padding(vertical = 10.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                                    else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
                 }
@@ -273,25 +371,6 @@ private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
 }
 
 @Composable
-private fun AiAssistantButton(onClick: () -> Unit) {
-    Surface(
-        onClick = onClick,
-        shape = RoundedCornerShape(16.dp),
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-        modifier = Modifier.size(52.dp)
-    ) {
-        Box(contentAlignment = Alignment.Center) {
-            Icon(
-                Icons.Rounded.AutoAwesome,
-                contentDescription = "Ask AI Assistant",
-                tint = MaterialTheme.colorScheme.primary,
-                modifier = Modifier.size(22.dp)
-            )
-        }
-    }
-}
-
-@Composable
 private fun SummaryBar(
     label: String,
     total: Double
@@ -306,11 +385,19 @@ private fun SummaryBar(
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text(
-                text = label,
-                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(8.dp)
+                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = label,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
             Text(
                 text = "₹${formatCurrency(total)}",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
