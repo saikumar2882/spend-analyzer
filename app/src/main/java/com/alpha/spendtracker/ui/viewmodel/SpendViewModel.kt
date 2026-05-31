@@ -69,6 +69,13 @@ class SpendViewModel @Inject constructor(
 
     private var currentSessionId: String = ""
 
+    private val _isBiometricAuthenticated = MutableStateFlow(false)
+    val isBiometricAuthenticated: StateFlow<Boolean> = _isBiometricAuthenticated
+
+    fun setBiometricAuthenticated(authenticated: Boolean) {
+        _isBiometricAuthenticated.value = authenticated
+    }
+
     init {
         // Start sync if user is already logged in
         auth.currentUser?.let { user ->

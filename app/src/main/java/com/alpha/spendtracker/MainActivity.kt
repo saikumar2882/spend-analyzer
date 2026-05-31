@@ -19,13 +19,23 @@ import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
@@ -33,6 +43,8 @@ import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Handshake
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Lock
+import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -46,9 +58,12 @@ import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
 import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.compose.LifecycleEventEffect
 import com.alpha.spendtracker.data.AiTransactionResponse
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.AiConfirmationScreen
@@ -70,10 +85,6 @@ import com.alpha.spendtracker.ui.viewmodel.SpendViewModel
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
-import androidx.work.ExistingPeriodicWorkPolicy
-import androidx.work.PeriodicWorkRequestBuilder
-import androidx.work.WorkManager
-import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
@@ -100,18 +111,17 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    fun showBiometricPrompt() {
+    fun showBiometricPrompt(onSuccess: () -> Unit) {
         val executor = ContextCompat.getMainExecutor(this)
         val biometricPrompt = BiometricPrompt(this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
-                    // If user cancels or error occurs, we might want to close the app 
-                    // or show a backup password screen. For now, we'll just log it.
                 }
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
+                    onSuccess()
                 }
 
                 override fun onAuthenticationFailed() {
@@ -122,7 +132,7 @@ class MainActivity : FragmentActivity() {
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
             .setTitle("Biometric login for Spendly")
             .setSubtitle("Log in using your biometric credential")
-            .setNegativeButtonText("Use account password")
+            .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
             .build()
 
         biometricPrompt.authenticate(promptInfo)
@@ -141,6 +151,69 @@ class MainActivity : FragmentActivity() {
                         onShowNotification("Error signing in with link", NotificationType.ERROR)
                     }
                 }
+        }
+    }
+}
+
+@Composable
+fun LockedOverlay(onUnlock: () -> Unit) {
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(MaterialTheme.colorScheme.background.copy(alpha = 0.98f))
+            .clickable(enabled = true, onClick = {}), // Intercept clicks
+        contentAlignment = Alignment.Center
+    ) {
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.Center,
+            modifier = Modifier.padding(24.dp)
+        ) {
+            Surface(
+                modifier = Modifier.size(90.dp),
+                shape = RoundedCornerShape(28.dp),
+                color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = Icons.Rounded.Lock,
+                        contentDescription = null,
+                        modifier = Modifier.size(44.dp),
+                        tint = MaterialTheme.colorScheme.primary
+                    )
+                }
+            }
+            
+            Spacer(modifier = Modifier.height(32.dp))
+            
+            Text(
+                "Spendly Locked",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            
+            Spacer(modifier = Modifier.height(12.dp))
+            
+            Text(
+                "Authentication required to access your financial dashboard.",
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = androidx.compose.ui.text.style.TextAlign.Center,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+            
+            Spacer(modifier = Modifier.height(40.dp))
+            
+            Button(
+                onClick = onUnlock,
+                modifier = Modifier.fillMaxWidth(0.7f).height(56.dp),
+                shape = RoundedCornerShape(16.dp),
+                contentPadding = PaddingValues(horizontal = 24.dp)
+            ) {
+                Icon(Icons.Rounded.Fingerprint, null)
+                Spacer(Modifier.width(12.dp))
+                Text("Unlock with Biometrics")
+            }
         }
     }
 }
@@ -225,11 +298,20 @@ fun MainContainer(
     val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
     val historyStatus by viewModel.historyStatus.collectAsStateWithLifecycle()
 
-    var biometricPromptShown by rememberSaveable { mutableStateOf(false) }
-    LaunchedEffect(currentUser, aiPrefs.isBiometricEnabled) {
-        if (currentUser != null && !isRegistering && aiPrefs.isBiometricEnabled && !biometricPromptShown) {
-            (context as? MainActivity)?.showBiometricPrompt()
-            biometricPromptShown = true
+    val isBiometricAuthenticated by viewModel.isBiometricAuthenticated.collectAsStateWithLifecycle()
+    val needsBiometric = aiPrefs.isBiometricEnabled
+
+    LifecycleEventEffect(Lifecycle.Event.ON_STOP) {
+        if (aiPrefs.isBiometricEnabled) {
+            viewModel.setBiometricAuthenticated(false)
+        }
+    }
+
+    LaunchedEffect(currentUser, aiPrefs.isBiometricEnabled, isBiometricAuthenticated) {
+        if (needsBiometric && !isBiometricAuthenticated) {
+            (context as? MainActivity)?.showBiometricPrompt {
+                viewModel.setBiometricAuthenticated(true)
+            }
         }
     }
     
@@ -336,180 +418,192 @@ fun MainContainer(
         }
     }
 
-    Scaffold(
-        modifier = Modifier.fillMaxSize().statusBarsPadding(),
-        bottomBar = {
-            if (activeView != ActiveView.ADD_SPEND) {
-                NavigationBar(modifier = Modifier.navigationBarsPadding(), tonalElevation = 8.dp) {
-                    NavigationBarItem(
-                        selected = activeView == ActiveView.DASHBOARD,
-                        onClick = { activeView = ActiveView.DASHBOARD },
-                        icon = { Icon(Icons.Rounded.Dashboard, contentDescription = "Dashboard") },
-                        label = { Text("Dashboard") }
-                    )
-                    NavigationBarItem(
-                        selected = activeView == ActiveView.LEND_BORROW,
-                        onClick = { activeView = ActiveView.LEND_BORROW },
-                        icon = { Icon(Icons.Rounded.Handshake, contentDescription = "Lend & Borrow") },
-                        label = { Text("Lend/Borrow") }
-                    )
-                    NavigationBarItem(
-                        selected = activeView == ActiveView.HISTORY,
-                        onClick = {
-                            historySearchQuery = ""
-                            historyCategoryFilter = "All"
-                            historyTimeFilter = TimeFilter.ALL
-                            activeView = ActiveView.HISTORY
-                        },
-                        icon = { Icon(Icons.Rounded.History, contentDescription = "Spending History") },
-                        label = { Text("History") }
-                    )
-                }
-            }
-        },
-        floatingActionButton = {
-            if (activeView == ActiveView.DASHBOARD || activeView == ActiveView.HISTORY || activeView == ActiveView.LEND_BORROW) {
-                var showFabMenu by remember { mutableStateOf(false) }
-                Column(horizontalAlignment = Alignment.End) {
-                    AnimatedVisibility(
-                        visible = showFabMenu,
-                        enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
-                        exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
-                    ) {
-                        Column(
-                            horizontalAlignment = Alignment.End, 
-                            modifier = Modifier.padding(bottom = 24.dp),
-                            verticalArrangement = Arrangement.spacedBy(12.dp)
-                        ) {
-                            ExtendedFloatingActionButton(
-                                onClick = {
-                                    showFabMenu = false
-                                    showAiInput = true
-                                },
-                                containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                icon = { Icon(Icons.Rounded.AutoAwesome, "Track with AI") },
-                                text = { Text("AI Track") }
-                            )
-                            ExtendedFloatingActionButton(
-                                onClick = {
-                                    showFabMenu = false
-                                    editingSpend = null
-                                    activeView = ActiveView.ADD_SPEND
-                                },
-                                containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                icon = { Icon(Icons.Rounded.Edit, "Track Manually") },
-                                text = { Text("Manual") }
-                            )
-                        }
+    Box(modifier = Modifier.fillMaxSize()) {
+        Scaffold(
+            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            bottomBar = {
+                if (activeView != ActiveView.ADD_SPEND) {
+                    NavigationBar(modifier = Modifier.navigationBarsPadding(), tonalElevation = 8.dp) {
+                        NavigationBarItem(
+                            selected = activeView == ActiveView.DASHBOARD,
+                            onClick = { activeView = ActiveView.DASHBOARD },
+                            icon = { Icon(Icons.Rounded.Dashboard, contentDescription = "Dashboard") },
+                            label = { Text("Dashboard") }
+                        )
+                        NavigationBarItem(
+                            selected = activeView == ActiveView.LEND_BORROW,
+                            onClick = { activeView = ActiveView.LEND_BORROW },
+                            icon = { Icon(Icons.Rounded.Handshake, contentDescription = "Lend & Borrow") },
+                            label = { Text("Lend/Borrow") }
+                        )
+                        NavigationBarItem(
+                            selected = activeView == ActiveView.HISTORY,
+                            onClick = {
+                                historySearchQuery = ""
+                                historyCategoryFilter = "All"
+                                historyTimeFilter = TimeFilter.ALL
+                                activeView = ActiveView.HISTORY
+                            },
+                            icon = { Icon(Icons.Rounded.History, contentDescription = "Spending History") },
+                            label = { Text("History") }
+                        )
                     }
-                    ExtendedFloatingActionButton(
-                        onClick = { showFabMenu = !showFabMenu },
-                        expanded = fabExpanded || showFabMenu,
-                        icon = {
-                            Icon(Icons.Rounded.Add, null, modifier = Modifier.graphicsLayer { rotationZ = if (showFabMenu) 45f else 0f })
-                        },
-                        text = { Text(if (showFabMenu) "Close Tracking" else "Track Spend") },
-                        containerColor = if (showFabMenu) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
-                        elevation = FloatingActionButtonDefaults.elevation(6.dp)
-                    )
+                }
+            },
+            floatingActionButton = {
+                if (activeView == ActiveView.DASHBOARD || activeView == ActiveView.HISTORY || activeView == ActiveView.LEND_BORROW) {
+                    var showFabMenu by remember { mutableStateOf(false) }
+                    Column(horizontalAlignment = Alignment.End) {
+                        AnimatedVisibility(
+                            visible = showFabMenu,
+                            enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
+                            exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
+                        ) {
+                            Column(
+                                horizontalAlignment = Alignment.End, 
+                                modifier = Modifier.padding(bottom = 24.dp),
+                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                            ) {
+                                ExtendedFloatingActionButton(
+                                    onClick = {
+                                        showFabMenu = false
+                                        showAiInput = true
+                                    },
+                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                                    icon = { Icon(Icons.Rounded.AutoAwesome, "Track with AI") },
+                                    text = { Text("AI Track") }
+                                )
+                                ExtendedFloatingActionButton(
+                                    onClick = {
+                                        showFabMenu = false
+                                        editingSpend = null
+                                        activeView = ActiveView.ADD_SPEND
+                                    },
+                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
+                                    icon = { Icon(Icons.Rounded.Edit, "Track Manually") },
+                                    text = { Text("Manual") }
+                                )
+                            }
+                        }
+                        ExtendedFloatingActionButton(
+                            onClick = { showFabMenu = !showFabMenu },
+                            expanded = fabExpanded || showFabMenu,
+                            icon = {
+                                Icon(Icons.Rounded.Add, null, modifier = Modifier.graphicsLayer { rotationZ = if (showFabMenu) 45f else 0f })
+                            },
+                            text = { Text(if (showFabMenu) "Close Tracking" else "Track Spend") },
+                            containerColor = if (showFabMenu) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
+                            elevation = FloatingActionButtonDefaults.elevation(6.dp)
+                        )
+                    }
                 }
             }
-        }
-    ) { innerPadding ->
-        Box(
-            modifier = Modifier
-                .fillMaxSize()
-                .padding(innerPadding)
-                .nestedScroll(fabScrollConnection)
-        ) {
-            AnimatedContent(
-                targetState = activeView,
-                transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
-                label = "screen-switch"
-            ) { view ->
-                when (view) {
-                    ActiveView.DASHBOARD -> DashboardScreen(
-                        currentFilter = currentFilter,
-                        analytics = analyticsState,
-                        recentSpends = allSpends.asSequence()
-                            .filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
-                            .take(5)
-                            .toList(),
-                        themePreference = themePreference,
-                        aiPreferences = aiPrefs,
-                        onCycleTheme = onCycleTheme,
-                        onFilterSelect = viewModel::setFilter,
-                        onCustomRangeSelect = viewModel::setCustomRange,
-                        onShowNotification = { msg, type -> showNotification(msg, type) },
-                        onShowAllClick = {
-                            historySearchQuery = ""
-                            historyCategoryFilter = "All"
-                            historyTimeFilter = TimeFilter.ALL
-                            activeView = ActiveView.HISTORY
-                        },
-                        onAppClick = { appName ->
-                            historySearchQuery = appName
-                            historyCategoryFilter = "All"
-                            historyTimeFilter = TimeFilter.ALL
-                            activeView = ActiveView.HISTORY
-                        },
-                        onLentClick = {
-                            activeView = ActiveView.LEND_BORROW
-                        },
-                        onTransactionsClick = {
-                            historySearchQuery = ""
-                            historyCategoryFilter = "All"
-                            historyTimeFilter = currentFilter
-                            activeView = ActiveView.HISTORY
-                        },
-                        onLogout = {
-                            FirebaseAuth.getInstance().signOut()
-                            showNotification("Logged out successfully", NotificationType.INFO)
-                        },
-                        onAiAssistantClick = { showAiHistoryAssistant = true },
-                        onUpdateAiPreferences = viewModel::updateAiPreferences,
-                        onToggleBiometrics = viewModel::updateBiometricEnabled
-                    )
-                    ActiveView.LEND_BORROW -> LendBorrowScreen(
-                        allSpends = allSpends,
-                        onEditSpend = { spend ->
-                            editingSpend = spend
-                            activeView = ActiveView.ADD_SPEND
-                        },
-                        onDeleteSpend = { spend ->
-                            viewModel.deleteSpend(spend)
-                            showNotification("Record deleted", NotificationType.INFO)
-                        },
-                    )
-                    ActiveView.HISTORY -> HistoryScreen(
-                        allSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" },
-                        initialSearchQuery = historySearchQuery,
-                        initialCategoryFilter = historyCategoryFilter,
-                        initialTimeFilter = historyTimeFilter,
-                        initialDateRange = customDateRange,
-                        onEditSpend = { spend ->
-                            editingSpend = spend
-                            activeView = ActiveView.ADD_SPEND
-                        },
-                        onDeleteSpend = { spend ->
-                            viewModel.deleteSpend(spend)
-                            showNotification("Spend deleted", NotificationType.INFO)
-                        }
-                    )
-                    ActiveView.ADD_SPEND -> AddSpendScreen(
-                        editingSpend = editingSpend,
-                        onDismiss = { 
-                            editingSpend = null
-                            activeView = ActiveView.DASHBOARD 
-                        },
-                        onShowNotification = { msg, type -> showNotification(msg, type) },
-                        onSave = { newSpend: NewSpend ->
-                            val appName = if (newSpend.preset.id == "other")
-                                newSpend.customAppName.trim() else newSpend.preset.displayName
-                            
-                            if (editingSpend != null) {
-                                viewModel.updateSpend(
-                                    editingSpend!!.copy(
+        ) { innerPadding ->
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(innerPadding)
+                    .nestedScroll(fabScrollConnection)
+            ) {
+                AnimatedContent(
+                    targetState = activeView,
+                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+                    label = "screen-switch"
+                ) { view ->
+                    when (view) {
+                        ActiveView.DASHBOARD -> DashboardScreen(
+                            currentFilter = currentFilter,
+                            analytics = analyticsState,
+                            recentSpends = allSpends.asSequence()
+                                .filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
+                                .take(5)
+                                .toList(),
+                            themePreference = themePreference,
+                            aiPreferences = aiPrefs,
+                            onCycleTheme = onCycleTheme,
+                            onFilterSelect = viewModel::setFilter,
+                            onCustomRangeSelect = viewModel::setCustomRange,
+                            onShowNotification = { msg, type -> showNotification(msg, type) },
+                            onShowAllClick = {
+                                historySearchQuery = ""
+                                historyCategoryFilter = "All"
+                                historyTimeFilter = TimeFilter.ALL
+                                activeView = ActiveView.HISTORY
+                            },
+                            onAppClick = { appName ->
+                                historySearchQuery = appName
+                                historyCategoryFilter = "All"
+                                historyTimeFilter = TimeFilter.ALL
+                                activeView = ActiveView.HISTORY
+                            },
+                            onLentClick = {
+                                activeView = ActiveView.LEND_BORROW
+                            },
+                            onTransactionsClick = {
+                                historySearchQuery = ""
+                                historyCategoryFilter = "All"
+                                historyTimeFilter = currentFilter
+                                activeView = ActiveView.HISTORY
+                            },
+                            onLogout = {
+                                FirebaseAuth.getInstance().signOut()
+                                showNotification("Logged out successfully", NotificationType.INFO)
+                            },
+                            onAiAssistantClick = { showAiHistoryAssistant = true },
+                            onUpdateAiPreferences = viewModel::updateAiPreferences,
+                            onToggleBiometrics = viewModel::updateBiometricEnabled
+                        )
+                        ActiveView.LEND_BORROW -> LendBorrowScreen(
+                            allSpends = allSpends,
+                            onEditSpend = { spend ->
+                                editingSpend = spend
+                                activeView = ActiveView.ADD_SPEND
+                            },
+                            onDeleteSpend = { spend ->
+                                viewModel.deleteSpend(spend)
+                                showNotification("Record deleted", NotificationType.INFO)
+                            },
+                        )
+                        ActiveView.HISTORY -> HistoryScreen(
+                            allSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" },
+                            initialSearchQuery = historySearchQuery,
+                            initialCategoryFilter = historyCategoryFilter,
+                            initialTimeFilter = historyTimeFilter,
+                            initialDateRange = customDateRange,
+                            onEditSpend = { spend ->
+                                editingSpend = spend
+                                activeView = ActiveView.ADD_SPEND
+                            },
+                            onDeleteSpend = { spend ->
+                                viewModel.deleteSpend(spend)
+                                showNotification("Spend deleted", NotificationType.INFO)
+                            }
+                        )
+                        ActiveView.ADD_SPEND -> AddSpendScreen(
+                            editingSpend = editingSpend,
+                            onDismiss = { 
+                                editingSpend = null
+                                activeView = ActiveView.DASHBOARD 
+                            },
+                            onShowNotification = { msg, type -> showNotification(msg, type) },
+                            onSave = { newSpend: NewSpend ->
+                                val appName = if (newSpend.preset.id == "other")
+                                    newSpend.customAppName.trim() else newSpend.preset.displayName
+                                
+                                if (editingSpend != null) {
+                                    viewModel.updateSpend(
+                                        editingSpend!!.copy(
+                                            appName = appName,
+                                            amount = newSpend.amount,
+                                            purpose = newSpend.purpose,
+                                            category = newSpend.preset.category,
+                                            notes = newSpend.notes,
+                                            timestamp = newSpend.timestamp
+                                        )
+                                    )
+                                    showNotification("Spending updated successfully!", NotificationType.SUCCESS)
+                                } else {
+                                    viewModel.addSpend(
                                         appName = appName,
                                         amount = newSpend.amount,
                                         purpose = newSpend.purpose,
@@ -517,108 +611,106 @@ fun MainContainer(
                                         notes = newSpend.notes,
                                         timestamp = newSpend.timestamp
                                     )
-                                )
-                                showNotification("Spending updated successfully!", NotificationType.SUCCESS)
-                            } else {
-                                viewModel.addSpend(
-                                    appName = appName,
-                                    amount = newSpend.amount,
-                                    purpose = newSpend.purpose,
-                                    category = newSpend.preset.category,
-                                    notes = newSpend.notes,
-                                    timestamp = newSpend.timestamp
-                                )
-                                showNotification("Spending logged successfully!", NotificationType.SUCCESS)
+                                    showNotification("Spending logged successfully!", NotificationType.SUCCESS)
+                                }
+                                editingSpend = null
+                                activeView = ActiveView.DASHBOARD
                             }
-                            editingSpend = null
-                            activeView = ActiveView.DASHBOARD
-                        }
-                    )
+                        )
+                    }
                 }
-            }
 
-            // Notification Banner Overlay
-            AnimatedVisibility(
-                visible = currentNotification != null,
-                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-                modifier = Modifier.align(Alignment.TopCenter)
-            ) {
-                currentNotification?.let { (msg, type) ->
-                    AppNotification(message = msg, type = type)
+                // Notification Banner Overlay
+                AnimatedVisibility(
+                    visible = currentNotification != null,
+                    enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                    exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+                    modifier = Modifier.align(Alignment.TopCenter)
+                ) {
+                    currentNotification?.let { (msg, type) ->
+                        AppNotification(message = msg, type = type)
+                    }
                 }
             }
         }
-    }
 
-    // AI Sheets
-    if (showAiInput) {
-        AiInputBottomSheet(
-            sheetState = aiInputSheetState,
-            remainingRequests = 15 - aiPrefs.dailyUsageCount,
-            onProcess = { viewModel.processAiInput(it) },
-            onDismiss = dismissAiInput
-        )
-    }
-
-    if (aiProcessingResult != null) {
-        ModalBottomSheet(
-            onDismissRequest = dismissAiConfirmation,
-            sheetState = aiConfirmationSheetState,
-            dragHandle = { BottomSheetDefaults.DragHandle() }
-        ) {
-            AiConfirmationScreen(
-                extractedData = aiProcessingResult!!,
-                onShowNotification = { msg, type -> showNotification(msg, type) },
-                onConfirm = { newSpend ->
-                    viewModel.addSpend(
-                        appName = if (newSpend.preset.id == "other") newSpend.customAppName else newSpend.preset.displayName,
-                        amount = newSpend.amount,
-                        purpose = newSpend.purpose,
-                        category = newSpend.preset.category,
-                        notes = newSpend.notes,
-                        timestamp = newSpend.timestamp
-                    )
-                    showNotification("Logged via AI!", NotificationType.SUCCESS)
-                    scope.launch {
-                        runCatching {
-                            if (aiConfirmationSheetState.isVisible) aiConfirmationSheetState.hide()
-                        }
-                    }.invokeOnCompletion {
-                        aiProcessingResult = null
-                        viewModel.clearAiResult()
-                    }
-                },
-                onCancel = dismissAiConfirmation
+        // AI Sheets
+        if (showAiInput) {
+            AiInputBottomSheet(
+                sheetState = aiInputSheetState,
+                remainingRequests = 15 - aiPrefs.dailyUsageCount,
+                onProcess = { viewModel.processAiInput(it) },
+                onDismiss = dismissAiInput
             )
         }
-    }
 
-    if (showAiHistoryAssistant) {
-        com.alpha.spendtracker.ui.components.AiHistoryAssistantSheet(
-            messages = chatHistory,
-            status = historyStatus,
-            onSendMessage = { viewModel.askAiAboutHistory(it) },
-            onDismiss = { showAiHistoryAssistant = false },
-            sheetState = aiHistorySheetState
-        )
-    }
-
-    // Discard Dialog
-    if (showDiscardDialog) {
-        AlertDialog(
-            onDismissRequest = dismissDiscardDialog,
-            title = { Text("Discard Spend?") },
-            text = { Text("Are you sure you want to discard this spend? Your input will not be saved.") },
-            confirmButton = {
-                TextButton(
-                    onClick = { discardCallback?.invoke() },
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Discard") }
-            },
-            dismissButton = {
-                TextButton(onClick = dismissDiscardDialog) { Text("Cancel") }
+        if (aiProcessingResult != null) {
+            ModalBottomSheet(
+                onDismissRequest = dismissAiConfirmation,
+                sheetState = aiConfirmationSheetState,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                AiConfirmationScreen(
+                    extractedData = aiProcessingResult!!,
+                    onShowNotification = { msg, type -> showNotification(msg, type) },
+                    onConfirm = { newSpend ->
+                        viewModel.addSpend(
+                            appName = if (newSpend.preset.id == "other") newSpend.customAppName else newSpend.preset.displayName,
+                            amount = newSpend.amount,
+                            purpose = newSpend.purpose,
+                            category = newSpend.preset.category,
+                            notes = newSpend.notes,
+                            timestamp = newSpend.timestamp
+                        )
+                        showNotification("Logged via AI!", NotificationType.SUCCESS)
+                        scope.launch {
+                            runCatching {
+                                if (aiConfirmationSheetState.isVisible) aiConfirmationSheetState.hide()
+                            }
+                        }.invokeOnCompletion {
+                            aiProcessingResult = null
+                            viewModel.clearAiResult()
+                        }
+                    },
+                    onCancel = dismissAiConfirmation
+                )
             }
-        )
+        }
+
+        if (showAiHistoryAssistant) {
+            com.alpha.spendtracker.ui.components.AiHistoryAssistantSheet(
+                messages = chatHistory,
+                status = historyStatus,
+                onSendMessage = { viewModel.askAiAboutHistory(it) },
+                onDismiss = { showAiHistoryAssistant = false },
+                sheetState = aiHistorySheetState
+            )
+        }
+
+        // Discard Dialog
+        if (showDiscardDialog) {
+            AlertDialog(
+                onDismissRequest = dismissDiscardDialog,
+                title = { Text("Discard Spend?") },
+                text = { Text("Are you sure you want to discard this spend? Your input will not be saved.") },
+                confirmButton = {
+                    TextButton(
+                        onClick = { discardCallback?.invoke() },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) { Text("Discard") }
+                },
+                dismissButton = {
+                    TextButton(onClick = dismissDiscardDialog) { Text("Cancel") }
+                }
+            )
+        }
+
+        if (needsBiometric && !isBiometricAuthenticated) {
+            LockedOverlay {
+                (context as? MainActivity)?.showBiometricPrompt {
+                    viewModel.setBiometricAuthenticated(true)
+                }
+            }
+        }
     }
 }
