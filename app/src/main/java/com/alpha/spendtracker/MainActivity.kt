@@ -84,8 +84,6 @@ class MainActivity : FragmentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
         
-        showBiometricPrompt()
-
         enableEdgeToEdge()
         setContent {
             val themePref = rememberThemePreference()
@@ -100,7 +98,7 @@ class MainActivity : FragmentActivity() {
         }
     }
 
-    private fun showBiometricPrompt() {
+    fun showBiometricPrompt() {
         val executor = ContextCompat.getMainExecutor(this)
         val biometricPrompt = BiometricPrompt(this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
@@ -215,6 +213,14 @@ fun MainContainer(
     val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
     val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
     val historyStatus by viewModel.historyStatus.collectAsStateWithLifecycle()
+
+    var biometricPromptShown by rememberSaveable { mutableStateOf(false) }
+    LaunchedEffect(currentUser, aiPrefs.isBiometricEnabled) {
+        if (currentUser != null && !isRegistering && aiPrefs.isBiometricEnabled && !biometricPromptShown) {
+            (context as? MainActivity)?.showBiometricPrompt()
+            biometricPromptShown = true
+        }
+    }
     
     val aiInputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val aiConfirmationSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -398,6 +404,7 @@ fun MainContainer(
                         analytics = analyticsState,
                         recentSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" }.take(5),
                         themePreference = themePreference,
+                        aiPreferences = aiPrefs,
                         onCycleTheme = onCycleTheme,
                         onFilterSelect = viewModel::setFilter,
                         onCustomRangeSelect = viewModel::setCustomRange,
@@ -428,6 +435,8 @@ fun MainContainer(
                             showNotification("Logged out successfully", NotificationType.INFO)
                         },
                         onAiAssistantClick = { showAiHistoryAssistant = true },
+                        onUpdateAiPreferences = viewModel::updateAiPreferences,
+                        onToggleBiometrics = viewModel::updateBiometricEnabled
                     )
                     ActiveView.LEND_BORROW -> LendBorrowScreen(
                         allSpends = allSpends,

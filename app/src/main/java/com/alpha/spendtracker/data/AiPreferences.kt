@@ -16,7 +16,8 @@ data class AiPreferences(
     val defaultPurpose: String = "Others",
     val dailyUsageCount: Int = 0,
     val lastUsageDate: Long = 0L,
-    val isConfigured: Boolean = false
+    val isConfigured: Boolean = false,
+    val isBiometricEnabled: Boolean = true
 )
 
 class AiPreferencesRepository(private val context: Context) {
@@ -28,6 +29,7 @@ class AiPreferencesRepository(private val context: Context) {
         val USAGE_COUNT = intPreferencesKey("daily_usage_count")
         val LAST_USAGE_DATE = longPreferencesKey("last_usage_date")
         val IS_CONFIGURED = booleanPreferencesKey("is_configured")
+        val IS_BIOMETRIC_ENABLED = booleanPreferencesKey("is_biometric_enabled")
     }
 
     val aiPreferencesFlow: Flow<AiPreferences> = context.dataStore.data
@@ -45,7 +47,8 @@ class AiPreferencesRepository(private val context: Context) {
                 defaultPurpose = preferences[PreferencesKeys.PURPOSE] ?: "Others",
                 dailyUsageCount = finalCount,
                 lastUsageDate = lastDate,
-                isConfigured = preferences[PreferencesKeys.IS_CONFIGURED] ?: false
+                isConfigured = preferences[PreferencesKeys.IS_CONFIGURED] ?: false,
+                isBiometricEnabled = preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] ?: true
             )
         }
 
@@ -55,6 +58,12 @@ class AiPreferencesRepository(private val context: Context) {
             preferences[PreferencesKeys.APP] = app
             preferences[PreferencesKeys.PURPOSE] = purpose
             preferences[PreferencesKeys.IS_CONFIGURED] = true
+        }
+    }
+
+    suspend fun updateBiometricEnabled(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] = enabled
         }
     }
 
