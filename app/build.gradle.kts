@@ -1,5 +1,6 @@
 plugins {
   alias(libs.plugins.android.application)
+  alias(libs.plugins.hilt)
   alias(libs.plugins.kotlin.compose)
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
@@ -116,4 +117,13 @@ dependencies {
   debugImplementation(libs.androidx.compose.ui.tooling)
   "ksp"(libs.androidx.room.compiler)
   "ksp"(libs.moshi.kotlin.codegen)
+  implementation(libs.hilt.android)
+  ksp(libs.hilt.compiler)
+  implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
+  implementation(libs.androidx.work.runtime.ktx)
+  implementation(libs.androidx.glance.appwidget)
+  implementation(libs.androidx.glance.material3)
+  implementation("androidx.hilt:hilt-work:1.2.0")
+  implementation("androidx.biometric:biometric:1.2.0-alpha05")
+  ksp("androidx.hilt:hilt-compiler:1.2.0")
 }

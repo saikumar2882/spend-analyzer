@@ -16,6 +16,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -116,6 +117,32 @@ fun AiInputBottomSheet(
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // Usage Progress Bar
+            val usageRatio = ((15 - remainingRequests).toFloat() / 15f).coerceIn(0f, 1f)
+            val usagePercent = (usageRatio * 100).toInt()
+            
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                LinearProgressIndicator(
+                    progress = { usageRatio },
+                    modifier = Modifier.weight(1f).height(4.dp),
+                    color = if (usageRatio > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary,
+                    trackColor = MaterialTheme.colorScheme.surfaceVariant,
+                    strokeCap = StrokeCap.Round
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Text(
+                    text = "$usagePercent%",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = if (usageRatio > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                )
             }
 
             if (isProcessing) {

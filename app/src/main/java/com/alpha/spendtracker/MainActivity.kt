@@ -3,7 +3,6 @@
  */
 package com.alpha.spendtracker
 
-import android.app.Application
 import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
@@ -44,6 +43,9 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
+import androidx.biometric.BiometricPrompt
+import androidx.core.content.ContextCompat
+import androidx.fragment.app.FragmentActivity
 import com.alpha.spendtracker.data.AiTransactionResponse
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.AiConfirmationScreen
@@ -63,20 +65,26 @@ import com.alpha.spendtracker.ui.theme.isDark
 import com.alpha.spendtracker.ui.theme.next
 import com.alpha.spendtracker.ui.theme.rememberThemePreference
 import com.alpha.spendtracker.ui.viewmodel.SpendViewModel
-import com.alpha.spendtracker.ui.viewmodel.SpendViewModelFactory
 import com.google.firebase.auth.FirebaseAuth
+import dagger.hilt.android.AndroidEntryPoint
+import androidx.work.ExistingPeriodicWorkPolicy
+import androidx.work.PeriodicWorkRequestBuilder
+import androidx.work.WorkManager
+import java.util.concurrent.TimeUnit
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
 enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND }
 
-class MainActivity : ComponentActivity() {
-    private val spendViewModel: SpendViewModel by viewModels {
-        SpendViewModelFactory(applicationContext as Application)
-    }
+@AndroidEntryPoint
+class MainActivity : FragmentActivity() {
+    private val spendViewModel: SpendViewModel by viewModels()
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        
+        showBiometricPrompt()
+
         enableEdgeToEdge()
         setContent {
             val themePref = rememberThemePreference()
@@ -89,6 +97,34 @@ class MainActivity : ComponentActivity() {
                 )
             }
         }
+    }
+
+    private fun showBiometricPrompt() {
+        val executor = ContextCompat.getMainExecutor(this)
+        val biometricPrompt = BiometricPrompt(this, executor,
+            object : BiometricPrompt.AuthenticationCallback() {
+                override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
+                    super.onAuthenticationError(errorCode, errString)
+                    // If user cancels or error occurs, we might want to close the app 
+                    // or show a backup password screen. For now, we'll just log it.
+                }
+
+                override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
+                    super.onAuthenticationSucceeded(result)
+                }
+
+                override fun onAuthenticationFailed() {
+                    super.onAuthenticationFailed()
+                }
+            })
+
+        val promptInfo = BiometricPrompt.PromptInfo.Builder()
+            .setTitle("Biometric login for Spendly")
+            .setSubtitle("Log in using your biometric credential")
+            .setNegativeButtonText("Use account password")
+            .build()
+
+        biometricPrompt.authenticate(promptInfo)
     }
 
     fun handleEmailLink(intent: Intent?, onShowNotification: (String, NotificationType) -> Unit) {
