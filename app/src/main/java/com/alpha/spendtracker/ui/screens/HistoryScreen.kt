@@ -27,7 +27,6 @@ import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Search
@@ -161,52 +160,9 @@ fun HistoryScreen(
             .fillMaxSize()
             .padding(horizontal = 16.dp)
     ) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
-        ) {
-            Surface(
-                onClick = onBackClick,
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        Icons.AutoMirrored.Rounded.ArrowBack,
-                        contentDescription = "Go back to dashboard",
-                        modifier = Modifier.size(20.dp),
-                        tint = MaterialTheme.colorScheme.onSurface
-                    )
-                }
-            }
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "History",
-                    style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.ExtraBold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-            Surface(
-                onClick = onAiAssistantClick,
-                shape = androidx.compose.foundation.shape.CircleShape,
-                color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = Icons.Rounded.AutoAwesome,
-                        contentDescription = "Ask AI History Assistant",
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-        }
+        Spacer(modifier = Modifier.height(8.dp))
 
+        // Search, filter & AI assistant — grouped in one compact, aligned row
         Row(
             modifier = Modifier.fillMaxWidth(),
             verticalAlignment = Alignment.CenterVertically,
@@ -215,7 +171,7 @@ fun HistoryScreen(
             OutlinedTextField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search by app, purpose…") },
+                placeholder = { Text("app, purpose,..") },
                 leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null) },
                 trailingIcon = {
                     if (searchQuery.isNotEmpty()) {
@@ -226,26 +182,12 @@ fun HistoryScreen(
                 },
                 singleLine = true,
                 modifier = Modifier.weight(1f),
-                shape = RoundedCornerShape(18.dp)
+                shape = RoundedCornerShape(16.dp)
             )
 
-            IconButton(
-                onClick = { showFilters = !showFilters },
-                modifier = Modifier
-                    .size(48.dp)
-                    .background(
-                        if (showFilters) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
-                        RoundedCornerShape(16.dp)
-                    )
-            ) {
-                Icon(
-                    Icons.Rounded.Tune,
-                    contentDescription = "Toggle filters",
-                    tint = if (showFilters) MaterialTheme.colorScheme.onPrimaryContainer 
-                           else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-            }
+            FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
+
+            AiAssistantButton(onClick = onAiAssistantClick)
         }
 
         AnimatedVisibility(
@@ -358,6 +300,45 @@ fun HistoryScreen(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = if (active) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
+                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        modifier = Modifier.size(52.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Rounded.Tune,
+                contentDescription = "Toggle filters",
+                tint = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+                       else MaterialTheme.colorScheme.onSurfaceVariant
+            )
+        }
+    }
+}
+
+@Composable
+private fun AiAssistantButton(onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(16.dp),
+        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+        modifier = Modifier.size(52.dp)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Rounded.AutoAwesome,
+                contentDescription = "Ask AI History Assistant",
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(22.dp)
+            )
         }
     }
 }
