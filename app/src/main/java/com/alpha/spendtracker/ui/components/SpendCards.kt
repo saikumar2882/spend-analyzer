@@ -4,6 +4,7 @@
 package com.alpha.spendtracker.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -59,6 +60,10 @@ fun RecentSpendRow(
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.98f else 1f, label = "recentRowScale")
 
+    val isDark = isSystemInDarkTheme()
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant 
+                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
@@ -69,7 +74,7 @@ fun RecentSpendRow(
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surface
         ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(1.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -131,11 +136,15 @@ fun HistorySpendCard(
 ) {
     val accent = APP_PRESETS.firstOrNull { it.displayName == spend.appName }?.color ?: MaterialTheme.colorScheme.primary
 
+    val isDark = isSystemInDarkTheme()
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant 
+                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+
     Card(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        border = BorderStroke(1.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(

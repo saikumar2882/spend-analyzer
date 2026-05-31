@@ -3,6 +3,7 @@
  */
 package com.alpha.spendtracker.ui.components
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -29,17 +30,37 @@ import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.ui.viewmodel.TrendPoint
 import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.ui.input.pointer.pointerInput
+import com.alpha.spendtracker.ui.theme.*
 import java.util.Locale
 
-// Dynamic Colors for Spending Categories / Apps
-val CategoryColors = mapOf(
-    "UPI Apps" to Color(0xFF3B82F6),        // Google Pay, PhonePe (Blue)
-    "Quick Commerce" to Color(0xFFF97316),  // Swiggy, Zepto (Orange)
-    "E-Commerce" to Color(0xFFEC4899),      // Amazon, Flipkart (Pink)
-    "Banking & Cards" to Color(0xFF8B5CF6),  // ICICI, SBI Credit Cards (Purple)
-    "Friend Lending" to Color(0xFF10B981),   // Friend Lending (Emerald Green)
-    "Other" to Color(0xFF6B7280)            // Generic Other (Gray)
-)
+/**
+ * Returns a theme-aware color map for spending categories.
+ */
+@Composable
+fun getCategoryColors(): Map<String, Color> {
+    val isDark = isSystemInDarkTheme()
+    return remember(isDark) {
+        if (isDark) {
+            mapOf(
+                "UPI Apps" to CatDark_UPI,
+                "Quick Commerce" to CatDark_QuickComm,
+                "E-Commerce" to CatDark_Ecommerce,
+                "Banking & Cards" to CatDark_Banking,
+                "Friend Lending" to CatDark_Lending,
+                "Other" to CatDark_Other
+            )
+        } else {
+            mapOf(
+                "UPI Apps" to CatLight_UPI,
+                "Quick Commerce" to CatLight_QuickComm,
+                "E-Commerce" to CatLight_Ecommerce,
+                "Banking & Cards" to CatLight_Banking,
+                "Friend Lending" to CatLight_Lending,
+                "Other" to CatLight_Other
+            )
+        }
+    }
+}
 
 /**
  * A beautiful, custom Canvas-drawn Pie/Donut Chart for category breakdown
@@ -67,6 +88,7 @@ fun SpendingDonutChart(
         return
     }
 
+    val categoryColors = getCategoryColors()
     val total = categoryBreakdown.values.sum()
     val items = categoryBreakdown.toList().sortedByDescending { it.second }
 
@@ -140,7 +162,7 @@ fun SpendingDonutChart(
                 items.forEach { (cat, amount) ->
                     val rawSweepAngle = if (total > 0) ((amount / total) * 360f).toFloat() * progressFactor else 0f
                     val sweepAngle = if (rawSweepAngle.isNaN() || rawSweepAngle < 0f) 0f else rawSweepAngle
-                    val color = CategoryColors[cat] ?: CategoryColors["Other"]!!
+                    val color = categoryColors[cat] ?: categoryColors["Other"]!!
 
                     drawArc(
                         color = color,
@@ -179,7 +201,7 @@ fun SpendingDonutChart(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             items.take(4).forEach { (category, amount) ->
-                val color = CategoryColors[category] ?: CategoryColors["Other"]!!
+                val color = categoryColors[category] ?: categoryColors["Other"]!!
                 val percent = if (total > 0) (amount / total * 100).toInt() else 0
 
                 Row(
@@ -199,15 +221,15 @@ fun SpendingDonutChart(
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = category,
-                            style = MaterialTheme.typography.bodySmall,
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1
                         )
                     }
                     Text(
                         text = "$percent%",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                 }
             }

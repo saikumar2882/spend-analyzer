@@ -3,6 +3,7 @@
  */
 package com.alpha.spendtracker.ui.components
 
+import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -138,6 +139,20 @@ fun TotalSpentHeroCard(
         "$transactionCount transactions"
     }
 
+    val isDark = isSystemInDarkTheme()
+    val gradientColors = remember(isDark) {
+        if (isDark) {
+            listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)
+        } else {
+            // Slightly softer for light mode
+            listOf(
+                BrandGradientStart.copy(alpha = 0.92f),
+                BrandGradientMid.copy(alpha = 0.92f),
+                BrandGradientEnd.copy(alpha = 0.92f)
+            )
+        }
+    }
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(28.dp),
@@ -145,19 +160,12 @@ fun TotalSpentHeroCard(
             containerColor = Color.Transparent,
             contentColor = Color.White
         ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 12.dp)
+        elevation = CardDefaults.cardElevation(defaultElevation = if (isDark) 12.dp else 4.dp),
+        border = if (!isDark) BorderStroke(1.dp, BrandGradientStart.copy(alpha = 0.1f)) else null
     ) {
         Box(
             modifier = Modifier
-                .background(
-                    Brush.linearGradient(
-                        colors = listOf(
-                            BrandGradientStart,
-                            BrandGradientMid,
-                            BrandGradientEnd
-                        )
-                    )
-                )
+                .background(Brush.linearGradient(colors = gradientColors))
         ) {
             // Decorative blurred orbs
             Box(
