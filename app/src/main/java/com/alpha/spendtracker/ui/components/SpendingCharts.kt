@@ -27,6 +27,8 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.ui.viewmodel.TrendPoint
+import androidx.compose.foundation.gestures.detectTapGestures
+import androidx.compose.ui.input.pointer.pointerInput
 import java.util.Locale
 
 // Dynamic Colors for Spending Categories / Apps
@@ -45,7 +47,8 @@ val CategoryColors = mapOf(
 @Composable
 fun SpendingDonutChart(
     categoryBreakdown: Map<String, Double>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    onCategoryClick: ((String) -> Unit)? = null
 ) {
     if (categoryBreakdown.isEmpty()) {
         Box(
@@ -91,7 +94,41 @@ fun SpendingDonutChart(
                 .padding(8.dp),
             contentAlignment = Alignment.Center
         ) {
-            Canvas(modifier = Modifier.fillMaxSize()) {
+            Canvas(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .pointerInput(items, total, progressFactor) {
+                        detectTapGestures { offset ->
+                            if (total <= 0 || progressFactor < 0.9f) return@detectTapGestures
+                            
+                            val centerX = size.width / 2f
+                            val centerY = size.height / 2f
+                            val dx = offset.x - centerX
+                            val dy = offset.y - centerY
+                            val distance = kotlin.math.sqrt(dx * dx + dy * dy)
+                            
+                            val strokeWidth = 14.dp.toPx()
+                            val outerRadius = kotlin.math.min(size.width, size.height) / 2f
+                            val innerRadius = outerRadius - strokeWidth
+                            
+                            if (distance in innerRadius..outerRadius) {
+                                var angle = kotlin.math.atan2(dy, dx) * (180f / kotlin.math.PI).toFloat()
+                                if (angle < -90f) angle += 360f
+                                val clickAngle = angle + 90f // Offset to match -90f start
+                                
+                                var currentAngle = 0f
+                                for ((cat, amount) in items) {
+                                    val sweep = (amount / total * 360f).toFloat()
+                                    if (clickAngle in currentAngle..(currentAngle + sweep)) {
+                                        onCategoryClick?.invoke(cat)
+                                        break
+                                    }
+                                    currentAngle += sweep
+                                }
+                            }
+                        }
+                    }
+            ) {
                 val strokeWidth = 14.dp.toPx()
                 val radius = (size.minDimension - strokeWidth) / 2
                 val center = Offset(size.width / 2, size.height / 2)

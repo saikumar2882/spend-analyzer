@@ -3,11 +3,8 @@
  */
 package com.alpha.spendtracker.ui.viewmodel
 
-import android.app.Application
 import android.util.Log
-import androidx.lifecycle.AndroidViewModel
 import androidx.lifecycle.ViewModel
-import androidx.lifecycle.ViewModelProvider
 import androidx.lifecycle.viewModelScope
 import com.alpha.spendtracker.data.*
 import com.google.ai.client.generativeai.GenerativeModel
@@ -16,6 +13,7 @@ import com.google.ai.client.generativeai.type.content
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.remoteConfigSettings
+import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -29,6 +27,7 @@ import kotlinx.coroutines.tasks.await
 import org.json.JSONObject
 import java.util.Calendar
 import java.util.Locale
+import javax.inject.Inject
 
 enum class TimeFilter {
     DAY, WEEK, MONTH, YEAR, ALL, CUSTOM
@@ -51,11 +50,13 @@ enum class AiErrorType {
 /**
  * Main ViewModel to manage Spending Tracker operations, analytics, and states
  */
-class SpendViewModel(application: Application) : AndroidViewModel(application) {
-
-    private val repository: SpendRepository
-    private val aiPrefsRepository: AiPreferencesRepository
+@HiltViewModel
+class SpendViewModel @Inject constructor(
+    private val repository: SpendRepository,
+    private val aiPrefsRepository: AiPreferencesRepository,
     private val chatDao: ChatDao
+) : ViewModel() {
+
     private val auth = FirebaseAuth.getInstance()
 
     companion object {
@@ -69,11 +70,6 @@ class SpendViewModel(application: Application) : AndroidViewModel(application) {
     private var currentSessionId: String = ""
 
     init {
-        val database = AppDatabase.getDatabase(application)
-        repository = SpendRepository(database.spendDao())
-        chatDao = database.chatDao()
-        aiPrefsRepository = AiPreferencesRepository(application)
-        
         // Start sync if user is already logged in
         auth.currentUser?.let { user ->
             _userId.value = user.uid
@@ -826,15 +822,3 @@ data class TrendPoint(
     val sortKey: Int
 )
 
-/**
- * Factory class to instantiate Android ViewModel with local context setup
- */
-class SpendViewModelFactory(private val application: Application) : ViewModelProvider.Factory {
-    override fun <T : ViewModel> create(modelClass: Class<T>): T {
-        if (modelClass.isAssignableFrom(SpendViewModel::class.java)) {
-            @Suppress("UNCHECKED_CAST")
-            return SpendViewModel(application) as T
-        }
-        throw IllegalArgumentException("Unknown ViewModel class")
-    }
-}

@@ -4,6 +4,7 @@
 package com.alpha.spendtracker.ui.screens
 
 import android.app.DatePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -109,6 +110,7 @@ fun AddSpendScreen(
         mutableStateOf(if (selectedPreset.id == "other") editingSpend?.appName ?: "" else "") 
     }
     var transactionTimestamp by rememberSaveable { mutableLongStateOf(editingSpend?.timestamp ?: System.currentTimeMillis()) }
+
     var amountError by remember { mutableStateOf<String?>(null) }
     var customAppError by remember { mutableStateOf<String?>(null) }
 
