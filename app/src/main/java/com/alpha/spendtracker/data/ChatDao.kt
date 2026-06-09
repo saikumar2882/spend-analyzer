@@ -9,7 +9,10 @@ interface ChatDao {
     fun getChatMessages(userId: String): Flow<List<ChatMessage>>
 
     @Insert(onConflict = OnConflictStrategy.REPLACE)
-    suspend fun insertMessage(message: ChatMessage)
+    suspend fun insertMessage(message: ChatMessage): Long
+
+    @Query("DELETE FROM chat_messages WHERE id = :id")
+    suspend fun deleteMessageById(id: Long)
 
     @Query("DELETE FROM chat_messages WHERE timestamp < :threshold")
     suspend fun deleteOldMessages(threshold: Long)

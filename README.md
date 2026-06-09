@@ -13,7 +13,10 @@ Spendly is a modern, privacy-focused Android application designed to help users 
 - **Offline First**: Works perfectly without internet, using Room database as the local source of truth.
 - **Theming**: Supports Light, Dark, and System theme preferences.
 - **Clean UI**: Minimalist design focused on readability and ease of use.
+- **Biometric Security**: Secure your financial data with an app-level biometric lock.
+- **App Widgets**: Quick access to tracking features directly from your home screen.
 - **Safety First**: Discard confirmation dialogs ensure you don't accidentally lose your tracking progress.
+- **In-App Updates**: Stay up to date with the latest features and fixes seamlessly.
 
 ## 🔐 Authentication
 
@@ -28,9 +31,14 @@ Spendly offers multiple secure ways to sign in, all handled via **Firebase Authe
 ## 🛠 Tech Stack
 
 - **UI**: Jetpack Compose (Modern Declarative UI)
+- **Dependency Injection**: Hilt
 - **Local Database**: Room (with multi-user support)
 - **Backend/Cloud**: Firebase (Auth & Firestore)
-- **AI Integration**: Gemini AI parsing for smart tracking
+- **AI Integration**: Gemini AI (Gemini 1.5 Flash) parsing for smart tracking
+- **Background Tasks**: WorkManager for cloud synchronization
+- **App Widgets**: Jetpack Glance
+- **Security**: Android Biometric API & Credential Manager
+- **Updates**: Google Play In-App Update API
 - **Architecture**: MVVM (Model-View-ViewModel)
 - **Asynchronous**: Kotlin Coroutines & Flow
 
@@ -72,14 +80,15 @@ service cloud.firestore {
 ## 🔄 App Workflow
 
 ### Workflow Description
-1.  **Authentication**: Users sign in via Google or Email. A unique `userId` is assigned to maintain data privacy.
-2.  **Dashboard**: The app fetches local data from **Room DB** to show immediate analytics.
-3.  **Data Entry**:
+1.  **Authentication**: Users sign in via Google (using Credential Manager) or Email. A unique `userId` is assigned to maintain data privacy.
+2.  **Security**: If enabled, the app prompts for biometric authentication before granting access to the dashboard.
+3.  **Dashboard**: The app fetches local data from **Room DB** to show immediate analytics.
+4.  **Data Entry**:
     *   **Manual**: User fills out amount, app, and purpose.
     *   **AI (Smart)**: User types a natural sentence (e.g., "Paid 500 for lunch via GPay"). **Gemini AI** parses this into structured data.
-4.  **Processing**: Data is first saved to the local **Room Database** (Offline-first).
-5.  **Synchronization**: The **Repository** layer triggers a background sync to **Firebase Firestore** for cloud backup.
-6.  **Insights**: The **Analytics Engine** groups data to generate donut/bar charts and provides an **AI Chat Assistant** for historical queries.
+5.  **Processing**: Data is first saved to the local **Room Database** (Offline-first).
+6.  **Synchronization**: A background **SyncWorker** (via WorkManager) ensures local data is periodically backed up to **Firebase Firestore**.
+7.  **Insights**: The **Analytics Engine** groups data to generate donut/bar charts and provides an **AI Chat Assistant** for historical queries.
 
 ### Flowchart
 
@@ -142,11 +151,15 @@ Leverage AI to understand your finances:
 *   Ask questions like "How much did I spend on food last month?" or "What are my biggest expenses?"
 *   Get conversational insights and summaries of your financial data.
 
-### 7. Personalization
+### 7. Personalization & Security
 *   **Theme Switching**: Cycle between **Light Mode**, **Dark Mode**, and **System Default** using the theme icon on the Dashboard.
+*   **Biometric Lock**: Enable "App Lock" in settings to require Fingerprint or Face ID whenever you open the app.
 *   **Notifications**: The app provides real-time feedback for successful saves, errors, and security updates.
 
-### 8. Tips for Success
+### 8. Updates
+*   **Auto-Update**: The app checks for newer versions on both the Play Store and GitHub, prompting you to stay updated for the best experience.
+
+### 9. Tips for Success
 *   **Be Descriptive**: Use the "Notes" field to remember specific details about unusual expenses.
 *   **Review Weekly**: Use the "This Week" filter every Sunday to stay on top of your budget.
 *   **Categorize Correctly**: Consistently using the same categories makes the "Category Breakdown" chart more accurate.

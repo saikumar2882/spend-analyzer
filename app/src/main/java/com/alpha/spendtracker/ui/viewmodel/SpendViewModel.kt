@@ -166,12 +166,14 @@ class SpendViewModel @Inject constructor(
 
             // 2. Insert User Message
             val userMsg = ChatMessage(userId = userId, text = question, isFromUser = true, sessionId = currentSessionId)
-            chatDao.insertMessage(userMsg)
+            val userMsgId = chatDao.insertMessage(userMsg)
             _historyStatus.value = AiHistoryStatus.Analyzing
 
             // 3. Prepare Context
-            val spends = allSpendsFlow.value
-            val contextText = spends.joinToString("\n") { 
+            val allSpends = allSpendsFlow.value
+            val filteredSpends = filterSpendsByQuery(allSpends, question)
+            
+            val contextText = filteredSpends.joinToString("\n") { 
                 val date = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(it.timestamp)
                 "- $date: ${it.amount} on ${it.notes} (${it.purpose}) via ${it.appName}"
             }
@@ -182,11 +184,12 @@ class SpendViewModel @Inject constructor(
                 val apiKey = remoteConfig.getString("gemini_api_key")
                 if (apiKey.isBlank()) {
                     _historyStatus.value = AiHistoryStatus.Error("AI configuration is missing.", AiErrorType.API_KEY_MISSING)
+                    chatDao.deleteMessageById(userMsgId)
                     return@launch
                 }
 
                 val generativeModel = GenerativeModel(
-                    modelName = "gemini-1.5-flash",
+                    modelName = "gemini-3.5-flash",
                     apiKey = apiKey
                 )
 
@@ -220,6 +223,7 @@ class SpendViewModel @Inject constructor(
                     _historyStatus.value = AiHistoryStatus.Idle
                 } else {
                     _historyStatus.value = AiHistoryStatus.Error("The AI didn't provide a response.", AiErrorType.EMPTY_RESPONSE)
+                    chatDao.deleteMessageById(userMsgId)
                 }
             } catch (e: Exception) {
                 Log.e(TAG, "History AI Error: ${e.message}", e)
@@ -230,6 +234,7 @@ class SpendViewModel @Inject constructor(
                     AiErrorType.GENERIC
                 }
                 _historyStatus.value = AiHistoryStatus.Error(errorMsg, errorType)
+                chatDao.deleteMessageById(userMsgId)
             }
         }
     }
@@ -310,7 +315,6 @@ class SpendViewModel @Inject constructor(
                 val apiKey = remoteConfig.getString("gemini_api_key")
                 if (apiKey.isBlank()) {
                     Log.w(TAG, "Gemini API Key is missing in Remote Config")
-                    aiPrefsRepository.incrementUsage()
                     _aiResult.value = Result.success(baseline)
                     return@launch
                 }
@@ -375,14 +379,13 @@ class SpendViewModel @Inject constructor(
                 val merged = if (responseText.isNullOrBlank()) {
                     baseline
                 } else {
+                    aiPrefsRepository.incrementUsage()
                     parseAndMerge(responseText, baseline)
                 }
 
-                aiPrefsRepository.incrementUsage()
                 _aiResult.value = Result.success(merged)
             } catch (e: Exception) {
                 Log.e(TAG, "AI Error, falling back to local parser: ${e.message}", e)
-                aiPrefsRepository.incrementUsage()
                 _aiResult.value = Result.success(baseline)
             }
         }
@@ -807,6 +810,59 @@ class SpendViewModel @Inject constructor(
                 }.sortedBy { it.sortKey }
             }
         }
+    }
+
+    /**
+     * Filters transactions based on the user's question to optimize the AI prompt payload.
+     */
+    private fun filterSpendsByQuery(spends: List<Spend>, query: String): List<Spend> {
+        val lower = query.lowercase()
+        
+        // 1. Determine Time Range
+        val calendar = Calendar.getInstance()
+        val startOfToday = calendar.apply {
+            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+
+        val timeFiltered = when {
+            lower.contains("today") -> spends.filter { it.timestamp >= startOfToday }
+            lower.contains("yesterday") -> {
+                val startOfYesterday = startOfToday - 24 * 60 * 60 * 1000
+                spends.filter { it.timestamp in startOfYesterday until startOfToday }
+            }
+            lower.contains("week") -> {
+                calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
+                spends.filter { it.timestamp >= calendar.timeInMillis }
+            }
+            lower.contains("month") -> {
+                calendar.set(Calendar.DAY_OF_MONTH, 1)
+                spends.filter { it.timestamp >= calendar.timeInMillis }
+            }
+            lower.contains("year") -> {
+                calendar.set(Calendar.DAY_OF_YEAR, 1)
+                spends.filter { it.timestamp >= calendar.timeInMillis }
+            }
+            else -> spends // Default to all if no time mentioned (AI will handle sorting)
+        }
+
+        // 2. Filter by Category/Purpose or App name if specifically mentioned
+        val categories = com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
+        val apps = com.alpha.spendtracker.ui.components.APP_PRESETS.map { it.displayName }
+        
+        val mentionedCategory = categories.firstOrNull { lower.contains(it.lowercase()) }
+        val mentionedApp = apps.firstOrNull { lower.contains(it.lowercase()) }
+
+        var finalFiltered = timeFiltered
+        if (mentionedCategory != null) {
+            finalFiltered = finalFiltered.filter { it.purpose.equals(mentionedCategory, ignoreCase = true) || it.category.equals(mentionedCategory, ignoreCase = true) }
+        }
+        if (mentionedApp != null) {
+            finalFiltered = finalFiltered.filter { it.appName.contains(mentionedApp, ignoreCase = true) }
+        }
+
+        // 3. Final safety: If the list is still too long, take the most recent 200
+        // to ensure we don't hit payload limits but keep enough context.
+        return finalFiltered.sortedByDescending { it.timestamp }.take(200)
     }
 }
 
