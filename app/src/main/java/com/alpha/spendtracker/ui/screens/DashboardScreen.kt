@@ -83,7 +83,8 @@ fun DashboardScreen(
     onLogout: () -> Unit,
     onAiAssistantClick: () -> Unit,
     onUpdateAiPreferences: (String, String, String) -> Unit,
-    onToggleBiometrics: (Boolean) -> Unit
+    onToggleBiometrics: (Boolean) -> Unit,
+    onShareApp: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showSecurityOptions by remember { mutableStateOf(false) }
@@ -256,6 +257,7 @@ fun DashboardScreen(
                 onSecurityClick = { showSecurityOptions = true },
                 onAiAssistantClick = onAiAssistantClick,
                 onAiSettingsClick = { showAiSettingsDialog = true },
+                onShareApp = onShareApp,
                 isBiometricEnabled = aiPreferences.isBiometricEnabled,
                 onToggleBiometrics = onToggleBiometrics,
                 menuExpanded = menuExpanded,
@@ -372,6 +374,7 @@ private fun DashboardHeader(
     onSecurityClick: () -> Unit,
     onAiAssistantClick: () -> Unit,
     onAiSettingsClick: () -> Unit,
+    onShareApp: () -> Unit,
     isBiometricEnabled: Boolean,
     onToggleBiometrics: (Boolean) -> Unit,
     menuExpanded: Boolean,
@@ -471,6 +474,14 @@ private fun DashboardHeader(
                         onClick = {
                             onMenuExpandedChange(false)
                             onAiSettingsClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Share App") },
+                        leadingIcon = { Icon(Icons.Rounded.Share, null) },
+                        onClick = {
+                            onMenuExpandedChange(false)
+                            onShareApp()
                         }
                     )
                     DropdownMenuItem(

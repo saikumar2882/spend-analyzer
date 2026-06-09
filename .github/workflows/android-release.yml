@@ -32,12 +32,12 @@ jobs:
       run: |
         echo "$ENCODED_KEYSTORE" | base64 --decode > app/my-upload-key.jks
 
-    - name: Build Release Bundle
+    - name: Build Release Artifacts
       env:
         STORE_PASSWORD: ${{ secrets.STORE_PASSWORD }}
         KEY_PASSWORD: ${{ secrets.KEY_PASSWORD }}
         KEYSTORE_PATH: my-upload-key.jks
-      run: ./gradlew bundleRelease
+      run: ./gradlew bundleRelease assembleRelease
 
     - name: Upload Release Bundle
       uses: actions/upload-artifact@v4
@@ -45,9 +45,17 @@ jobs:
         name: release-bundle
         path: app/build/outputs/bundle/release/app-release.aab
 
+    - name: Upload Release APK
+      uses: actions/upload-artifact@v4
+      with:
+        name: release-apk
+        path: app/build/outputs/apk/release/app-release.apk
+
     - name: Create GitHub Release
       uses: softprops/action-gh-release@v2
       with:
-        files: app/build/outputs/bundle/release/app-release.aab
+        files: |
+          app/build/outputs/bundle/release/app-release.aab
+          app/build/outputs/apk/release/app-release.apk
       env:
         GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

@@ -8,7 +8,6 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alpha.spendtracker.data.*
 import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.RequestOptions
 import com.google.ai.client.generativeai.type.content
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
@@ -187,7 +186,7 @@ class SpendViewModel @Inject constructor(
                 }
 
                 val generativeModel = GenerativeModel(
-                    modelName = "gemini-3.5-flash",
+                    modelName = "gemini-1.5-flash",
                     apiKey = apiKey
                 )
 
@@ -263,14 +262,6 @@ class SpendViewModel @Inject constructor(
         }
     }
 
-    private fun getGenerativeModel(apiKey: String): GenerativeModel {
-        return GenerativeModel(
-            modelName = "gemini-3.5-flash",
-            apiKey = apiKey,
-            requestOptions = RequestOptions(apiVersion = "v1")
-        )
-    }
-
     private val _aiResult = MutableStateFlow<Result<AiTransactionResponse>?>(null)
     val aiResult: StateFlow<Result<AiTransactionResponse>?> = _aiResult
 
@@ -315,10 +306,8 @@ class SpendViewModel @Inject constructor(
 
             // 4. Try Gemini for richer extraction.
             try {
-                // Fetch key from Remote Config instead of BuildConfig
                 remoteConfig.fetchAndActivate().await()
                 val apiKey = remoteConfig.getString("gemini_api_key")
-
                 if (apiKey.isBlank()) {
                     Log.w(TAG, "Gemini API Key is missing in Remote Config")
                     aiPrefsRepository.incrementUsage()
@@ -326,7 +315,10 @@ class SpendViewModel @Inject constructor(
                     return@launch
                 }
 
-                val generativeModel = getGenerativeModel(apiKey)
+                val generativeModel = GenerativeModel(
+                    modelName = "gemini-3.5-flash",
+                    apiKey = apiKey
+                )
                 
                 val appList = com.alpha.spendtracker.ui.components.APP_PRESETS
                     .joinToString(", ") { it.displayName }

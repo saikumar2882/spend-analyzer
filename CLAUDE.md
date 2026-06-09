@@ -38,7 +38,7 @@ Open in Android Studio Ladybug or newer, add `app/google-services.json` from you
 
 | Component | Role |
 |-----------|------|
-| `AppDatabase` (Room v5) | Local source of truth. Uses `fallbackToDestructiveMigration` — increment version whenever schema changes. |
+| `AppDatabase` (Room v5) | Local source of truth. Uses explicit migrations where possible (destructive migration disabled for production safety). |
 | `SpendRepository` | Wraps `SpendDao` and manages a Firestore real-time listener (`startSync`/`stopSync`). Writes go to Room first, then Firestore. |
 | `ChatDao` / `ChatMessage` | Stores AI history chat messages locally with a 12-hour TTL. |
 | `AiPreferencesRepository` | DataStore-backed preferences (default currency, app, purpose, daily usage counter). |
@@ -47,7 +47,7 @@ Firestore path: `users/{userId}/spends/{spendId}`.
 
 ### AI features
 
-Two separate AI flows, both using Gemini (`gemini-3.5-flash`) via `google/generative-ai`:
+Two separate AI flows, both using Gemini (`gemini-1.5-flash`) via `google/generative-ai`:
 
 1. **AI Track** (`processAiInput`) — parses a natural-language expense entry.  
    - Client-side rate limit: 15 uses/day (tracked in DataStore).  
@@ -57,7 +57,17 @@ Two separate AI flows, both using Gemini (`gemini-3.5-flash`) via `google/genera
 2. **AI History Assistant** (`askAiAboutHistory`) — Q&A chat over the user's full spend history.  
    - Client-side limit: 2 sessions/day × 7 messages/session (tracked in Room).
 
-**The Gemini API key is fetched at runtime from Firebase Remote Config** (`gemini_api_key`), not from `BuildConfig` or `.env`.
+**Gemini API key is fetched at runtime from Firebase Remote Config** (`gemini_api_key`) to ensure 100% free usage on the Spark plan.
+
+### Update Mechanism
+
+- **Play Store**: Uses Google Play In-App Update API.
+- **GitHub/Free**: Uses a custom `UpdateChecker` to detect new releases via GitHub API.
+
+### Monitoring
+
+- **Firebase Crashlytics**: Real-time crash reporting.
+- **Firebase Analytics**: User growth and behavior tracking.
 
 ### Theme
 

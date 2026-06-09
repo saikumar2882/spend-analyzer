@@ -5,6 +5,7 @@ plugins {
   alias(libs.plugins.google.devtools.ksp)
   alias(libs.plugins.roborazzi)
   alias(libs.plugins.google.services)
+  alias(libs.plugins.firebase.crashlytics)
 }
 
 android {
@@ -61,6 +62,11 @@ dependencies {
   implementation(libs.firebase.auth)
   implementation(libs.firebase.firestore)
   implementation(libs.firebase.config)
+  implementation(libs.firebase.analytics)
+  implementation(libs.firebase.crashlytics)
+  implementation(libs.play.app.update)
+  implementation(libs.play.app.update.ktx)
+  implementation(libs.androidx.core.splashscreen)
   implementation(libs.play.services.auth)
   // implementation(libs.accompanist.permissions)
   implementation(libs.androidx.activity.compose)

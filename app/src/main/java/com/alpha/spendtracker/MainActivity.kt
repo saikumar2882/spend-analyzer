@@ -9,6 +9,7 @@ import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
+import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.tween
@@ -83,6 +84,11 @@ import com.alpha.spendtracker.ui.theme.next
 import com.alpha.spendtracker.ui.theme.rememberThemePreference
 import com.alpha.spendtracker.ui.viewmodel.SpendViewModel
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
+import com.alpha.spendtracker.utils.UpdateChecker
+import com.google.android.play.core.appupdate.AppUpdateManager
+import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.install.model.AppUpdateType
+import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
@@ -93,10 +99,16 @@ enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND }
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
     private val spendViewModel: SpendViewModel by viewModels()
+    private lateinit var appUpdateManager: AppUpdateManager
+    private val MY_UPDATE_REQUEST_CODE = 1001
 
     override fun onCreate(savedInstanceState: Bundle?) {
+        installSplashScreen()
         super.onCreate(savedInstanceState)
         
+        appUpdateManager = AppUpdateManagerFactory.create(this)
+        checkPlayStoreUpdate()
+
         enableEdgeToEdge()
         setContent {
             val themePref = rememberThemePreference()
@@ -106,6 +118,41 @@ class MainActivity : FragmentActivity() {
                     themePreference = themePref.value,
                     onCycleTheme = { themePref.value = themePref.value.next() },
                     intent = intent,
+                )
+            }
+        }
+    }
+
+    override fun onResume() {
+        super.onResume()
+        appUpdateManager
+            .appUpdateInfo
+            .addOnSuccessListener { appUpdateInfo ->
+                if (appUpdateInfo.updateAvailability()
+                    == UpdateAvailability.DEVELOPER_TRIGGERED_UPDATE_IN_PROGRESS
+                ) {
+                    // If an in-app update is already running, resume the update.
+                    appUpdateManager.startUpdateFlowForResult(
+                        appUpdateInfo,
+                        AppUpdateType.IMMEDIATE,
+                        this,
+                        MY_UPDATE_REQUEST_CODE
+                    )
+                }
+            }
+    }
+
+    private fun checkPlayStoreUpdate() {
+        val appUpdateInfoTask = appUpdateManager.appUpdateInfo
+        appUpdateInfoTask.addOnSuccessListener { appUpdateInfo ->
+            if (appUpdateInfo.updateAvailability() == UpdateAvailability.UPDATE_AVAILABLE
+                && appUpdateInfo.isUpdateTypeAllowed(AppUpdateType.IMMEDIATE)
+            ) {
+                appUpdateManager.startUpdateFlowForResult(
+                    appUpdateInfo,
+                    AppUpdateType.IMMEDIATE,
+                    this,
+                    MY_UPDATE_REQUEST_CODE
                 )
             }
         }
@@ -297,6 +344,35 @@ fun MainContainer(
     val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
     val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
     val historyStatus by viewModel.historyStatus.collectAsStateWithLifecycle()
+
+    var showGitHubUpdateDialog by remember { mutableStateOf<String?>(null) }
+    val updateChecker = remember { UpdateChecker(context) }
+
+    LaunchedEffect(Unit) {
+        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        val currentVersion = packageInfo.versionName ?: "0.0.0"
+        val updateUrl = updateChecker.checkForUpdates(currentVersion)
+        if (updateUrl != null) {
+            showGitHubUpdateDialog = updateUrl
+        }
+    }
+
+    if (showGitHubUpdateDialog != null) {
+        AlertDialog(
+            onDismissRequest = { showGitHubUpdateDialog = null },
+            title = { Text("New Update Available") },
+            text = { Text("A newer version of Spendly is available on GitHub. Would you like to download it now?") },
+            confirmButton = {
+                Button(onClick = {
+                    updateChecker.openUpdateUrl(showGitHubUpdateDialog!!)
+                    showGitHubUpdateDialog = null
+                }) { Text("Download") }
+            },
+            dismissButton = {
+                TextButton(onClick = { showGitHubUpdateDialog = null }) { Text("Later") }
+            }
+        )
+    }
 
     val isBiometricAuthenticated by viewModel.isBiometricAuthenticated.collectAsStateWithLifecycle()
     val needsBiometric = aiPrefs.isBiometricEnabled
@@ -551,7 +627,16 @@ fun MainContainer(
                             },
                             onAiAssistantClick = { showAiHistoryAssistant = true },
                             onUpdateAiPreferences = viewModel::updateAiPreferences,
-                            onToggleBiometrics = viewModel::updateBiometricEnabled
+                            onToggleBiometrics = viewModel::updateBiometricEnabled,
+                            onShareApp = {
+                                val sendIntent: Intent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, "Check out Spendly, the smart way to track your expenses! Download it here: https://github.com/saikumar2882/spend-analyzer/releases")
+                                    type = "text/plain"
+                                }
+                                val shareIntent = Intent.createChooser(sendIntent, null)
+                                context.startActivity(shareIntent)
+                            }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
                             allSpends = allSpends,
