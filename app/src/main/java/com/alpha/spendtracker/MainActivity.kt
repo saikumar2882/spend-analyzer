@@ -95,7 +95,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND }
+enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND, LEND_BORROW_HISTORY }
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -345,6 +345,8 @@ fun MainContainer(
     val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
     val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
     val historyStatus by viewModel.historyStatus.collectAsStateWithLifecycle()
+    val deletedHistory by viewModel.deletedHistory.collectAsStateWithLifecycle()
+    val updatedHistory by viewModel.updatedHistory.collectAsStateWithLifecycle()
 
     var showGitHubUpdateDialog by remember { mutableStateOf<String?>(null) }
     val updateChecker = remember { UpdateChecker(context) }
@@ -641,14 +643,42 @@ fun MainContainer(
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
                             allSpends = allSpends,
+                            deletedHistory = deletedHistory,
+                            updatedHistory = updatedHistory,
                             onEditSpend = { spend ->
                                 editingSpend = spend
                                 activeView = ActiveView.ADD_SPEND
                             },
                             onDeleteSpend = { spend ->
                                 viewModel.deleteSpend(spend)
-                                showNotification("Record deleted", NotificationType.INFO)
+                                showNotification("Record moved to trash", NotificationType.INFO)
                             },
+                            onShowHistory = {
+                                activeView = ActiveView.LEND_BORROW_HISTORY
+                            }
+                        )
+                        ActiveView.LEND_BORROW_HISTORY -> com.alpha.spendtracker.ui.screens.LendBorrowHistoryScreen(
+                            deletedHistory = deletedHistory,
+                            updatedHistory = updatedHistory,
+                            onRestoreHistory = { history ->
+                                viewModel.restoreSpend(history)
+                                showNotification("Record restored", NotificationType.SUCCESS)
+                            },
+                            onPermanentlyDeleteHistory = { history ->
+                                viewModel.permanentlyDeleteHistory(history)
+                                showNotification("Record deleted permanently", NotificationType.INFO)
+                            },
+                            onEmptyTrash = {
+                                viewModel.emptyTrash()
+                                showNotification("Trash emptied", NotificationType.INFO)
+                            },
+                            onClearUpdateHistory = {
+                                viewModel.clearUpdateHistory()
+                                showNotification("Update history cleared", NotificationType.INFO)
+                            },
+                            onBack = {
+                                activeView = ActiveView.LEND_BORROW
+                            }
                         )
                         ActiveView.HISTORY -> HistoryScreen(
                             allSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" },

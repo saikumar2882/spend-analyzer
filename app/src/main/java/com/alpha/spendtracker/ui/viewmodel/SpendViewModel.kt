@@ -102,6 +102,11 @@ class SpendViewModel @Inject constructor(
             val threshold = System.currentTimeMillis() - (12 * 60 * 60 * 1000)
             chatDao.deleteOldMessages(threshold)
         }
+
+        // Cleanup old history (30 days)
+        viewModelScope.launch {
+            repository.cleanupOldHistory(30)
+        }
     }
 
     private fun initializeChatSession(userId: String) {
@@ -122,6 +127,48 @@ class SpendViewModel @Inject constructor(
 
     private val _historyStatus = MutableStateFlow<AiHistoryStatus>(AiHistoryStatus.Idle)
     val historyStatus: StateFlow<AiHistoryStatus> = _historyStatus
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val deletedHistory: StateFlow<List<SpendHistory>> = _userId.flatMapLatest { userId ->
+        repository.getHistory(userId, HistoryType.DELETED)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val updatedHistory: StateFlow<List<SpendHistory>> = _userId.flatMapLatest { userId ->
+        repository.getHistory(userId, HistoryType.UPDATED)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun restoreSpend(history: SpendHistory) {
+        viewModelScope.launch {
+            repository.restoreFromHistory(history)
+        }
+    }
+
+    fun permanentlyDeleteHistory(history: SpendHistory) {
+        viewModelScope.launch {
+            repository.permanentlyDeleteHistory(history)
+        }
+    }
+
+    fun emptyTrash() {
+        viewModelScope.launch {
+            repository.clearHistory(_userId.value, HistoryType.DELETED)
+        }
+    }
+
+    fun clearUpdateHistory() {
+        viewModelScope.launch {
+            repository.clearHistory(_userId.value, HistoryType.UPDATED)
+        }
+    }
 
     fun askAiAboutHistory(question: String) {
         if (question.isBlank()) return
@@ -996,4 +1043,3 @@ data class TrendPoint(
     val amount: Double,
     val sortKey: Int
 )
-

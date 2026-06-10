@@ -25,7 +25,9 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Icon
@@ -240,6 +242,150 @@ fun HistorySpendCard(
                                 modifier = Modifier.size(18.dp)
                             )
                         }
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+fun HistoryRecordCard(
+    history: com.alpha.spendtracker.data.SpendHistory,
+    onRestore: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val accent = APP_PRESETS.firstOrNull { it.displayName == history.appName }?.color ?: MaterialTheme.colorScheme.primary
+    val isDeleted = history.historyType == com.alpha.spendtracker.data.HistoryType.DELETED
+    
+    val daysLeft = if (isDeleted) {
+        val millisInDay = 24L * 60 * 60 * 1000
+        val elapsed = System.currentTimeMillis() - history.recordedAt
+        val remaining = (30 - (elapsed / millisInDay)).toInt()
+        remaining.coerceAtLeast(0)
+    } else null
+
+    val isDark = isSystemInDarkTheme()
+    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant 
+                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+
+    Card(
+        modifier = modifier.fillMaxWidth(),
+        shape = RoundedCornerShape(18.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+        border = BorderStroke(1.dp, borderColor),
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Box(
+                modifier = Modifier
+                    .width(4.dp)
+                    .height(84.dp)
+                    .background(accent)
+            )
+            Row(
+                modifier = Modifier
+                    .padding(horizontal = 12.dp, vertical = 11.dp)
+                    .fillMaxWidth(),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.weight(1f)
+                ) {
+                    DateBadge(timestamp = history.recordedAt, color = accent, size = 42.dp)
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column {
+                        Row(verticalAlignment = Alignment.CenterVertically) {
+                            Text(
+                                text = history.appName,
+                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                            Spacer(modifier = Modifier.width(6.dp))
+                            Surface(
+                                color = if (isDeleted) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                                        else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                                shape = RoundedCornerShape(6.dp)
+                            ) {
+                                Text(
+                                    text = history.historyType,
+                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                                    style = MaterialTheme.typography.labelSmall.copy(
+                                        fontSize = 8.sp,
+                                        fontWeight = FontWeight.ExtraBold
+                                    ),
+                                    color = if (isDeleted) MaterialTheme.colorScheme.onErrorContainer
+                                            else MaterialTheme.colorScheme.onSecondaryContainer
+                                )
+                            }
+                        }
+                        
+                        if (daysLeft != null) {
+                            Text(
+                                text = if (daysLeft == 0) "Expires today" else "$daysLeft days left",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = if (daysLeft <= 3) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
+                                fontWeight = FontWeight.Bold
+                            )
+                        }
+
+                        Text(
+                            text = "₹${formatCurrency(history.amount)} - ${history.purpose}",
+                            style = MaterialTheme.typography.bodyMedium.copy(
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                        )
+                        if (history.notes.isNotBlank()) {
+                            Text(
+                                text = history.notes,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                    }
+                }
+
+                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                    if (isDeleted) {
+                        IconButton(
+                            onClick = onRestore,
+                            colors = IconButtonDefaults.iconButtonColors(
+                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
+                                contentColor = MaterialTheme.colorScheme.primary
+                            ),
+                            modifier = Modifier.size(34.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.Restore,
+                                contentDescription = "Restore record",
+                                modifier = Modifier.size(18.dp)
+                            )
+                        }
+                    }
+                    IconButton(
+                        onClick = onDelete,
+                        colors = IconButtonDefaults.iconButtonColors(
+                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
+                            contentColor = MaterialTheme.colorScheme.error
+                        ),
+                        modifier = Modifier.size(34.dp)
+                    ) {
+                        Icon(
+                            if (isDeleted) Icons.Rounded.DeleteForever else Icons.Rounded.Delete,
+                            contentDescription = if (isDeleted) "Permanently delete" else "Remove history",
+                            modifier = Modifier.size(18.dp)
+                        )
                     }
                 }
             }

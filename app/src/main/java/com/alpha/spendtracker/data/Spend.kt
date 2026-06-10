@@ -18,3 +18,23 @@ data class Spend(
     val timestamp: Long = System.currentTimeMillis(),
     val notes: String = ""
 )
+
+@Entity(tableName = "spend_history")
+data class SpendHistory(
+    @PrimaryKey val historyUuid: String = UUID.randomUUID().toString(),
+    val spendUuid: String,
+    val userId: String,
+    val appName: String,
+    val amount: Double,
+    val purpose: String,
+    val category: String,
+    val timestamp: Long,
+    val notes: String,
+    val historyType: String, // "DELETED" or "UPDATED"
+    val recordedAt: Long = System.currentTimeMillis()
+)
+
+object HistoryType {
+    const val DELETED = "DELETED"
+    const val UPDATED = "UPDATED"
+}

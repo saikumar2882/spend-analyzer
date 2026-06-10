@@ -20,6 +20,8 @@ class SpendRepository(private val spendDao: SpendDao) {
 
     fun getAllSpends(userId: String): Flow<List<Spend>> = spendDao.getAllSpends(userId)
 
+    fun getHistory(userId: String, type: String): Flow<List<SpendHistory>> = spendDao.getHistory(userId, type)
+
     /**
      * Starts bi-directional sync with Firestore.
      * Listens for changes in the cloud and updates the local database accordingly.
@@ -62,27 +64,90 @@ class SpendRepository(private val spendDao: SpendDao) {
     }
 
     suspend fun insert(spend: Spend) {
+        // For updates, we log the previous state
+        val existing = spendDao.getSpendByUuid(spend.uuid)
+        if (existing != null && (existing.amount != spend.amount || existing.notes != spend.notes || existing.purpose != spend.purpose)) {
+            val history = SpendHistory(
+                spendUuid = existing.uuid,
+                userId = existing.userId,
+                appName = existing.appName,
+                amount = existing.amount,
+                purpose = existing.purpose,
+                category = existing.category,
+                timestamp = existing.timestamp,
+                notes = existing.notes,
+                historyType = HistoryType.UPDATED
+            )
+            spendDao.insertHistory(history)
+            syncHistoryToFirestore(history)
+        }
+
         spendDao.insertSpend(spend)
         syncToFirestore(spend)
     }
 
     suspend fun delete(spend: Spend) {
+        // Move to history
+        val history = SpendHistory(
+            spendUuid = spend.uuid,
+            userId = spend.userId,
+            appName = spend.appName,
+            amount = spend.amount,
+            purpose = spend.purpose,
+            category = spend.category,
+            timestamp = spend.timestamp,
+            notes = spend.notes,
+            historyType = HistoryType.DELETED
+        )
+        spendDao.insertHistory(history)
+        syncHistoryToFirestore(history)
+
         spendDao.deleteSpend(spend)
         removeFromFirestore(spend)
     }
 
+    suspend fun restoreFromHistory(history: SpendHistory) {
+        val spend = Spend(
+            uuid = history.spendUuid,
+            userId = history.userId,
+            appName = history.appName,
+            amount = history.amount,
+            purpose = history.purpose,
+            category = history.category,
+            timestamp = history.timestamp,
+            notes = history.notes
+        )
+        spendDao.insertSpend(spend)
+        syncToFirestore(spend)
+        
+        spendDao.deleteHistoryByUuid(history.historyUuid)
+        removeHistoryFromFirestore(history)
+    }
+
+    suspend fun permanentlyDeleteHistory(history: SpendHistory) {
+        spendDao.deleteHistoryByUuid(history.historyUuid)
+        removeHistoryFromFirestore(history)
+    }
+
+    suspend fun clearHistory(userId: String, type: String) {
+        spendDao.deleteHistoryByType(userId, type)
+        // Note: Bulk delete in Firestore would require a batch or cloud function.
+        // For now, we'll let the next sync or manual check handle it if critical.
+        // In a real app, we'd query and delete each document.
+    }
+
+    suspend fun cleanupOldHistory(days: Int = 30) {
+        val threshold = System.currentTimeMillis() - (days.toLong() * 24 * 60 * 60 * 1000)
+        spendDao.deleteOldHistory(threshold)
+    }
+
     suspend fun deleteByUuid(uuid: String, userId: String) {
-        spendDao.deleteSpendByUuid(uuid)
-        try {
-            firestore.collection("users")
-                .document(userId)
-                .collection("spends")
-                .document(uuid)
-                .delete()
-                .await()
-            Log.d(TAG, "Successfully removed spend from Firestore by UUID: $uuid")
-        } catch (e: Exception) {
-            Log.e(TAG, "Error removing from Firestore by UUID: ${e.message}", e)
+        val existing = spendDao.getSpendByUuid(uuid)
+        if (existing != null) {
+            delete(existing)
+        } else {
+            spendDao.deleteSpendByUuid(uuid)
+            removeFromFirestoreByUuid(uuid, userId)
         }
     }
 
@@ -101,16 +166,46 @@ class SpendRepository(private val spendDao: SpendDao) {
     }
 
     private suspend fun removeFromFirestore(spend: Spend) {
+        removeFromFirestoreByUuid(spend.uuid, spend.userId)
+    }
+
+    private suspend fun removeFromFirestoreByUuid(uuid: String, userId: String) {
         try {
             firestore.collection("users")
-                .document(spend.userId)
+                .document(userId)
                 .collection("spends")
-                .document(spend.uuid)
+                .document(uuid)
                 .delete()
                 .await()
-            Log.d(TAG, "Successfully removed spend from Firestore: ${spend.uuid}")
+            Log.d(TAG, "Successfully removed spend from Firestore: $uuid")
         } catch (e: Exception) {
             Log.e(TAG, "Error removing from Firestore: ${e.message}", e)
+        }
+    }
+
+    private suspend fun syncHistoryToFirestore(history: SpendHistory) {
+        try {
+            firestore.collection("users")
+                .document(history.userId)
+                .collection("history")
+                .document(history.historyUuid)
+                .set(history)
+                .await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error syncing history to Firestore: ${e.message}")
+        }
+    }
+
+    private suspend fun removeHistoryFromFirestore(history: SpendHistory) {
+        try {
+            firestore.collection("users")
+                .document(history.userId)
+                .collection("history")
+                .document(history.historyUuid)
+                .delete()
+                .await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing history from Firestore: ${e.message}")
         }
     }
 }

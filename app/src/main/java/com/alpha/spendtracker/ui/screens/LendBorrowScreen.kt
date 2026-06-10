@@ -1,10 +1,7 @@
 package com.alpha.spendtracker.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.expandVertically
-import androidx.compose.animation.fadeIn
-import androidx.compose.animation.fadeOut
-import androidx.compose.animation.shrinkVertically
+import androidx.compose.animation.*
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
@@ -13,11 +10,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.rounded.Clear
-import androidx.compose.material.icons.rounded.DateRange
-import androidx.compose.material.icons.rounded.Search
-import androidx.compose.material.icons.rounded.SwapHoriz
-import androidx.compose.material.icons.rounded.Tune
+import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -28,9 +21,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.Spend
-import com.alpha.spendtracker.ui.components.DateRangePickerModal
-import com.alpha.spendtracker.ui.components.HistorySpendCard
-import com.alpha.spendtracker.ui.components.formatCurrency
+import com.alpha.spendtracker.data.SpendHistory
+import com.alpha.spendtracker.ui.components.*
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.alpha.spendtracker.util.formatMonth
 import com.alpha.spendtracker.util.formatShortDate
@@ -39,11 +31,14 @@ import java.util.Calendar
 @Composable
 fun LendBorrowScreen(
     allSpends: List<Spend>,
+    deletedHistory: List<SpendHistory>,
+    updatedHistory: List<SpendHistory>,
     onEditSpend: (Spend) -> Unit,
     onDeleteSpend: (Spend) -> Unit,
+    onShowHistory: () -> Unit,
 ) {
     var selectedTab by remember { mutableIntStateOf(0) }
-    val tabs = listOf("Lending", "Borrowing")
+    val mainTabs = listOf("Lending", "Borrowing")
     var spendToDelete by remember { mutableStateOf<Spend?>(null) }
     
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -64,47 +59,14 @@ fun LendBorrowScreen(
             set(Calendar.MILLISECOND, 0)
         }.timeInMillis
 
-        val filterStartTime: Long
-        val filterEndTime: Long
-        when (selectedTimeFilter) {
-            TimeFilter.DAY -> {
-                filterStartTime = startOfToday
-                filterEndTime = Long.MAX_VALUE
-            }
-            TimeFilter.WEEK -> {
-                calendar.timeInMillis = startOfToday
-                calendar[Calendar.DAY_OF_WEEK] = calendar.firstDayOfWeek
-                filterStartTime = calendar.timeInMillis
-                filterEndTime = Long.MAX_VALUE
-            }
-            TimeFilter.MONTH -> {
-                calendar.timeInMillis = startOfToday
-                calendar[Calendar.DAY_OF_MONTH] = 1
-                filterStartTime = calendar.timeInMillis
-                filterEndTime = Long.MAX_VALUE
-            }
-            TimeFilter.YEAR -> {
-                calendar.timeInMillis = startOfToday
-                calendar[Calendar.DAY_OF_YEAR] = 1
-                filterStartTime = calendar.timeInMillis
-                filterEndTime = Long.MAX_VALUE
-            }
-            TimeFilter.CUSTOM -> {
-                filterStartTime = customDateRange?.first ?: 0L
-                filterEndTime = customDateRange?.second ?: Long.MAX_VALUE
-            }
-            else -> {
-                filterStartTime = 0L
-                filterEndTime = Long.MAX_VALUE
-            }
-        }
+        val (filterStart, filterEnd) = getTimeBounds(selectedTimeFilter, startOfToday, calendar, customDateRange)
 
         allSpends.filter { spend ->
             val matchesPurpose = spend.purpose == purpose
             val matchesQuery = q.isEmpty() ||
                 spend.notes.contains(q, ignoreCase = true) ||
                 spend.appName.contains(q, ignoreCase = true)
-            val matchesTime = spend.timestamp in (filterStartTime..filterEndTime)
+            val matchesTime = spend.timestamp in (filterStart..filterEnd)
 
             matchesPurpose && matchesQuery && matchesTime
         }
@@ -128,7 +90,7 @@ fun LendBorrowScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         SegmentedTabs(
-            tabs = tabs,
+            tabs = mainTabs,
             selectedIndex = selectedTab,
             onSelect = { selectedTab = it }
         )
@@ -158,7 +120,16 @@ fun LendBorrowScreen(
                 shape = RoundedCornerShape(16.dp)
             )
 
-            FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
+                
+                // Consolidated History Button
+                val historyCount = deletedHistory.size + updatedHistory.size
+                HistoryIconButton(
+                    count = historyCount,
+                    onClick = onShowHistory
+                )
+            }
         }
 
         AnimatedVisibility(
@@ -256,7 +227,7 @@ fun LendBorrowScreen(
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
-                        text = "No ${tabs[selectedTab].lowercase()} records yet",
+                        text = "No ${mainTabs[selectedTab].lowercase()} records yet",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -306,6 +277,70 @@ fun LendBorrowScreen(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun HistoryIconButton(count: Int, onClick: () -> Unit) {
+    Box {
+        Surface(
+            onClick = onClick,
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            modifier = Modifier.size(52.dp)
+        ) {
+            Box(contentAlignment = Alignment.Center) {
+                Icon(
+                    Icons.Rounded.History,
+                    contentDescription = "Show history",
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+            }
+        }
+        if (count > 0) {
+            Surface(
+                color = MaterialTheme.colorScheme.error,
+                shape = CircleShape,
+                modifier = Modifier
+                    .size(18.dp)
+                    .align(Alignment.TopEnd)
+                    .offset(x = 4.dp, y = (-4).dp),
+                border = BorderStroke(2.dp, MaterialTheme.colorScheme.surface)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Text(
+                        text = if (count > 9) "9+" else count.toString(),
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        fontSize = 8.sp
+                    )
+                }
+            }
+        }
+    }
+}
+
+private fun getTimeBounds(filter: TimeFilter, startOfToday: Long, calendar: Calendar, customRange: Pair<Long, Long>?): Pair<Long, Long> {
+    return when (filter) {
+        TimeFilter.DAY -> startOfToday to Long.MAX_VALUE
+        TimeFilter.WEEK -> {
+            calendar.timeInMillis = startOfToday
+            calendar[Calendar.DAY_OF_WEEK] = calendar.firstDayOfWeek
+            calendar.timeInMillis to Long.MAX_VALUE
+        }
+        TimeFilter.MONTH -> {
+            calendar.timeInMillis = startOfToday
+            calendar[Calendar.DAY_OF_MONTH] = 1
+            calendar.timeInMillis to Long.MAX_VALUE
+        }
+        TimeFilter.YEAR -> {
+            calendar.timeInMillis = startOfToday
+            calendar[Calendar.DAY_OF_YEAR] = 1
+            calendar.timeInMillis to Long.MAX_VALUE
+        }
+        TimeFilter.CUSTOM -> (customRange?.first ?: 0L) to (customRange?.second ?: Long.MAX_VALUE)
+        else -> 0L to Long.MAX_VALUE
     }
 }
 
@@ -424,7 +459,7 @@ private fun DeleteConfirmationDialog(
         text = {
             Column {
                 Text(
-                    text = "Are you sure you want to delete this record?",
+                    text = "Are you sure you want to delete this record? It will be moved to the Recycle Bin.",
                     style = MaterialTheme.typography.bodyMedium
                 )
                 Spacer(modifier = Modifier.height(8.dp))
