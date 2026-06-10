@@ -73,10 +73,11 @@ fun LoginScreen(
     var passwordTouched by remember { mutableStateOf(false) }
     
     val context = LocalContext.current
+    val activity = remember(context) { context.findActivity() }
     val googleServerClientId = stringResource(R.string.default_web_client_id)
     val auth = FirebaseAuth.getInstance()
     val scope = rememberCoroutineScope()
-    val credentialManager = remember { CredentialManager.create(context) }
+    val credentialManager = remember(context) { CredentialManager.create(context) }
 
     fun isValidEmail(email: String): Boolean = Patterns.EMAIL_ADDRESS.matcher(email).matches()
     fun isValidPassword(password: String): Boolean {
@@ -257,10 +258,12 @@ fun LoginScreen(
                     .addCredentialOption(googleIdOption)
                     .build()
 
-                val result = credentialManager.getCredential(
-                    request = request,
-                    context = context
-                )
+                val result = activity?.let {
+                    credentialManager.getCredential(
+                        request = request,
+                        context = it
+                    )
+                } ?: throw Exception("Activity not found")
 
                 val credential = result.credential
                 if (credential is androidx.credentials.CustomCredential &&

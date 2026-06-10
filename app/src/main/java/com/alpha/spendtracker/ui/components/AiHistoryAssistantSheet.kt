@@ -26,8 +26,11 @@ import androidx.compose.ui.graphics.vector.ImageVector
 import com.alpha.spendtracker.ui.theme.BrandGradientEnd
 import com.alpha.spendtracker.ui.theme.BrandGradientMid
 import com.alpha.spendtracker.ui.theme.BrandGradientStart
-import androidx.compose.ui.platform.LocalClipboardManager
+import android.content.ClipData
+import androidx.compose.ui.platform.ClipEntry
+import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
+import kotlinx.coroutines.launch
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -47,7 +50,8 @@ fun AiHistoryAssistantSheet(
 ) {
     var textInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
-    val clipboardManager = LocalClipboardManager.current
+    val clipboard = LocalClipboard.current
+    val scope = rememberCoroutineScope()
     
     // Calculate remaining messages in current session (Limit is 7)
     val lastMessage = messages.lastOrNull()
@@ -156,7 +160,9 @@ fun AiHistoryAssistantSheet(
                             ChatBubble(
                                 message = message,
                                 onCopy = {
-                                    clipboardManager.setText(AnnotatedString(message.text))
+                                    scope.launch {
+                                        clipboard.setClipEntry(ClipEntry(ClipData.newPlainText("Spend Tracker", message.text)))
+                                    }
                                 }
                             )
                         }
@@ -331,7 +337,7 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
                     if (status.type == AiErrorType.SERVER_RATE_LIMIT) {
                         Spacer(modifier = Modifier.height(8.dp))
                         Text(
-                            text = "Please wait a moment before trying again. Google limits free-tier requests per minute.",
+                            text = "Please wait a moment before trying again. The AI service is currently experiencing high traffic or temporary demand spikes.",
                             style = MaterialTheme.typography.labelSmall,
                             color = color.copy(alpha = 0.7f)
                         )

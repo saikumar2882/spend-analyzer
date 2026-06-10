@@ -15,10 +15,10 @@ import kotlinx.coroutines.tasks.await
 
 @HiltWorker
 class SyncWorker @AssistedInject constructor(
-    @Assisted context: Context,
-    @Assisted params: WorkerParameters,
+    @Assisted appContext: Context,
+    @Assisted workerParams: WorkerParameters,
     private val spendDao: SpendDao
-) : CoroutineWorker(context, params) {
+) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return Result.success()

@@ -87,6 +87,7 @@ import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.alpha.spendtracker.utils.UpdateChecker
 import com.google.android.play.core.appupdate.AppUpdateManager
 import com.google.android.play.core.appupdate.AppUpdateManagerFactory
+import com.google.android.play.core.appupdate.AppUpdateOptions
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.firebase.auth.FirebaseAuth
@@ -106,7 +107,7 @@ class MainActivity : FragmentActivity() {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         
-        appUpdateManager = AppUpdateManagerFactory.create(this)
+        appUpdateManager = AppUpdateManagerFactory.create(applicationContext)
         checkPlayStoreUpdate()
 
         enableEdgeToEdge()
@@ -134,8 +135,8 @@ class MainActivity : FragmentActivity() {
                     // If an in-app update is already running, resume the update.
                     appUpdateManager.startUpdateFlowForResult(
                         appUpdateInfo,
-                        AppUpdateType.IMMEDIATE,
                         this,
+                        AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build(),
                         MY_UPDATE_REQUEST_CODE
                     )
                 }
@@ -150,8 +151,8 @@ class MainActivity : FragmentActivity() {
             ) {
                 appUpdateManager.startUpdateFlowForResult(
                     appUpdateInfo,
-                    AppUpdateType.IMMEDIATE,
                     this,
+                    AppUpdateOptions.newBuilder(AppUpdateType.IMMEDIATE).build(),
                     MY_UPDATE_REQUEST_CODE
                 )
             }

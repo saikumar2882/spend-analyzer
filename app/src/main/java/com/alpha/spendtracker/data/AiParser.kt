@@ -24,7 +24,9 @@ object AiParser {
         "myntra" to listOf("myntra"),
         "ajio" to listOf("ajio"),
         "icici" to listOf("icici bank", "icici"),
-        "yono_sbi" to listOf("yono sbi", "yono", "sbi yono")
+        "yono_sbi" to listOf("yono sbi", "yono", "sbi yono"),
+        "cash" to listOf("cash", "hand", "physical money"),
+        "bank_transfer" to listOf("bank transfer", "neft", "rtgs", "imps", "net banking", "transfer")
     )
 
     private val PURPOSE_KEYWORDS: Map<String, List<String>> = mapOf(
@@ -75,10 +77,13 @@ object AiParser {
             "credit card"
         ),
         "Lending" to listOf(
-            "lent", "lent to", "loan", "gave to", "paid friend", "loaned"
+            "lent", "lent to", "loan", "gave to", "paid friend", "loaned", "gave cash"
         ),
         "Borrowing" to listOf(
-            "borrowed", "borrowed from", "owed", "owe", "took from", "took loan"
+            "borrowed", "borrowed from", "owed", "owe", "took from", "took loan", "took cash"
+        ),
+        "Others" to listOf(
+            "misc", "miscellaneous", "others", "other"
         )
     )
 
@@ -103,6 +108,42 @@ object AiParser {
             keywords.count { kw -> lower.contains(kw) }
         }.filterValues { it > 0 }
         return scored.maxByOrNull { it.value }?.key
+    }
+
+    /**
+     * Runs all local heuristic parsers and bundles them into a baseline response.
+     */
+    fun parseToBaseline(text: String, defaultApp: String, defaultPurpose: String): AiTransactionResponse {
+        val amount = extractAmount(text)
+        val appPreset = findAppPreset(text)
+        val purpose = inferPurpose(text) ?: defaultPurpose
+        val notes = extractDescription(text)
+        val timestamp = extractTimestamp(text)
+
+        return AiTransactionResponse(
+            amount = amount,
+            appName = appPreset?.displayName ?: defaultApp,
+            appPresetId = appPreset?.id,
+            purpose = purpose,
+            notes = notes,
+            date = "today",
+            timestamp = timestamp,
+            needsAmount = amount == null
+        )
+    }
+
+    /**
+     * Detects currency mentioned in the text.
+     */
+    fun extractCurrency(text: String): String? {
+        val lower = text.lowercase()
+        return when {
+            lower.contains("₹") || lower.contains("rs") || lower.contains("rupee") || lower.contains("inr") -> "₹"
+            lower.contains("$") || lower.contains("usd") || lower.contains("dollar") -> "$"
+            lower.contains("€") || lower.contains("euro") -> "€"
+            lower.contains("£") || lower.contains("pound") -> "£"
+            else -> null
+        }
     }
 
     fun extractAmount(text: String): Double? {

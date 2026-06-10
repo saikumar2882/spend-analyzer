@@ -15,6 +15,7 @@ import com.google.firebase.remoteconfig.remoteConfigSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
@@ -42,7 +43,6 @@ enum class AiErrorType {
     SERVER_RATE_LIMIT,
     CLIENT_RATE_LIMIT,
     API_KEY_MISSING,
-    EMPTY_RESPONSE,
     GENERIC
 }
 
@@ -53,7 +53,8 @@ enum class AiErrorType {
 class SpendViewModel @Inject constructor(
     private val repository: SpendRepository,
     private val aiPrefsRepository: AiPreferencesRepository,
-    private val chatDao: ChatDao
+    private val chatDao: ChatDao,
+    private val groqApiService: GroqApiService,
 ) : ViewModel() {
 
     private val auth = FirebaseAuth.getInstance()
@@ -68,7 +69,7 @@ class SpendViewModel @Inject constructor(
 
     private var currentSessionId: String = ""
 
-    private val _isBiometricAuthenticated = MutableStateFlow(false)
+    private val _isBiometricAuthenticated = MutableStateFlow(value = false)
     val isBiometricAuthenticated: StateFlow<Boolean> = _isBiometricAuthenticated
 
     fun setBiometricAuthenticated(authenticated: Boolean) {
@@ -98,7 +99,7 @@ class SpendViewModel @Inject constructor(
 
         // Periodic cleanup of old chat messages (12h TTL)
         viewModelScope.launch {
-            val threshold = System.currentTimeMillis() - 12 * 60 * 60 * 1000
+            val threshold = System.currentTimeMillis() - (12 * 60 * 60 * 1000)
             chatDao.deleteOldMessages(threshold)
         }
     }
@@ -172,68 +173,145 @@ class SpendViewModel @Inject constructor(
             // 3. Prepare Context
             val allSpends = allSpendsFlow.value
             val filteredSpends = filterSpendsByQuery(allSpends, question)
-            
-            val contextText = filteredSpends.joinToString("\n") { 
-                val date = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(it.timestamp)
-                "- $date: ${it.amount} on ${it.notes} (${it.purpose}) via ${it.appName}"
+            val historyPrefs = aiPreferences.value
+            val currency = historyPrefs.defaultCurrency.ifBlank { "₹" }
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd EEEE", Locale.getDefault()).format(System.currentTimeMillis())
+            val dateFmt = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+
+            val contextText = buildString {
+                if (filteredSpends.isEmpty()) {
+                    appendLine("No transactions found for this query.")
+                } else {
+                    val total = filteredSpends.sumOf { it.amount }
+                    val oldest = dateFmt.format(filteredSpends.minOf { it.timestamp })
+                    val newest = dateFmt.format(filteredSpends.maxOf { it.timestamp })
+                    appendLine("=== SUMMARY: ${filteredSpends.size} transactions | Total: $currency${String.format(Locale.getDefault(), "%.2f", total)} | Range: $oldest → $newest ===")
+                    appendLine()
+                    filteredSpends.forEach { spend ->
+                        appendLine("- ${dateFmt.format(spend.timestamp)} | $currency${spend.amount} | ${spend.notes.ifBlank { "—" }} | ${spend.purpose} | ${spend.appName}")
+                    }
+                }
             }
 
-            // 4. Call Gemini
-            try {
-                remoteConfig.fetchAndActivate().await()
-                val apiKey = remoteConfig.getString("gemini_api_key")
-                if (apiKey.isBlank()) {
-                    _historyStatus.value = AiHistoryStatus.Error("AI configuration is missing.", AiErrorType.API_KEY_MISSING)
-                    chatDao.deleteMessageById(userMsgId)
-                    return@launch
-                }
+            // 4. Call AI (Prefer Groq/Llama for open-source & speed) with Retry logic
+            var responseText: String? = null
+            var lastError: Exception? = null
 
-                val generativeModel = GenerativeModel(
-                    modelName = "gemini-3.5-flash",
-                    apiKey = apiKey
-                )
+            for (attempt in 0..1) {
+                if (responseText != null) break
+                
+                try {
+                    remoteConfig.fetchAndActivate().await()
+                    val groqKey = remoteConfig.getString("groq_api_key")
 
-                val systemPrompt = """
-                    You are a helpful Expense Tracker Assistant. Use the transaction history below to answer the user's question.
-                    
-                    FORMATTING RULES:
-                    - Use **bold** for amounts, dates, and categories.
-                    - Use bullet points (* or -) for lists and breakdowns.
-                    - IMPORTANT: If multiple transactions belong to the same person or category, GROUP them hierarchically.
-                      Example for multiple lendings:
-                      * **Person Name** (Total: **Amount**)
-                        - **Date**: **Amount** (**Note**)
-                    - Use 2 spaces for indentation in nested lists.
-                    - Keep responses concise, accurate, and professional. 
-                    
-                    HISTORY:
-                    $contextText
-                """.trimIndent()
+                    val systemPrompt = """
+                        You are a smart, concise Expense Tracker Assistant. Today is $today.
+                        
+                        USER PREFERENCE:
+                        - Default Currency: $currency
+                        
+                        CRITICAL:
+                        - All monetary amounts in your response MUST be prefixed with the user's currency: **$currency**.
+                        - Use the currency symbol **$currency** consistently for every amount mentioned.
 
-                val response = generativeModel.generateContent(
-                    content {
-                        text(systemPrompt)
-                        text("USER QUESTION: \"$question\"")
+                        TRANSACTION DATA:
+                        $contextText
+
+                        ANALYSIS GUIDELINES:
+                        - Compute totals, averages, and comparisons using ONLY the transactions listed above.
+                        - Identify top spending category/app and flag unusually large single transactions when relevant.
+                        - For trend questions, derive day-over-day or week-over-week patterns from the data when available.
+                        - If data is insufficient to answer precisely, state it briefly and suggest what time range would help.
+                        - Never fabricate transactions or amounts not present in the data.
+
+                        RESPONSE FORMAT:
+                        - Use **bold** for amounts, category names, app names, and key numbers.
+                        - Use bullet points for lists and breakdowns.
+                        - For person-grouped data (lending/borrowing), use hierarchical lists:
+                          * **Name** (Total: **$currency amount**)
+                            - **date**: **$currency amount** — note
+                        - Indent nested items with 2 spaces.
+                        - End with a short actionable insight when relevant.
+                        - Keep responses concise. Do not restate the user's question.
+                    """.trimIndent()
+
+                    if (groqKey.isNotBlank()) {
+                        Log.d(TAG, "History: Calling Groq (llama-3.3-70b)")
+                        val groqRequest = GroqRequest(
+                            model = "llama-3.3-70b-versatile",
+                            messages = listOf(
+                                GroqMessage("system", systemPrompt),
+                                GroqMessage("user", "USER QUESTION: \"$question\"")
+                            )
+                        )
+                        val response = groqApiService.getCompletion("Bearer $groqKey", groqRequest)
+                        if (response.isSuccessful) {
+                            responseText = response.body()?.choices?.firstOrNull()?.message?.content
+                        } else {
+                            val errorBody = response.errorBody()?.string()
+                            Log.e(TAG, "Groq History Error: ${response.code()} - $errorBody")
+                            throw Exception("Groq API error: ${response.code()}")
+                        }
+                    } else {
+                        Log.d(TAG, "History: Groq key missing, falling back to Gemini")
+                        val geminiKey = remoteConfig.getString("gemini_api_key")
+                        if (geminiKey.isBlank()) {
+                            _historyStatus.value = AiHistoryStatus.Error("AI configuration is missing.", AiErrorType.API_KEY_MISSING)
+                            chatDao.deleteMessageById(userMsgId)
+                            return@launch
+                        }
+                        val generativeModel = GenerativeModel(modelName = "gemini-3.5-flash", apiKey = geminiKey)
+                        responseText = generativeModel.generateContent(content {
+                            text(systemPrompt)
+                            text("USER QUESTION: \"$question\"")
+                        }).text
                     }
-                )
+                } catch (e: Exception) {
+                    lastError = e
+                    val rawError = e.message ?: ""
+                    val isRetryable = rawError.contains("503") || 
+                            rawError.contains("504") || 
+                            rawError.contains("high demand", ignoreCase = true) ||
+                            rawError.contains("unavailable", ignoreCase = true)
+                            
+                    if (isRetryable && attempt == 0) {
+                        delay(2000) // Wait 2 seconds before retrying
+                        continue
+                    }
+                    break // Non-retryable error or max retries reached
+                }
+            }
 
-                val responseText = response.text
-                if (!responseText.isNullOrBlank()) {
-                    chatDao.insertMessage(ChatMessage(userId = userId, text = responseText, isFromUser = false, sessionId = currentSessionId))
-                    _historyStatus.value = AiHistoryStatus.Idle
-                } else {
-                    _historyStatus.value = AiHistoryStatus.Error("The AI didn't provide a response.", AiErrorType.EMPTY_RESPONSE)
-                    chatDao.deleteMessageById(userMsgId)
-                }
-            } catch (e: Exception) {
+            if (!responseText.isNullOrBlank()) {
+                chatDao.insertMessage(ChatMessage(userId = userId, text = responseText, isFromUser = false, sessionId = currentSessionId))
+                _historyStatus.value = AiHistoryStatus.Idle
+            } else if (lastError != null) {
+                val e = lastError
                 Log.e(TAG, "History AI Error: ${e.message}", e)
-                val errorMsg = e.message ?: "An unexpected error occurred."
-                val errorType = if (errorMsg.contains("quota", ignoreCase = true) || errorMsg.contains("rate limit", ignoreCase = true)) {
-                    AiErrorType.SERVER_RATE_LIMIT
-                } else {
-                    AiErrorType.GENERIC
+                val rawError = e.message ?: "An unexpected error occurred."
+                
+                val errorType = when {
+                    rawError.contains("quota", ignoreCase = true) || 
+                    rawError.contains("rate limit", ignoreCase = true) ||
+                    rawError.contains("429") -> AiErrorType.SERVER_RATE_LIMIT
+                    
+                    rawError.contains("503") || 
+                    rawError.contains("high demand", ignoreCase = true) ||
+                    rawError.contains("unavailable", ignoreCase = true) ||
+                    rawError.contains("overloaded", ignoreCase = true) ||
+                    rawError.contains("experiencing high demand", ignoreCase = true) -> AiErrorType.SERVER_RATE_LIMIT
+                    
+                    rawError.contains("API key", ignoreCase = true) -> AiErrorType.API_KEY_MISSING
+                    else -> AiErrorType.GENERIC
                 }
-                _historyStatus.value = AiHistoryStatus.Error(errorMsg, errorType)
+
+                val userFriendlyMsg = when (errorType) {
+                    AiErrorType.SERVER_RATE_LIMIT -> "The AI service is currently under high demand or you've reached the rate limit. Please try again in a few minutes."
+                    AiErrorType.API_KEY_MISSING -> "AI configuration is incorrect or missing."
+                    else -> "Sorry, I couldn't process that right now. Please try again later."
+                }
+
+                _historyStatus.value = AiHistoryStatus.Error(userFriendlyMsg, errorType)
                 chatDao.deleteMessageById(userMsgId)
             }
         }
@@ -260,10 +338,14 @@ class SpendViewModel @Inject constructor(
     private val remoteConfig by lazy {
         FirebaseRemoteConfig.getInstance().apply {
             val configSettings = remoteConfigSettings {
-                minimumFetchIntervalInSeconds = 3600
+                // Lower interval for development to pick up key changes faster
+                minimumFetchIntervalInSeconds = 60 
             }
             setConfigSettingsAsync(configSettings)
-            setDefaultsAsync(mapOf("gemini_api_key" to ""))
+            setDefaultsAsync(mapOf(
+                "gemini_api_key" to "",
+                "groq_api_key" to ""
+            ))
         }
     }
 
@@ -293,101 +375,125 @@ class SpendViewModel @Inject constructor(
 
             // 3. Run the local heuristic parser first — gives us a deterministic
             // baseline (and a usable response even if the LLM is down).
-            val localAmount = AiParser.extractAmount(text)
-            val localPreset = AiParser.findAppPreset(text)
-            val localPurpose = AiParser.inferPurpose(text)
-            val localDesc = AiParser.extractDescription(text)
-            val localTimestamp = AiParser.extractTimestamp(text)
-            val baseline = AiTransactionResponse(
-                amount = localAmount,
-                appName = localPreset?.displayName ?: prefs.defaultApp,
-                appPresetId = localPreset?.id,
-                purpose = localPurpose ?: prefs.defaultPurpose,
-                notes = localDesc,
-                date = "today",
-                timestamp = localTimestamp,
-                needsAmount = localAmount == null
-            )
+            val baseline = AiParser.parseToBaseline(text, prefs.defaultApp, prefs.defaultPurpose)
+            val localCurrency = AiParser.extractCurrency(text) ?: prefs.defaultCurrency.ifBlank { "INR" }
 
-            // 4. Try Gemini for richer extraction.
-            try {
-                remoteConfig.fetchAndActivate().await()
-                val apiKey = remoteConfig.getString("gemini_api_key")
-                if (apiKey.isBlank()) {
-                    Log.w(TAG, "Gemini API Key is missing in Remote Config")
-                    _aiResult.value = Result.success(baseline)
-                    return@launch
-                }
+            // 4. Try AI (Prefer Groq for speed and open-weights models) with Retry logic
+            var responseText: String? = null
+            var lastError: Exception? = null
 
-                val generativeModel = GenerativeModel(
-                    modelName = "gemini-3.5-flash",
-                    apiKey = apiKey
-                )
+            for (attempt in 0..1) {
+                if (responseText != null) break
                 
-                val appList = com.alpha.spendtracker.ui.components.APP_PRESETS
-                    .joinToString(", ") { it.displayName }
-                val purposeList = com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
-                    .joinToString(", ")
+                try {
+                    remoteConfig.fetchAndActivate().await()
+                    val groqKey = remoteConfig.getString("groq_api_key")
+                    
+                    val appList = com.alpha.spendtracker.ui.components.APP_PRESETS
+                        .joinToString(", ") { it.displayName }
+                    val purposeList = com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
+                        .joinToString(", ")
 
-                val systemPrompt = """
-                    You are a strict JSON extractor for an expense tracker. Read the user's natural-language sentence and emit ONE JSON object with the fields described below. Output ONLY the JSON, no markdown, no commentary.
+                    val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(System.currentTimeMillis())
+                    val systemPrompt = """
+                        You are a strict JSON extractor for an Indian expense tracker. Parse the user's sentence and return ONE JSON object. Output ONLY valid JSON — no markdown, no code fences, no commentary.
 
-                    USER DEFAULTS:
-                    - Default Currency: ${prefs.defaultCurrency}
-                    - Default App/Platform: ${prefs.defaultApp}
-                    - Default Purpose: ${prefs.defaultPurpose}
-                    - Today's Date: ${java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(System.currentTimeMillis())}
+                        USER DEFAULTS (apply when not explicitly stated):
+                        - Currency: $localCurrency
+                        - Platform: ${prefs.defaultApp}
+                        - Purpose: ${prefs.defaultPurpose}
+                        - Today: $todayStr
 
-                    FIELDS:
-                    - amount (number): the money spent. Use the largest number that represents money. If absent, use null.
-                    - appName (string): MUST be one of [$appList]. Map fuzzy mentions: "phone pay" / "phonepay" -> "PhonePe"; "gpay" / "g pay" -> "Google Pay"; "amzn" -> "Amazon". If none mentioned, use "${prefs.defaultApp}".
-                    - purpose (string): MUST be one of [$purposeList]. Infer from what was bought. Examples below.
-                    - notes (string): a SHORT description of what was bought, in Title Case (1-4 words). e.g. "Biryani", "Uber Ride", "Electricity Bill". DO NOT include the amount, the app name, or filler verbs like "spent". If nothing identifiable, use "".
-                    - date (string): YYYY-MM-DD of the spend. Parse natural-language dates relative to "Today's Date" above. Examples: "on 19th may" -> use today's year, month=05, day=19; "yesterday" -> today minus 1 day; "last friday" -> the most recent past Friday. If the result would be in the future (no year given), shift one year back. If no date is mentioned, default to today.
-                    - needsAmount (boolean): true ONLY if no amount could be identified.
+                        PLATFORM MAPPING — resolve any fuzzy variant to a canonical name from [$appList]:
+                        "pp" / "phone pay" / "phonepay" → "PhonePe"
+                        "gpay" / "g pay" / "g-pay" / "tez" → "Google Pay"
+                        "amzn" / "amazon pay" → "Amazon"
+                        "cred pay" → "CRED"
+                        "paytm upi" → "Paytm"
+                        "upi" / unknown → use default platform above
 
-                    PURPOSE INFERENCE EXAMPLES:
-                    - "biryani", "pizza", "lunch", "coffee", "groceries", "swiggy", "zomato" -> "Groceries & Food"
-                    - "shirt", "shoes", "dress", "myntra", "ajio" -> "Shopping & Apparels"
-                    - "uber", "ola", "petrol", "metro", "flight" -> "Travel & Commute"
-                    - "netflix", "movie", "gym" -> "Subscription & Leisure"
-                    - "medicine", "doctor", "hospital" -> "Healthcare & Medical"
-                    - "rent", "electricity", "wifi", "recharge" -> "Rent & Utilities"
-                    - "credit card bill", "cc bill" -> "Credit Card Bill"
-                    - "lent to friend", "gave money" -> "Lending"
-                    - "borrowed from friend", "took loan" -> "Borrowing"
-                    - Otherwise -> "Others"
+                        PURPOSE MAPPING — output EXACT string from [$purposeList]:
+                        Food/drinks: biryani, pizza, lunch, dinner, breakfast, coffee, chai, swiggy, zomato, blinkit, zepto, groceries → "Groceries & Food"
+                        Shopping: shirt, jeans, shoes, saree, amazon, flipkart, myntra, ajio, meesho → "Shopping & Apparels"
+                        Travel: uber, ola, rapido, auto, cab, petrol, diesel, metro, bus, flight, train, toll → "Travel & Commute"
+                        Entertainment: netflix, hotstar, prime, spotify, movie, concert, game, gym → "Subscription & Leisure"
+                        Health: medicine, tablet, doctor, hospital, clinic, pharmacy, dentist, lab test → "Healthcare & Medical"
+                        Bills: rent, electricity, wifi, internet, recharge, water bill, gas, dth → "Rent & Utilities"
+                        Finance: credit card bill, cc bill, emi, loan payment → "Credit Card Bill"
+                        Giving: "lent to", "gave to", "sent to [person]", "paid for [person]" → "Lending"
+                        Receiving: "borrowed from", "took from", "received from" → "Borrowing"
+                        Default → "Others"
 
-                    EXAMPLE:
-                    Input: "spend 300 on biryani using phone pay"
-                    Output: {"amount":300,"appName":"PhonePe","purpose":"Groceries & Food","notes":"Biryani","date":"${java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(System.currentTimeMillis())}","needsAmount":false}
+                        FIELD RULES:
+                        - amount: largest monetary number found; null if absent.
+                        - appName: canonical platform name from the mapping above.
+                        - purpose: exact string from the purpose mapping above.
+                        - notes: 1-4 Title Case words describing WHAT. Exclude amount, app name, and verbs ("spent","paid","bought"). For lending/borrowing include the person name: "Lent to Rahul", "From Mom". Empty string if nothing identifiable.
+                        - date: YYYY-MM-DD relative to today ($todayStr). "yesterday" → today−1; "last friday" → most recent past Friday; partial date with no year → this year, shift back 1 year if result is in the future. No date → today.
+                        - needsAmount: true only when amount is null.
 
-                    JSON SCHEMA:
-                    {"amount": number|null, "appName": string, "purpose": string, "notes": string, "date": string, "needsAmount": boolean}
-                """.trimIndent()
+                        OUTPUT (no extra keys):
+                        {"amount": number|null, "appName": string, "purpose": string, "notes": string, "date": string, "needsAmount": boolean}
+                    """.trimIndent()
 
-                val response = generativeModel.generateContent(
-                    content {
-                        text(systemPrompt)
-                        text("USER INPUT: \"$text\"")
+                    if (groqKey.isNotBlank()) {
+                        Log.d(TAG, "Input: Calling Groq (llama-3.1-8b)")
+                        val groqRequest = GroqRequest(
+                            model = "llama-3.1-8b-instant",
+                            messages = listOf(
+                                GroqMessage("system", systemPrompt),
+                                GroqMessage("user", "USER INPUT: \"$text\"")
+                            ),
+                            response_format = GroqResponseFormat()
+                        )
+                        val response = groqApiService.getCompletion("Bearer $groqKey", groqRequest)
+                        if (response.isSuccessful) {
+                            responseText = response.body()?.choices?.firstOrNull()?.message?.content
+                        } else {
+                            val errorBody = response.errorBody()?.string()
+                            Log.e(TAG, "Groq Input Error: ${response.code()} - $errorBody")
+                            throw Exception("Groq API error: ${response.code()}")
+                        }
+                    } else {
+                        Log.d(TAG, "Input: Groq key missing, falling back to Gemini")
+                        val geminiKey = remoteConfig.getString("gemini_api_key")
+                        if (geminiKey.isBlank()) {
+                            Log.w(TAG, "AI API Keys are missing in Remote Config")
+                            _aiResult.value = Result.success(baseline)
+                            return@launch
+                        }
+                        val generativeModel = GenerativeModel(modelName = "gemini-3.5-flash", apiKey = geminiKey)
+                        responseText = generativeModel.generateContent(content {
+                            text(systemPrompt)
+                            text("USER INPUT: \"$text\"")
+                        }).text
                     }
-                )
-
-                val responseText = response.text
-                Log.d(TAG, "AI Raw Response: $responseText")
-
-                val merged = if (responseText.isNullOrBlank()) {
-                    baseline
-                } else {
-                    aiPrefsRepository.incrementUsage()
-                    parseAndMerge(responseText, baseline)
+                } catch (e: Exception) {
+                    lastError = e
+                    val msg = e.message ?: ""
+                    val isRetryable = msg.contains("503") || msg.contains("504") || msg.contains("high demand", ignoreCase = true)
+                    
+                    if (isRetryable && attempt == 0) {
+                        delay(2000)
+                        continue
+                    }
+                    break
                 }
-
-                _aiResult.value = Result.success(merged)
-            } catch (e: Exception) {
-                Log.e(TAG, "AI Error, falling back to local parser: ${e.message}", e)
-                _aiResult.value = Result.success(baseline)
             }
+
+            Log.d(TAG, "AI Raw Response: $responseText")
+
+            val merged = if (responseText.isNullOrBlank()) {
+                if (lastError != null) {
+                    Log.e(TAG, "AI Error after retries: ${lastError.message}", lastError)
+                }
+                baseline
+            } else {
+                aiPrefsRepository.incrementUsage()
+                parseAndMerge(responseText, baseline)
+            }
+
+            _aiResult.value = Result.success(merged)
         }
     }
 
@@ -735,8 +841,6 @@ class SpendViewModel @Inject constructor(
             }
         }
     }
-
-    private val firstDayOfWeek: Int get() = Calendar.getInstance().firstDayOfWeek
 
     private fun calculateTrendPoints(spends: List<Spend>, filter: TimeFilter): List<TrendPoint> {
         val calendar = Calendar.getInstance()

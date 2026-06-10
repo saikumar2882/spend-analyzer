@@ -8,9 +8,9 @@ lifecycleRuntimeKtx = "2.10.0"
 lifecycleViewmodelCompose = "2.10.0"
 lifecycleRuntimeCompose = "2.10.0"
 activityCompose = "1.13.0"
-kotlin = "2.3.21"
+kotlin = "2.4.0"
 composeBom = "2026.05.01"
-googleDevtoolsKsp = "2.3.8"
+googleDevtoolsKsp = "2.3.9"
 navigationCompose = "2.9.8"
 roomRuntime = "2.8.4"
 roomKtx = "2.8.4"
@@ -31,12 +31,13 @@ generativeai = "0.9.0"
 hilt = "2.59.2"
 robolectric = "4.16.1"
 roborazzi = "1.63.0"
-firebaseBom = "34.13.0"
+firebaseBom = "34.14.1"
 googleServices = "4.4.4"
 firebaseCrashlytics = "3.0.3"
 credentials = "1.6.0"
 googleid = "1.2.0"
 playCore = "2.1.0"
+playServicesAuth = "21.6.0"
 splashScreen = "1.0.1"
 
 [libraries]
@@ -91,13 +92,14 @@ firebase-crashlytics = { group = "com.google.firebase", name = "firebase-crashly
 play-app-update = { group = "com.google.android.play", name = "app-update", version.ref = "playCore" }
 play-app-update-ktx = { group = "com.google.android.play", name = "app-update-ktx", version.ref = "playCore" }
 androidx-core-splashscreen = { group = "androidx.core", name = "core-splashscreen", version.ref = "splashScreen" }
-play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version = "21.5.1" }
+play-services-auth = { group = "com.google.android.gms", name = "play-services-auth", version.ref = "playServicesAuth" }
 generativeai = { group = "com.google.ai.client.generativeai", name = "generativeai", version.ref = "generativeai" }
 androidx-credentials = { group = "androidx.credentials", name = "credentials", version.ref = "credentials" }
 androidx-credentials-play-services-auth = { group = "androidx.credentials", name = "credentials-play-services-auth", version.ref = "credentials" }
 googleid = { group = "com.google.android.libraries.identity.googleid", name = "googleid", version.ref = "googleid" }
 hilt-android = { group = "com.google.dagger", name = "hilt-android", version.ref = "hilt" }
 hilt-compiler = { group = "com.google.dagger", name = "hilt-android-compiler", version.ref = "hilt" }
+hilt-metadata = { group = "org.jetbrains.kotlin", name = "kotlin-metadata-jvm", version = "2.4.0" }
 
 [plugins]
 android-application = { id = "com.android.application", version.ref = "agp" }

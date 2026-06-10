@@ -54,6 +54,10 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
+hilt {
+  enableAggregatingTask = true
+}
+
 // Some unused dependencies are commented out below instead of being removed.
 // This makes it easy to add them back in the future if needed.
 dependencies {
@@ -121,10 +125,11 @@ dependencies {
   androidTestImplementation(libs.androidx.runner)
   debugImplementation(libs.androidx.compose.ui.test.manifest)
   debugImplementation(libs.androidx.compose.ui.tooling)
-  "ksp"(libs.androidx.room.compiler)
-  "ksp"(libs.moshi.kotlin.codegen)
+  ksp(libs.androidx.room.compiler)
+  ksp(libs.moshi.kotlin.codegen)
   implementation(libs.hilt.android)
   ksp(libs.hilt.compiler)
+  ksp(libs.hilt.metadata)
   implementation("androidx.hilt:hilt-navigation-compose:1.2.0")
   implementation(libs.androidx.work.runtime.ktx)
   implementation(libs.androidx.glance.appwidget)
