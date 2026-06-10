@@ -15,6 +15,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -46,7 +47,6 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.Spend
-import com.alpha.spendtracker.util.formatShortDate
 
 @Composable
 fun RecentSpendRow(
@@ -54,7 +54,8 @@ fun RecentSpendRow(
     onClick: () -> Unit = {}
 ) {
     val accent = APP_PRESETS.firstOrNull { it.displayName == spend.appName }?.color ?: MaterialTheme.colorScheme.primary
-    val subtitle = spend.notes.ifBlank { spend.purpose }
+    val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
+    val subtitle = if (isLendBorrow) spend.notes else spend.notes.ifBlank { spend.purpose }
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
@@ -99,7 +100,7 @@ fun RecentSpendRow(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    AppAvatar(name = spend.appName, color = accent)
+                    DateBadge(timestamp = spend.timestamp, color = accent)
                     Spacer(modifier = Modifier.width(14.dp))
                     Column {
                         SpendCardHeader(appName = spend.appName, category = spend.category, accent = accent)
@@ -135,6 +136,7 @@ fun HistorySpendCard(
     modifier: Modifier = Modifier
 ) {
     val accent = APP_PRESETS.firstOrNull { it.displayName == spend.appName }?.color ?: MaterialTheme.colorScheme.primary
+    val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
 
     val isDark = isSystemInDarkTheme()
     val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant 
@@ -168,23 +170,18 @@ fun HistorySpendCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    AppAvatar(name = spend.appName, color = accent, size = 42.dp)
+                    DateBadge(timestamp = spend.timestamp, color = accent, size = 42.dp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
                         SpendCardHeader(appName = spend.appName, category = spend.category, accent = accent)
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (!isLendBorrow) {
+                            Spacer(modifier = Modifier.height(2.dp))
                             Text(
                                 text = spend.purpose,
                                 style = MaterialTheme.typography.bodyMedium.copy(
                                     fontWeight = FontWeight.SemiBold,
                                     color = MaterialTheme.colorScheme.primary
                                 )
-                            )
-                            Text(
-                                text = " · ${formatShortDate(spend.timestamp)}",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Medium),
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                             )
                         }
                         if (spend.notes.isNotBlank()) {
@@ -246,6 +243,53 @@ fun HistorySpendCard(
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+fun DateBadge(
+    timestamp: Long,
+    color: Color,
+    size: androidx.compose.ui.unit.Dp = 44.dp
+) {
+    val calendar = remember(timestamp) {
+        java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+    }
+    val day = calendar.get(java.util.Calendar.DAY_OF_MONTH).toString()
+    val month = remember(timestamp) {
+        java.text.SimpleDateFormat("MMM", java.util.Locale.getDefault()).format(timestamp)
+    }
+
+    Surface(
+        modifier = Modifier.size(size),
+        shape = RoundedCornerShape(12.dp),
+        color = color.copy(alpha = 0.12f),
+        border = BorderStroke(1.dp, color.copy(alpha = 0.25f))
+    ) {
+        Column(
+            modifier = Modifier.fillMaxSize(),
+            verticalArrangement = Arrangement.Center,
+            horizontalAlignment = Alignment.CenterHorizontally
+        ) {
+            Text(
+                text = day,
+                style = MaterialTheme.typography.titleMedium.copy(
+                    fontWeight = FontWeight.Bold,
+                    fontSize = (size.value * 0.35f).sp,
+                    lineHeight = (size.value * 0.35f).sp
+                ),
+                color = color
+            )
+            Text(
+                text = month.lowercase(),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = (size.value * 0.22f).sp,
+                    lineHeight = (size.value * 0.22f).sp
+                ),
+                color = color.copy(alpha = 0.8f)
+            )
         }
     }
 }
