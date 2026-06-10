@@ -14,12 +14,15 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.focus.FocusRequester
+import androidx.compose.ui.focus.focusRequester
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import kotlinx.coroutines.delay
 import com.alpha.spendtracker.ui.theme.BrandGradientEnd
 import com.alpha.spendtracker.ui.theme.BrandGradientMid
 import com.alpha.spendtracker.ui.theme.BrandGradientStart
@@ -34,6 +37,13 @@ fun AiInputBottomSheet(
 ) {
     var textInput by remember { mutableStateOf("") }
     var isProcessing by remember { mutableStateOf(false) }
+    val focusRequester = remember { FocusRequester() }
+
+    LaunchedEffect(Unit) {
+        // Delay slightly to ensure sheet is visible before requesting focus
+        delay(300)
+        focusRequester.requestFocus()
+    }
 
     ModalBottomSheet(
         onDismissRequest = onDismiss,
@@ -172,7 +182,7 @@ fun AiInputBottomSheet(
             OutlinedTextField(
                 value = textInput,
                 onValueChange = { if (it.length <= 500) textInput = it },
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().focusRequester(focusRequester),
                 enabled = !isProcessing,
                 placeholder = { Text("Spent 420 on swiggy biryani via gpay") },
                 supportingText = {

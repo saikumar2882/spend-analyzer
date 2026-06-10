@@ -460,6 +460,10 @@ fun MainContainer(
             
             // Clear extras to avoid re-triggering on rotation/recomposition
             intent.removeExtra("BILL_UUID")
+        } else if (intent?.getBooleanExtra("SHOW_AI_INPUT", false) == true) {
+            android.util.Log.d("MainActivity", "Showing AI input via widget.")
+            showAiInput = true
+            intent.removeExtra("SHOW_AI_INPUT")
         }
     }
 
@@ -541,24 +545,36 @@ fun MainContainer(
 
     LaunchedEffect(aiResult) {
         aiResult?.let { result ->
-            // Race guard: if the user is mid-discard of the input sheet, drop
-            // the late AI result silently. Surfacing a confirmation sheet on
-            // top of an open discard dialog leaves the user with a stale
-            // dialog over a fresh sheet — the path that produced the
-            // "stuck screen" report.
             if (showDiscardDialog && showAiInput) {
                 viewModel.clearAiResult()
                 return@let
             }
             if (result.isSuccess) {
-                // Animate the input sheet out before removing it from composition.
-                // Otherwise the scrim is left behind while the next sheet swaps in.
-                runCatching {
-                    if (aiInputSheetState.isVisible) aiInputSheetState.hide()
+                val extracted = result.getOrNull()
+                
+                // If biometric is enabled and user is not authenticated, prompt now
+                if (aiPrefs.isBiometricEnabled && !isBiometricAuthenticated) {
+                    (context as? MainActivity)?.showBiometricPrompt {
+                        viewModel.setBiometricAuthenticated(true)
+                        // Once authenticated, proceed to show confirmation
+                        scope.launch {
+                            runCatching {
+                                if (aiInputSheetState.isVisible) aiInputSheetState.hide()
+                            }
+                        }
+                        aiProcessingResult = extracted
+                        showAiInput = false
+                        showNotification("Authenticated! Check AI results.", NotificationType.SUCCESS)
+                    }
+                } else {
+                    // Already authenticated or biometrics disabled
+                    runCatching {
+                        if (aiInputSheetState.isVisible) aiInputSheetState.hide()
+                    }
+                    aiProcessingResult = extracted
+                    showAiInput = false
+                    showNotification("AI processed input successfully!", NotificationType.SUCCESS)
                 }
-                aiProcessingResult = result.getOrNull()
-                showAiInput = false
-                showNotification("AI processed input successfully!", NotificationType.SUCCESS)
             } else {
                 showNotification(result.exceptionOrNull()?.message ?: "AI Error", NotificationType.ERROR)
                 viewModel.clearAiResult()
@@ -890,36 +906,32 @@ fun MainContainer(
         }
 
         if (showBillTrackingSheet && prefilledBillSpend != null) {
-            ModalBottomSheet(
-                onDismissRequest = dismissBillTracking,
+            BillTrackingBottomSheet(
+                show = showBillTrackingSheet,
                 sheetState = billTrackingSheetState,
-                dragHandle = { BottomSheetDefaults.DragHandle() }
-            ) {
-                BillTrackingBottomSheet(
-                    prefilledSpend = prefilledBillSpend!!,
-                    onShowNotification = { msg, type -> showNotification(msg, type) },
-                    onConfirm = { newSpend ->
-                        viewModel.addSpend(
-                            appName = if (newSpend.preset.id == "other") newSpend.customAppName else newSpend.preset.displayName,
-                            amount = newSpend.amount,
-                            purpose = newSpend.purpose,
-                            category = newSpend.preset.category,
-                            notes = newSpend.notes,
-                            timestamp = newSpend.timestamp
-                        )
-                        showNotification("Bill payment logged!", NotificationType.SUCCESS)
-                        scope.launch {
-                            runCatching {
-                                if (billTrackingSheetState.isVisible) billTrackingSheetState.hide()
-                            }
-                        }.invokeOnCompletion {
-                            showBillTrackingSheet = false
-                            prefilledBillSpend = null
+                prefilledSpend = prefilledBillSpend!!,
+                onConfirm = { newSpend ->
+                    viewModel.addSpend(
+                        appName = if (newSpend.preset.id == "other") newSpend.customAppName else newSpend.preset.displayName,
+                        amount = newSpend.amount,
+                        purpose = newSpend.purpose,
+                        category = newSpend.preset.category,
+                        notes = newSpend.notes,
+                        timestamp = newSpend.timestamp
+                    )
+                    showNotification("Bill payment logged!", NotificationType.SUCCESS)
+                    scope.launch {
+                        runCatching {
+                            if (billTrackingSheetState.isVisible) billTrackingSheetState.hide()
                         }
-                    },
-                    onCancel = dismissBillTracking
-                )
-            }
+                    }.invokeOnCompletion {
+                        showBillTrackingSheet = false
+                        prefilledBillSpend = null
+                    }
+                },
+                onCancel = dismissBillTracking,
+                onDismissRequest = dismissBillTracking
+            )
         }
 
         if (showAiHistoryAssistant) {

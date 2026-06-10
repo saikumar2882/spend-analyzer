@@ -17,7 +17,7 @@ data class AiPreferences(
     val dailyUsageCount: Int = 0,
     val lastUsageDate: Long = 0L,
     val isConfigured: Boolean = false,
-    val isBiometricEnabled: Boolean = true
+    val isBiometricEnabled: Boolean = false
 )
 
 class AiPreferencesRepository(private val context: Context) {
@@ -48,7 +48,7 @@ class AiPreferencesRepository(private val context: Context) {
                 dailyUsageCount = finalCount,
                 lastUsageDate = lastDate,
                 isConfigured = preferences[PreferencesKeys.IS_CONFIGURED] ?: false,
-                isBiometricEnabled = preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] ?: true
+                isBiometricEnabled = preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] ?: false
             )
         }
 
