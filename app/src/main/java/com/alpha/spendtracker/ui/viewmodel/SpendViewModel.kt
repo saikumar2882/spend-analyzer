@@ -125,6 +125,42 @@ class SpendViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val recurringBills: StateFlow<List<RecurringBill>> = _userId.flatMapLatest { userId ->
+        repository.getAllRecurringBills(userId)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun addRecurringBill(name: String, purpose: String, category: String, appName: String, recurringDay: Int, notes: String = "") {
+        viewModelScope.launch {
+            val bill = RecurringBill(
+                userId = _userId.value,
+                name = name,
+                purpose = purpose,
+                category = category,
+                appName = appName,
+                recurringDay = recurringDay,
+                notes = notes
+            )
+            repository.insertRecurringBill(bill)
+        }
+    }
+
+    fun updateRecurringBill(bill: RecurringBill) {
+        viewModelScope.launch {
+            repository.updateRecurringBill(bill)
+        }
+    }
+
+    fun deleteRecurringBill(bill: RecurringBill) {
+        viewModelScope.launch {
+            repository.deleteRecurringBill(bill)
+        }
+    }
+
     private val _historyStatus = MutableStateFlow<AiHistoryStatus>(AiHistoryStatus.Idle)
     val historyStatus: StateFlow<AiHistoryStatus> = _historyStatus
 

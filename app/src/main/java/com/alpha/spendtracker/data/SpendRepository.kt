@@ -12,7 +12,10 @@ import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
 
-class SpendRepository(private val spendDao: SpendDao) {
+class SpendRepository(
+    private val spendDao: SpendDao,
+    private val recurringBillDao: RecurringBillDao
+) {
 
     private val firestore = FirebaseFirestore.getInstance()
     private val TAG = "SpendRepository"
@@ -149,6 +152,54 @@ class SpendRepository(private val spendDao: SpendDao) {
             spendDao.deleteSpendByUuid(uuid)
             removeFromFirestoreByUuid(uuid, userId)
         }
+    }
+
+    fun getAllRecurringBills(userId: String): Flow<List<RecurringBill>> = recurringBillDao.getAllRecurringBills(userId)
+
+    suspend fun insertRecurringBill(bill: RecurringBill) {
+        recurringBillDao.insertRecurringBill(bill)
+        syncRecurringBillToFirestore(bill)
+    }
+
+    suspend fun deleteRecurringBill(bill: RecurringBill) {
+        recurringBillDao.deleteRecurringBill(bill)
+        removeRecurringBillFromFirestore(bill)
+    }
+
+    suspend fun getBillsDueOn(day: Int): List<RecurringBill> = recurringBillDao.getBillsDueOn(day)
+
+    suspend fun findMatchingSpend(userId: String, appName: String, purpose: String, startTime: Long, endTime: Long): Spend? =
+        recurringBillDao.findMatchingSpend(userId, appName, purpose, startTime, endTime)
+
+    private suspend fun syncRecurringBillToFirestore(bill: RecurringBill) {
+        try {
+            firestore.collection("users")
+                .document(bill.userId)
+                .collection("recurring_bills")
+                .document(bill.uuid)
+                .set(bill)
+                .await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error syncing recurring bill to Firestore: ${e.message}")
+        }
+    }
+
+    private suspend fun removeRecurringBillFromFirestore(bill: RecurringBill) {
+        try {
+            firestore.collection("users")
+                .document(bill.userId)
+                .collection("recurring_bills")
+                .document(bill.uuid)
+                .delete()
+                .await()
+        } catch (e: Exception) {
+            Log.e(TAG, "Error removing recurring bill from Firestore: ${e.message}")
+        }
+    }
+
+    suspend fun updateRecurringBill(bill: RecurringBill) {
+        recurringBillDao.insertRecurringBill(bill)
+        syncRecurringBillToFirestore(bill)
     }
 
     private suspend fun syncToFirestore(spend: Spend) {

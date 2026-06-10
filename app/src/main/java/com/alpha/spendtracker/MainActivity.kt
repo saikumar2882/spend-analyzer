@@ -3,12 +3,17 @@
  */
 package com.alpha.spendtracker
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
+import android.os.Build
 import android.os.Bundle
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.activity.viewModels
+import androidx.core.content.ContextCompat
 import androidx.core.splashscreen.SplashScreen.Companion.installSplashScreen
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.AnimatedVisibility
@@ -61,7 +66,6 @@ import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
-import androidx.core.content.ContextCompat
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -70,6 +74,7 @@ import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.AiConfirmationScreen
 import com.alpha.spendtracker.ui.components.AiInputBottomSheet
 import com.alpha.spendtracker.ui.components.AppNotification
+import com.alpha.spendtracker.ui.components.BillTrackingBottomSheet
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.screens.AddSpendScreen
 import com.alpha.spendtracker.ui.screens.DashboardScreen
@@ -77,6 +82,7 @@ import com.alpha.spendtracker.ui.screens.HistoryScreen
 import com.alpha.spendtracker.ui.screens.LendBorrowScreen
 import com.alpha.spendtracker.ui.screens.LoginScreen
 import com.alpha.spendtracker.ui.screens.NewSpend
+import com.alpha.spendtracker.ui.screens.RecurringBillsScreen
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.alpha.spendtracker.ui.theme.isDark
@@ -95,7 +101,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND, LEND_BORROW_HISTORY }
+enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND, LEND_BORROW_HISTORY, RECURRING_BILLS }
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -103,10 +109,23 @@ class MainActivity : FragmentActivity() {
     private lateinit var appUpdateManager: AppUpdateManager
     private val MY_UPDATE_REQUEST_CODE = 1001
 
+    private val requestPermissionLauncher = registerForActivityResult(
+        ActivityResultContracts.RequestPermission()
+    ) { isGranted: Boolean ->
+        if (isGranted) {
+            // Permission granted, notifications will show
+        }
+    }
+
+    private var _intentState = mutableStateOf<Intent?>(null)
+
     override fun onCreate(savedInstanceState: Bundle?) {
         installSplashScreen()
         super.onCreate(savedInstanceState)
         
+        _intentState.value = intent
+        checkNotificationPermission()
+
         appUpdateManager = AppUpdateManagerFactory.create(applicationContext)
         checkPlayStoreUpdate()
 
@@ -118,10 +137,16 @@ class MainActivity : FragmentActivity() {
                     viewModel = spendViewModel,
                     themePreference = themePref.value,
                     onCycleTheme = { themePref.value = themePref.value.next() },
-                    intent = intent,
+                    intent = _intentState.value,
                 )
             }
         }
+    }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        _intentState.value = intent
     }
 
     override fun onResume() {
@@ -199,6 +224,14 @@ class MainActivity : FragmentActivity() {
                         onShowNotification("Error signing in with link", NotificationType.ERROR)
                     }
                 }
+        }
+    }
+
+    private fun checkNotificationPermission() {
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            if (ContextCompat.checkSelfPermission(this, Manifest.permission.POST_NOTIFICATIONS) != PackageManager.PERMISSION_GRANTED) {
+                requestPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
+            }
         }
     }
 }
@@ -336,6 +369,8 @@ fun MainContainer(
     var historyCategoryFilter by rememberSaveable { mutableStateOf("All") }
     var historyTimeFilter by rememberSaveable { mutableStateOf(TimeFilter.ALL) }
     var editingSpend by remember { mutableStateOf<Spend?>(null) }
+    var prefilledBillSpend by remember { mutableStateOf<NewSpend?>(null) }
+    var showBillTrackingSheet by remember { mutableStateOf(false) }
 
     val allSpends by viewModel.allSpendsFlow.collectAsStateWithLifecycle()
     val analyticsState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -397,6 +432,36 @@ fun MainContainer(
     val aiInputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val aiConfirmationSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val aiHistorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val billTrackingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val recurringBills by viewModel.recurringBills.collectAsStateWithLifecycle()
+
+    LaunchedEffect(intent) {
+        if (intent?.hasExtra("BILL_UUID") == true) {
+            android.util.Log.d("MainActivity", "Processing bill notification: ${intent.getStringExtra("BILL_NAME")}")
+            val billName = intent.getStringExtra("BILL_NAME") ?: ""
+            val billApp = intent.getStringExtra("BILL_APP") ?: ""
+            val billPurpose = intent.getStringExtra("BILL_PURPOSE") ?: ""
+            val billCategory = intent.getStringExtra("BILL_CATEGORY") ?: ""
+            val billNotes = intent.getStringExtra("BILL_NOTES") ?: ""
+
+            val appPreset = com.alpha.spendtracker.ui.components.APP_PRESETS.find { it.displayName == billApp } ?: com.alpha.spendtracker.ui.components.APP_PRESETS.last()
+
+            prefilledBillSpend = NewSpend(
+                preset = appPreset,
+                amount = 0.0,
+                purpose = billPurpose,
+                notes = billNotes,
+                customAppName = if (appPreset.id == "other") billApp else "",
+                timestamp = System.currentTimeMillis()
+            )
+            editingSpend = null
+            showBillTrackingSheet = true
+            
+            // Clear extras to avoid re-triggering on rotation/recomposition
+            intent.removeExtra("BILL_UUID")
+        }
+    }
 
     // Closes the discard dialog. If the underlying sheet was hidden by a user
     // gesture (swipe / scrim tap) before the dialog appeared, re-expand it so
@@ -410,6 +475,9 @@ fun MainContainer(
             }
             if (aiProcessingResult != null && !aiConfirmationSheetState.isVisible) {
                 runCatching { aiConfirmationSheetState.show() }
+            }
+            if (showBillTrackingSheet && !billTrackingSheetState.isVisible) {
+                runCatching { billTrackingSheetState.show() }
             }
         }
         Unit
@@ -448,6 +516,21 @@ fun MainContainer(
             }.invokeOnCompletion {
                 aiProcessingResult = null
                 viewModel.clearAiResult()
+            }
+        }
+    }
+
+    val dismissBillTracking = {
+        showDiscardDialog = true
+        discardCallback = {
+            showDiscardDialog = false
+            scope.launch {
+                runCatching {
+                    if (billTrackingSheetState.isVisible) billTrackingSheetState.hide()
+                }
+            }.invokeOnCompletion {
+                showBillTrackingSheet = false
+                prefilledBillSpend = null
             }
         }
     }
@@ -639,7 +722,8 @@ fun MainContainer(
                                 }
                                 val shareIntent = Intent.createChooser(sendIntent, null)
                                 context.startActivity(shareIntent)
-                            }
+                            },
+                            onRecurringBillsClick = { activeView = ActiveView.RECURRING_BILLS }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
                             allSpends = allSpends,
@@ -680,6 +764,13 @@ fun MainContainer(
                                 activeView = ActiveView.LEND_BORROW
                             }
                         )
+                        ActiveView.RECURRING_BILLS -> RecurringBillsScreen(
+                            bills = recurringBills,
+                            onBack = { activeView = ActiveView.DASHBOARD },
+                            onAddBill = viewModel::addRecurringBill,
+                            onUpdateBill = viewModel::updateRecurringBill,
+                            onDeleteBill = viewModel::deleteRecurringBill
+                        )
                         ActiveView.HISTORY -> HistoryScreen(
                             allSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" },
                             initialSearchQuery = historySearchQuery,
@@ -697,8 +788,10 @@ fun MainContainer(
                         )
                         ActiveView.ADD_SPEND -> AddSpendScreen(
                             editingSpend = editingSpend,
+                            prefilledSpend = prefilledBillSpend,
                             onDismiss = { 
                                 editingSpend = null
+                                prefilledBillSpend = null
                                 activeView = ActiveView.DASHBOARD 
                             },
                             onShowNotification = { msg, type -> showNotification(msg, type) },
@@ -727,9 +820,12 @@ fun MainContainer(
                                         notes = newSpend.notes,
                                         timestamp = newSpend.timestamp
                                     )
+                                    // No need to manually clear prefilledBillSpend here as it's done in onDismiss
+                                    // and we also clear it below
                                     showNotification("Spending logged successfully!", NotificationType.SUCCESS)
                                 }
                                 editingSpend = null
+                                prefilledBillSpend = null
                                 activeView = ActiveView.DASHBOARD
                             }
                         )
@@ -789,6 +885,39 @@ fun MainContainer(
                         }
                     },
                     onCancel = dismissAiConfirmation
+                )
+            }
+        }
+
+        if (showBillTrackingSheet && prefilledBillSpend != null) {
+            ModalBottomSheet(
+                onDismissRequest = dismissBillTracking,
+                sheetState = billTrackingSheetState,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                BillTrackingBottomSheet(
+                    prefilledSpend = prefilledBillSpend!!,
+                    onShowNotification = { msg, type -> showNotification(msg, type) },
+                    onConfirm = { newSpend ->
+                        viewModel.addSpend(
+                            appName = if (newSpend.preset.id == "other") newSpend.customAppName else newSpend.preset.displayName,
+                            amount = newSpend.amount,
+                            purpose = newSpend.purpose,
+                            category = newSpend.preset.category,
+                            notes = newSpend.notes,
+                            timestamp = newSpend.timestamp
+                        )
+                        showNotification("Bill payment logged!", NotificationType.SUCCESS)
+                        scope.launch {
+                            runCatching {
+                                if (billTrackingSheetState.isVisible) billTrackingSheetState.hide()
+                            }
+                        }.invokeOnCompletion {
+                            showBillTrackingSheet = false
+                            prefilledBillSpend = null
+                        }
+                    },
+                    onCancel = dismissBillTracking
                 )
             }
         }

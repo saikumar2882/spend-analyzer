@@ -49,6 +49,7 @@ class SpendApp : Application() {
         })
 
         scheduleSync()
+        scheduleRecurringBillCheck()
     }
 
     private fun scheduleSync() {
@@ -64,6 +65,23 @@ class SpendApp : Application() {
             "SpendSyncWork",
             androidx.work.ExistingPeriodicWorkPolicy.REPLACE,
             syncRequest
+        )
+    }
+
+    private fun scheduleRecurringBillCheck() {
+        val constraints = Constraints.Builder()
+            .setRequiredNetworkType(NetworkType.CONNECTED)
+            .build()
+
+        // TEST MODE: Check every 1 minute
+        val billCheckRequest = PeriodicWorkRequestBuilder<com.alpha.spendtracker.worker.RecurringBillWorker>(1, TimeUnit.MINUTES)
+            .setConstraints(constraints)
+            .build()
+
+        WorkManager.getInstance(this).enqueueUniquePeriodicWork(
+            "RecurringBillCheckWork",
+            androidx.work.ExistingPeriodicWorkPolicy.REPLACE,
+            billCheckRequest
         )
     }
 }

@@ -90,26 +90,56 @@ data class NewSpend(
 @Composable
 fun AddSpendScreen(
     editingSpend: com.alpha.spendtracker.data.Spend? = null,
+    prefilledSpend: NewSpend? = null,
     onDismiss: () -> Unit,
     onShowNotification: (String, NotificationType) -> Unit,
     onSave: (NewSpend) -> Unit
 ) {
-    var amountInput by rememberSaveable { mutableStateOf(editingSpend?.amount?.toString() ?: "") }
+    var amountInput by rememberSaveable { 
+        mutableStateOf(
+            editingSpend?.amount?.toString() ?: (if (prefilledSpend != null && prefilledSpend.amount > 0) prefilledSpend.amount.toString() else "")
+        ) 
+    }
     var selectedPreset by remember { 
         mutableStateOf(
-            if (editingSpend != null) {
-                APP_PRESETS.find { it.displayName == editingSpend.appName } ?: APP_PRESETS.last()
-            } else {
-                APP_PRESETS.first()
+            when {
+                editingSpend != null -> APP_PRESETS.find { it.displayName == editingSpend.appName } ?: APP_PRESETS.last()
+                prefilledSpend != null -> prefilledSpend.preset
+                else -> APP_PRESETS.first()
             }
         ) 
     }
-    var purposeInput by rememberSaveable { mutableStateOf(editingSpend?.purpose ?: PURPOSE_PRESETS.first()) }
-    var notesInput by rememberSaveable { mutableStateOf(editingSpend?.notes ?: "") }
-    var customAppNameInput by rememberSaveable { 
-        mutableStateOf(if (selectedPreset.id == "other") editingSpend?.appName ?: "" else "") 
+    var purposeInput by rememberSaveable { 
+        mutableStateOf(
+            editingSpend?.purpose ?: prefilledSpend?.purpose ?: PURPOSE_PRESETS.first()
+        ) 
     }
-    var transactionTimestamp by rememberSaveable { mutableLongStateOf(editingSpend?.timestamp ?: System.currentTimeMillis()) }
+    var notesInput by rememberSaveable { 
+        mutableStateOf(editingSpend?.notes ?: prefilledSpend?.notes ?: "") 
+    }
+    var customAppNameInput by rememberSaveable { 
+        mutableStateOf(
+            if (selectedPreset.id == "other") {
+                editingSpend?.appName ?: prefilledSpend?.customAppName ?: ""
+            } else ""
+        ) 
+    }
+    var transactionTimestamp by rememberSaveable { 
+        mutableLongStateOf(
+            editingSpend?.timestamp ?: prefilledSpend?.timestamp ?: System.currentTimeMillis()
+        ) 
+    }
+
+    LaunchedEffect(prefilledSpend) {
+        if (prefilledSpend != null && editingSpend == null) {
+            amountInput = if (prefilledSpend.amount > 0) prefilledSpend.amount.toString() else ""
+            selectedPreset = prefilledSpend.preset
+            purposeInput = prefilledSpend.purpose
+            notesInput = prefilledSpend.notes
+            customAppNameInput = prefilledSpend.customAppName
+            transactionTimestamp = prefilledSpend.timestamp
+        }
+    }
 
     var amountError by remember { mutableStateOf<String?>(null) }
     var customAppError by remember { mutableStateOf<String?>(null) }

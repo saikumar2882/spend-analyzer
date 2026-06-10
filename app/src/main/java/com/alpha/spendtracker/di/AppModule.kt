@@ -4,6 +4,7 @@ import android.content.Context
 import com.alpha.spendtracker.data.AiPreferencesRepository
 import com.alpha.spendtracker.data.AppDatabase
 import com.alpha.spendtracker.data.ChatDao
+import com.alpha.spendtracker.data.RecurringBillDao
 import com.alpha.spendtracker.data.SpendDao
 import com.alpha.spendtracker.data.SpendRepository
 import com.alpha.spendtracker.data.GroqApiService
@@ -71,9 +72,14 @@ object AppModule {
     }
 
     @Provides
+    fun provideRecurringBillDao(database: AppDatabase): RecurringBillDao {
+        return database.recurringBillDao()
+    }
+
+    @Provides
     @Singleton
-    fun provideSpendRepository(spendDao: SpendDao): SpendRepository {
-        return SpendRepository(spendDao)
+    fun provideSpendRepository(spendDao: SpendDao, recurringBillDao: RecurringBillDao): SpendRepository {
+        return SpendRepository(spendDao, recurringBillDao)
     }
 
     @Provides

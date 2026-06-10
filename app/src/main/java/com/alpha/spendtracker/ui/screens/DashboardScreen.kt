@@ -25,6 +25,7 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LightMode
@@ -84,7 +85,8 @@ fun DashboardScreen(
     onAiAssistantClick: () -> Unit,
     onUpdateAiPreferences: (String, String, String) -> Unit,
     onToggleBiometrics: (Boolean) -> Unit,
-    onShareApp: () -> Unit
+    onShareApp: () -> Unit,
+    onRecurringBillsClick: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showSecurityOptions by remember { mutableStateOf(false) }
@@ -258,6 +260,7 @@ fun DashboardScreen(
                 onAiAssistantClick = onAiAssistantClick,
                 onAiSettingsClick = { showAiSettingsDialog = true },
                 onShareApp = onShareApp,
+                onRecurringBillsClick = onRecurringBillsClick,
                 isBiometricEnabled = aiPreferences.isBiometricEnabled,
                 onToggleBiometrics = onToggleBiometrics,
                 menuExpanded = menuExpanded,
@@ -375,6 +378,7 @@ private fun DashboardHeader(
     onAiAssistantClick: () -> Unit,
     onAiSettingsClick: () -> Unit,
     onShareApp: () -> Unit,
+    onRecurringBillsClick: () -> Unit,
     isBiometricEnabled: Boolean,
     onToggleBiometrics: (Boolean) -> Unit,
     menuExpanded: Boolean,
@@ -474,6 +478,14 @@ private fun DashboardHeader(
                         onClick = {
                             onMenuExpandedChange(false)
                             onAiSettingsClick()
+                        }
+                    )
+                    DropdownMenuItem(
+                        text = { Text("Recurring Bills") },
+                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null) },
+                        onClick = {
+                            onMenuExpandedChange(false)
+                            onRecurringBillsClick()
                         }
                     )
                     DropdownMenuItem(
