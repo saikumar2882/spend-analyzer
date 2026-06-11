@@ -32,12 +32,6 @@ class RecurringBillWorker @AssistedInject constructor(
         private const val TAG = "RecurringBillWorker"
         private const val CHANNEL_ID = "bill_reminders"
         private const val CHANNEL_NAME = "Bill Reminders"
-        
-        /** 
-         * Set to true to trigger notifications every minute for testing.
-         * Bypasses time-of-day checks and notification flags.
-         */
-        private const val TEST_MODE = true
     }
 
     override suspend fun doWork(): Result {
@@ -47,17 +41,12 @@ class RecurringBillWorker @AssistedInject constructor(
         val currentMinute = calendar.get(Calendar.MINUTE)
         val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(calendar.time)
 
-        Log.d(TAG, "Checking for due bills on $todayStr (Day: $todayDay, Time: $currentHour:$currentMinute, TestMode: $TEST_MODE)")
+        Log.d(TAG, "Checking for due bills on $todayStr (Day: $todayDay, Time: $currentHour:$currentMinute)")
 
         val dueBills = repository.getBillsDueOn(todayDay)
         if (dueBills.isEmpty()) return Result.success()
 
         for (bill in dueBills) {
-            if (TEST_MODE) {
-                showNotification(bill)
-                continue
-            }
-
             // 1. Reset flags if it's a new day
             var updatedBill = if (bill.lastNotifiedDate != todayStr) {
                 bill.copy(lastNotifiedDate = todayStr, notifiedAt1230 = false, notifiedAt2200 = false)

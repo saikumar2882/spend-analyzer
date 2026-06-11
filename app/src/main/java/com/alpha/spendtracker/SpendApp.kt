@@ -73,8 +73,8 @@ class SpendApp : Application() {
             .setRequiredNetworkType(NetworkType.CONNECTED)
             .build()
 
-        // TEST MODE: Check every 1 minute
-        val billCheckRequest = PeriodicWorkRequestBuilder<com.alpha.spendtracker.worker.RecurringBillWorker>(1, TimeUnit.MINUTES)
+        // Check every 1 hour
+        val billCheckRequest = PeriodicWorkRequestBuilder<com.alpha.spendtracker.worker.RecurringBillWorker>(1, TimeUnit.HOURS)
             .setConstraints(constraints)
             .build()
 
