@@ -25,10 +25,16 @@ android {
   signingConfigs {
     create("release") {
       val keystorePath = System.getenv("KEYSTORE_PATH") ?: "${rootDir}/my-upload-key.jks"
-      storeFile = file(keystorePath)
-      storePassword = System.getenv("STORE_PASSWORD")
-      keyAlias = "upload"
-      keyPassword = System.getenv("KEY_PASSWORD")
+      val storePwd = System.getenv("STORE_PASSWORD")
+      val keyAliasName = System.getenv("KEY_ALIAS") ?: "upload"
+      val keyPwd = System.getenv("KEY_PASSWORD")
+
+      if (storePwd != null && keyPwd != null) {
+        storeFile = file(keystorePath)
+        storePassword = storePwd
+        keyAlias = keyAliasName
+        keyPassword = keyPwd
+      }
     }
   }
 
@@ -37,7 +43,12 @@ android {
       isCrunchPngs = false
       isMinifyEnabled = false
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      signingConfig = signingConfigs.getByName("release")
+      
+      // Only attach signing config if it was actually configured
+      val releaseConfig = signingConfigs.getByName("release")
+      if (releaseConfig.storeFile != null) {
+        signingConfig = releaseConfig
+      }
     }
     debug {
     }
