@@ -78,8 +78,12 @@ object AppModule {
 
     @Provides
     @Singleton
-    fun provideSpendRepository(spendDao: SpendDao, recurringBillDao: RecurringBillDao): SpendRepository {
-        return SpendRepository(spendDao, recurringBillDao)
+    fun provideSpendRepository(
+        spendDao: SpendDao,
+        recurringBillDao: RecurringBillDao,
+        chatDao: ChatDao
+    ): SpendRepository {
+        return SpendRepository(spendDao, recurringBillDao, chatDao)
     }
 
     @Provides

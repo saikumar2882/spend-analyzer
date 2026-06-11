@@ -14,12 +14,13 @@ import kotlinx.coroutines.tasks.await
 
 class SpendRepository(
     private val spendDao: SpendDao,
-    private val recurringBillDao: RecurringBillDao
+    private val recurringBillDao: RecurringBillDao,
+    private val chatDao: ChatDao
 ) {
 
     private val firestore = FirebaseFirestore.getInstance()
-    private val TAG = "SpendRepository"
-    private var syncListener: ListenerRegistration? = null
+    private val tag = "SpendRepository"
+    private val syncListeners = mutableListOf<ListenerRegistration>()
 
     fun getAllSpends(userId: String): Flow<List<Spend>> = spendDao.getAllSpends(userId)
 
@@ -30,40 +31,77 @@ class SpendRepository(
      * Listens for changes in the cloud and updates the local database accordingly.
      */
     fun startSync(userId: String, scope: CoroutineScope) {
-        syncListener?.remove()
-        syncListener = firestore.collection("users")
-            .document(userId)
-            .collection("spends")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) {
-                    Log.w(TAG, "Listen failed.", e)
-                    return@addSnapshotListener
-                }
+        stopSync()
+        
+        val userDoc = firestore.collection("users").document(userId)
 
+        // 1. Spends Listener
+        syncListeners.add(userDoc.collection("spends")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) { Log.w(tag, "Spends listen failed.", e); return@addSnapshotListener }
                 snapshot?.documentChanges?.forEach { change ->
                     val spend = change.document.toObject(Spend::class.java)
                     scope.launch {
                         when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                spendDao.insertSpend(spend)
-                                Log.d(TAG, "Synced from cloud: ${spend.uuid}")
-                            }
-                            DocumentChange.Type.REMOVED -> {
-                                spendDao.deleteSpend(spend)
-                                Log.d(TAG, "Removed from local due to cloud deletion: ${spend.uuid}")
-                            }
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> spendDao.insertSpend(spend)
+                            DocumentChange.Type.REMOVED -> spendDao.deleteSpend(spend)
                         }
                     }
                 }
-            }
+            })
+
+        // 2. Recurring Bills Listener
+        syncListeners.add(userDoc.collection("recurring_bills")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) { Log.w(tag, "Bills listen failed.", e); return@addSnapshotListener }
+                snapshot?.documentChanges?.forEach { change ->
+                    val bill = change.document.toObject(RecurringBill::class.java)
+                    scope.launch {
+                        when (change.type) {
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> recurringBillDao.insertRecurringBill(bill)
+                            DocumentChange.Type.REMOVED -> recurringBillDao.deleteRecurringBill(bill)
+                        }
+                    }
+                }
+            })
+
+        // 3. History Listener
+        syncListeners.add(userDoc.collection("history")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) { Log.w(tag, "History listen failed.", e); return@addSnapshotListener }
+                snapshot?.documentChanges?.forEach { change ->
+                    val history = change.document.toObject(SpendHistory::class.java)
+                    scope.launch {
+                        when (change.type) {
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> spendDao.insertHistory(history)
+                            DocumentChange.Type.REMOVED -> spendDao.deleteHistoryByUuid(history.historyUuid)
+                        }
+                    }
+                }
+            })
+
+        // 4. Chat Messages Listener
+        syncListeners.add(userDoc.collection("chat_messages")
+            .addSnapshotListener { snapshot, e ->
+                if (e != null) { Log.w(tag, "Chat listen failed.", e); return@addSnapshotListener }
+                snapshot?.documentChanges?.forEach { change ->
+                    val message = change.document.toObject(ChatMessage::class.java)
+                    scope.launch {
+                        when (change.type) {
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> chatDao.insertMessage(message)
+                            DocumentChange.Type.REMOVED -> chatDao.deleteMessageByUuid(message.uuid)
+                        }
+                    }
+                }
+            })
     }
 
     /**
-     * Stops the real-time sync listener.
+     * Stops all real-time sync listeners.
      */
     fun stopSync() {
-        syncListener?.remove()
-        syncListener = null
+        syncListeners.forEach { it.remove() }
+        syncListeners.clear()
     }
 
     suspend fun insert(spend: Spend) {
@@ -134,14 +172,58 @@ class SpendRepository(
 
     suspend fun clearHistory(userId: String, type: String) {
         spendDao.deleteHistoryByType(userId, type)
-        // Note: Bulk delete in Firestore would require a batch or cloud function.
-        // For now, we'll let the next sync or manual check handle it if critical.
-        // In a real app, we'd query and delete each document.
+        try {
+            val snapshot = firestore.collection("users")
+                .document(userId)
+                .collection("history")
+                .whereEqualTo("historyType", type)
+                .get()
+                .await()
+            
+            val batch = firestore.batch()
+            snapshot.documents.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+        } catch (e: Exception) {
+            Log.e(tag, "Error clearing history from Firestore: ${e.message}")
+        }
     }
 
-    suspend fun cleanupOldHistory(days: Int = 30) {
+    suspend fun cleanupOldHistory(userId: String, days: Int = 30) {
         val threshold = System.currentTimeMillis() - (days.toLong() * 24 * 60 * 60 * 1000)
         spendDao.deleteOldHistory(threshold)
+        try {
+            val snapshot = firestore.collection("users")
+                .document(userId)
+                .collection("history")
+                .whereLessThan("recordedAt", threshold)
+                .get()
+                .await()
+            
+            val batch = firestore.batch()
+            snapshot.documents.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+        } catch (e: Exception) {
+            Log.e(tag, "Error cleaning up old history from Firestore: ${e.message}")
+        }
+    }
+
+    suspend fun cleanupOldChatMessages(userId: String, hours: Int = 12) {
+        val threshold = System.currentTimeMillis() - (hours.toLong() * 60 * 60 * 1000)
+        chatDao.deleteOldMessages(threshold)
+        try {
+            val snapshot = firestore.collection("users")
+                .document(userId)
+                .collection("chat_messages")
+                .whereLessThan("timestamp", threshold)
+                .get()
+                .await()
+            
+            val batch = firestore.batch()
+            snapshot.documents.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+        } catch (e: Exception) {
+            Log.e(tag, "Error cleaning up old chat messages from Firestore: ${e.message}")
+        }
     }
 
     suspend fun deleteByUuid(uuid: String, userId: String) {
@@ -180,7 +262,7 @@ class SpendRepository(
                 .set(bill)
                 .await()
         } catch (e: Exception) {
-            Log.e(TAG, "Error syncing recurring bill to Firestore: ${e.message}")
+            Log.e(tag, "Error syncing recurring bill to Firestore: ${e.message}")
         }
     }
 
@@ -193,7 +275,7 @@ class SpendRepository(
                 .delete()
                 .await()
         } catch (e: Exception) {
-            Log.e(TAG, "Error removing recurring bill from Firestore: ${e.message}")
+            Log.e(tag, "Error removing recurring bill from Firestore: ${e.message}")
         }
     }
 
@@ -210,9 +292,9 @@ class SpendRepository(
                 .document(spend.uuid)
                 .set(spend)
                 .await()
-            Log.d(TAG, "Successfully synced spend to Firestore: ${spend.uuid}")
+            Log.d(tag, "Successfully synced spend to Firestore: ${spend.uuid}")
         } catch (e: Exception) {
-            Log.e(TAG, "Error syncing to Firestore: ${e.message}", e)
+            Log.e(tag, "Error syncing to Firestore: ${e.message}", e)
         }
     }
 
@@ -228,9 +310,9 @@ class SpendRepository(
                 .document(uuid)
                 .delete()
                 .await()
-            Log.d(TAG, "Successfully removed spend from Firestore: $uuid")
+            Log.d(tag, "Successfully removed spend from Firestore: $uuid")
         } catch (e: Exception) {
-            Log.e(TAG, "Error removing from Firestore: ${e.message}", e)
+            Log.e(tag, "Error removing from Firestore: ${e.message}", e)
         }
     }
 
@@ -243,7 +325,7 @@ class SpendRepository(
                 .set(history)
                 .await()
         } catch (e: Exception) {
-            Log.e(TAG, "Error syncing history to Firestore: ${e.message}")
+            Log.e(tag, "Error syncing history to Firestore: ${e.message}")
         }
     }
 
@@ -256,7 +338,43 @@ class SpendRepository(
                 .delete()
                 .await()
         } catch (e: Exception) {
-            Log.e(TAG, "Error removing history from Firestore: ${e.message}")
+            Log.e(tag, "Error removing history from Firestore: ${e.message}")
+        }
+    }
+
+    suspend fun insertChatMessage(message: ChatMessage) {
+        chatDao.insertMessage(message)
+        syncChatMessageToFirestore(message)
+    }
+
+    private suspend fun syncChatMessageToFirestore(message: ChatMessage) {
+        try {
+            firestore.collection("users")
+                .document(message.userId)
+                .collection("chat_messages")
+                .document(message.uuid)
+                .set(message)
+                .await()
+        } catch (e: Exception) {
+            Log.e(tag, "Error syncing chat message to Firestore: ${e.message}")
+        }
+    }
+
+    suspend fun deleteChatMessage(message: ChatMessage) {
+        chatDao.deleteMessageByUuid(message.uuid)
+        removeChatMessageFromFirestore(message)
+    }
+
+    private suspend fun removeChatMessageFromFirestore(message: ChatMessage) {
+        try {
+            firestore.collection("users")
+                .document(message.userId)
+                .collection("chat_messages")
+                .document(message.uuid)
+                .delete()
+                .await()
+        } catch (e: Exception) {
+            Log.e(tag, "Error removing chat message from Firestore: ${e.message}")
         }
     }
 }

@@ -733,10 +733,10 @@ fun MainContainer(
                             onShareApp = {
                                 val sendIntent: Intent = Intent().apply {
                                     action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, "Check out Spendly, the smart way to track your expenses! Download it here: https://github.com/saikumar2882/spend-analyzer/releases")
+                                    putExtra(Intent.EXTRA_TEXT, "Take control of your finances with Spendly! 🚀\n\nDownload the latest version here: https://github.com/saikumar2882/spend-analyzer/releases/latest")
                                     type = "text/plain"
                                 }
-                                val shareIntent = Intent.createChooser(sendIntent, null)
+                                val shareIntent = Intent.createChooser(sendIntent, "Share Spendly via")
                                 context.startActivity(shareIntent)
                             },
                             onRecurringBillsClick = { activeView = ActiveView.RECURRING_BILLS }

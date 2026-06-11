@@ -99,13 +99,16 @@ class SpendViewModel @Inject constructor(
 
         // Periodic cleanup of old chat messages (12h TTL)
         viewModelScope.launch {
-            val threshold = System.currentTimeMillis() - (12 * 60 * 60 * 1000)
-            chatDao.deleteOldMessages(threshold)
+            auth.currentUser?.uid?.let { uid ->
+                repository.cleanupOldChatMessages(uid, 12)
+            }
         }
 
         // Cleanup old history (30 days)
         viewModelScope.launch {
-            repository.cleanupOldHistory(30)
+            auth.currentUser?.uid?.let { uid ->
+                repository.cleanupOldHistory(uid, 30)
+            }
         }
     }
 
@@ -250,7 +253,7 @@ class SpendViewModel @Inject constructor(
 
             // 2. Insert User Message
             val userMsg = ChatMessage(userId = userId, text = question, isFromUser = true, sessionId = currentSessionId)
-            val userMsgId = chatDao.insertMessage(userMsg)
+            repository.insertChatMessage(userMsg)
             _historyStatus.value = AiHistoryStatus.Analyzing
 
             // 3. Prepare Context
@@ -340,7 +343,7 @@ class SpendViewModel @Inject constructor(
                         val geminiKey = remoteConfig.getString("gemini_api_key")
                         if (geminiKey.isBlank()) {
                             _historyStatus.value = AiHistoryStatus.Error("AI configuration is missing.", AiErrorType.API_KEY_MISSING)
-                            chatDao.deleteMessageById(userMsgId)
+                            repository.deleteChatMessage(userMsg)
                             return@launch
                         }
                         val generativeModel = GenerativeModel(modelName = "gemini-3.5-flash", apiKey = geminiKey)
@@ -366,7 +369,7 @@ class SpendViewModel @Inject constructor(
             }
 
             if (!responseText.isNullOrBlank()) {
-                chatDao.insertMessage(ChatMessage(userId = userId, text = responseText, isFromUser = false, sessionId = currentSessionId))
+                repository.insertChatMessage(ChatMessage(userId = userId, text = responseText, isFromUser = false, sessionId = currentSessionId))
                 _historyStatus.value = AiHistoryStatus.Idle
             } else if (lastError != null) {
                 val e = lastError
@@ -395,7 +398,7 @@ class SpendViewModel @Inject constructor(
                 }
 
                 _historyStatus.value = AiHistoryStatus.Error(userFriendlyMsg, errorType)
-                chatDao.deleteMessageById(userMsgId)
+                repository.deleteChatMessage(userMsg)
             }
         }
     }
