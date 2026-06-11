@@ -17,7 +17,8 @@ data class AiPreferences(
     val dailyUsageCount: Int = 0,
     val lastUsageDate: Long = 0L,
     val isConfigured: Boolean = false,
-    val isBiometricEnabled: Boolean = false
+    val isBiometricEnabled: Boolean = false,
+    val lastUpdateDismissedAt: Long = 0L
 )
 
 class AiPreferencesRepository(private val context: Context) {
@@ -30,6 +31,7 @@ class AiPreferencesRepository(private val context: Context) {
         val LAST_USAGE_DATE = longPreferencesKey("last_usage_date")
         val IS_CONFIGURED = booleanPreferencesKey("is_configured")
         val IS_BIOMETRIC_ENABLED = booleanPreferencesKey("is_biometric_enabled")
+        val LAST_UPDATE_DISMISSED_AT = longPreferencesKey("last_update_dismissed_at")
     }
 
     val aiPreferencesFlow: Flow<AiPreferences> = context.dataStore.data
@@ -48,7 +50,8 @@ class AiPreferencesRepository(private val context: Context) {
                 dailyUsageCount = finalCount,
                 lastUsageDate = lastDate,
                 isConfigured = preferences[PreferencesKeys.IS_CONFIGURED] ?: false,
-                isBiometricEnabled = preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] ?: false
+                isBiometricEnabled = preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] ?: false,
+                lastUpdateDismissedAt = preferences[PreferencesKeys.LAST_UPDATE_DISMISSED_AT] ?: 0L
             )
         }
 
@@ -64,6 +67,12 @@ class AiPreferencesRepository(private val context: Context) {
     suspend fun updateBiometricEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updateLastUpdateDismissedAt() {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_UPDATE_DISMISSED_AT] = System.currentTimeMillis()
         }
     }
 

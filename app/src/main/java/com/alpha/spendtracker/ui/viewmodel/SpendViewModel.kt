@@ -421,6 +421,12 @@ class SpendViewModel @Inject constructor(
         }
     }
 
+    fun updateLastUpdateDismissedAt() {
+        viewModelScope.launch {
+            aiPrefsRepository.updateLastUpdateDismissedAt()
+        }
+    }
+
     private val remoteConfig by lazy {
         FirebaseRemoteConfig.getInstance().apply {
             val configSettings = remoteConfigSettings {

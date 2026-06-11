@@ -386,12 +386,18 @@ fun MainContainer(
     var showGitHubUpdateDialog by remember { mutableStateOf<String?>(null) }
     val updateChecker = remember { UpdateChecker(context) }
 
-    LaunchedEffect(Unit) {
+    LaunchedEffect(aiPrefs.lastUpdateDismissedAt) {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         val currentVersion = packageInfo.versionName ?: "0.0.0"
-        val updateUrl = updateChecker.checkForUpdates(currentVersion)
-        if (updateUrl != null) {
-            showGitHubUpdateDialog = updateUrl
+        
+        val now = System.currentTimeMillis()
+        val lastDismissed = aiPrefs.lastUpdateDismissedAt
+        // Check if 24 hours have passed since last dismissal
+        if (now - lastDismissed > 24 * 60 * 60 * 1000) {
+            val updateUrl = updateChecker.checkForUpdates(currentVersion)
+            if (updateUrl != null) {
+                showGitHubUpdateDialog = updateUrl
+            }
         }
     }
 
@@ -407,7 +413,10 @@ fun MainContainer(
                 }) { Text("Download") }
             },
             dismissButton = {
-                TextButton(onClick = { showGitHubUpdateDialog = null }) { Text("Later") }
+                TextButton(onClick = { 
+                    viewModel.updateLastUpdateDismissedAt()
+                    showGitHubUpdateDialog = null 
+                }) { Text("Later") }
             }
         )
     }

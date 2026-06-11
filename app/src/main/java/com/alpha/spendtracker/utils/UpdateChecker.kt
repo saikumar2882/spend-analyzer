@@ -34,6 +34,18 @@ class UpdateChecker(private val context: Context) {
                     val latestVersion = json.getString("tag_name").removePrefix("v")
                     
                     if (isNewerVersion(currentVersion, latestVersion)) {
+                        // Try to find a direct APK link in assets
+                        val assets = json.optJSONArray("assets")
+                        if (assets != null) {
+                            for (i in 0 until assets.length()) {
+                                val asset = assets.getJSONObject(i)
+                                val name = asset.getString("name")
+                                if (name.endsWith(".apk")) {
+                                    return@withContext asset.getString("browser_download_url")
+                                }
+                            }
+                        }
+                        // Fallback to the release page
                         return@withContext json.getString("html_url")
                     }
                 }
