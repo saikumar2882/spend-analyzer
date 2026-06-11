@@ -26,6 +26,18 @@ service cloud.firestore {
           && request.resource.data.userId == request.auth.uid;
       }
 
+      match /recurring_bills/{billId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+
+      match /history/{historyId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+
+      match /chat_messages/{msgId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+
       // If you decide to store user-specific AI usage or profile data here:
       match /profile/{docId} {
         allow read, write: if isAuthenticated() && isOwner(userId);

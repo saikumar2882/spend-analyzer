@@ -10,9 +10,9 @@ import java.util.UUID
 @Entity(tableName = "chat_messages")
 data class ChatMessage(
     @PrimaryKey val uuid: String = UUID.randomUUID().toString(),
-    val userId: String,
-    val text: String,
-    val isFromUser: Boolean,
+    val userId: String = "",
+    val text: String = "",
+    val isFromUser: Boolean = false,
     val timestamp: Long = System.currentTimeMillis(),
-    val sessionId: String
+    val sessionId: String = ""
 )
