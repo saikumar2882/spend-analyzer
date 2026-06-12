@@ -109,6 +109,8 @@ class MainActivity : FragmentActivity() {
     private lateinit var appUpdateManager: AppUpdateManager
     private val MY_UPDATE_REQUEST_CODE = 1001
 
+    private var isBiometricPromptShowing = false
+
     private val requestPermissionLauncher = registerForActivityResult(
         ActivityResultContracts.RequestPermission()
     ) { isGranted: Boolean ->
@@ -185,20 +187,26 @@ class MainActivity : FragmentActivity() {
     }
 
     fun showBiometricPrompt(onSuccess: () -> Unit) {
+        if (isBiometricPromptShowing) return
+        isBiometricPromptShowing = true
+
         val executor = ContextCompat.getMainExecutor(this)
         val biometricPrompt = BiometricPrompt(this, executor,
             object : BiometricPrompt.AuthenticationCallback() {
                 override fun onAuthenticationError(errorCode: Int, errString: CharSequence) {
                     super.onAuthenticationError(errorCode, errString)
+                    isBiometricPromptShowing = false
                 }
 
                 override fun onAuthenticationSucceeded(result: BiometricPrompt.AuthenticationResult) {
                     super.onAuthenticationSucceeded(result)
+                    isBiometricPromptShowing = false
                     onSuccess()
                 }
 
                 override fun onAuthenticationFailed() {
                     super.onAuthenticationFailed()
+                    isBiometricPromptShowing = false
                 }
             })
 
@@ -401,14 +409,15 @@ fun MainContainer(
         }
     }
 
-    if (showGitHubUpdateDialog != null) {
+    val updateUrl = showGitHubUpdateDialog
+    if (updateUrl != null) {
         AlertDialog(
             onDismissRequest = { showGitHubUpdateDialog = null },
             title = { Text("New Update Available") },
             text = { Text("A newer version of Spendly is available on GitHub. Would you like to download it now?") },
             confirmButton = {
                 Button(onClick = {
-                    updateChecker.openUpdateUrl(showGitHubUpdateDialog!!)
+                    updateChecker.openUpdateUrl(updateUrl)
                     showGitHubUpdateDialog = null
                 }) { Text("Download") }
             },
@@ -508,11 +517,6 @@ fun MainContainer(
                 runCatching {
                     if (aiInputSheetState.isVisible) aiInputSheetState.hide()
                 }
-            }.invokeOnCompletion {
-                // Remove the sheet from composition after the hide animation
-                // settles. We deliberately don't null `discardCallback` here:
-                // a fresh dismiss flow may have taken over by the time this
-                // fires, and clobbering it leaves the next Discard tap a no-op.
                 showAiInput = false
             }
         }
@@ -526,7 +530,6 @@ fun MainContainer(
                 runCatching {
                     if (aiConfirmationSheetState.isVisible) aiConfirmationSheetState.hide()
                 }
-            }.invokeOnCompletion {
                 aiProcessingResult = null
                 viewModel.clearAiResult()
             }
@@ -541,7 +544,6 @@ fun MainContainer(
                 runCatching {
                     if (billTrackingSheetState.isVisible) billTrackingSheetState.hide()
                 }
-            }.invokeOnCompletion {
                 showBillTrackingSheet = false
                 prefilledBillSpend = null
             }
@@ -570,18 +572,20 @@ fun MainContainer(
                             runCatching {
                                 if (aiInputSheetState.isVisible) aiInputSheetState.hide()
                             }
+                            aiProcessingResult = extracted
+                            showAiInput = false
                         }
-                        aiProcessingResult = extracted
-                        showAiInput = false
                         showNotification("Authenticated! Check AI results.", NotificationType.SUCCESS)
                     }
                 } else {
                     // Already authenticated or biometrics disabled
-                    runCatching {
-                        if (aiInputSheetState.isVisible) aiInputSheetState.hide()
+                    scope.launch {
+                        runCatching {
+                            if (aiInputSheetState.isVisible) aiInputSheetState.hide()
+                        }
+                        aiProcessingResult = extracted
+                        showAiInput = false
                     }
-                    aiProcessingResult = extracted
-                    showAiInput = false
                     showNotification("AI processed input successfully!", NotificationType.SUCCESS)
                 }
             } else {
@@ -881,14 +885,15 @@ fun MainContainer(
             )
         }
 
-        if (aiProcessingResult != null) {
+        val currentAiConfirmationResult = aiProcessingResult
+        if (currentAiConfirmationResult != null) {
             ModalBottomSheet(
                 onDismissRequest = dismissAiConfirmation,
                 sheetState = aiConfirmationSheetState,
                 dragHandle = { BottomSheetDefaults.DragHandle() }
             ) {
                 AiConfirmationScreen(
-                    extractedData = aiProcessingResult!!,
+                    extractedData = currentAiConfirmationResult,
                     onShowNotification = { msg, type -> showNotification(msg, type) },
                     onConfirm = { newSpend ->
                         viewModel.addSpend(
@@ -904,7 +909,6 @@ fun MainContainer(
                             runCatching {
                                 if (aiConfirmationSheetState.isVisible) aiConfirmationSheetState.hide()
                             }
-                        }.invokeOnCompletion {
                             aiProcessingResult = null
                             viewModel.clearAiResult()
                         }
@@ -914,11 +918,12 @@ fun MainContainer(
             }
         }
 
-        if (showBillTrackingSheet && prefilledBillSpend != null) {
+        val currentBillToTrack = prefilledBillSpend
+        if (showBillTrackingSheet && currentBillToTrack != null) {
             BillTrackingBottomSheet(
                 show = showBillTrackingSheet,
                 sheetState = billTrackingSheetState,
-                prefilledSpend = prefilledBillSpend!!,
+                prefilledSpend = currentBillToTrack,
                 onConfirm = { newSpend ->
                     viewModel.addSpend(
                         appName = if (newSpend.preset.id == "other") newSpend.customAppName else newSpend.preset.displayName,
@@ -933,7 +938,6 @@ fun MainContainer(
                         runCatching {
                             if (billTrackingSheetState.isVisible) billTrackingSheetState.hide()
                         }
-                    }.invokeOnCompletion {
                         showBillTrackingSheet = false
                         prefilledBillSpend = null
                     }

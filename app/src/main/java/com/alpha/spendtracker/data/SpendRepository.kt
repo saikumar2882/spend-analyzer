@@ -109,6 +109,7 @@ class SpendRepository(
         val existing = spendDao.getSpendByUuid(spend.uuid)
         if (existing != null && (existing.amount != spend.amount || existing.notes != spend.notes || existing.purpose != spend.purpose)) {
             val history = SpendHistory(
+                historyUuid = java.util.UUID.randomUUID().toString(),
                 spendUuid = existing.uuid,
                 userId = existing.userId,
                 appName = existing.appName,
@@ -117,7 +118,8 @@ class SpendRepository(
                 category = existing.category,
                 timestamp = existing.timestamp,
                 notes = existing.notes,
-                historyType = HistoryType.UPDATED
+                historyType = HistoryType.UPDATED,
+                recordedAt = System.currentTimeMillis()
             )
             spendDao.insertHistory(history)
             syncHistoryToFirestore(history)
@@ -130,6 +132,7 @@ class SpendRepository(
     suspend fun delete(spend: Spend) {
         // Move to history
         val history = SpendHistory(
+            historyUuid = java.util.UUID.randomUUID().toString(),
             spendUuid = spend.uuid,
             userId = spend.userId,
             appName = spend.appName,
@@ -138,7 +141,8 @@ class SpendRepository(
             category = spend.category,
             timestamp = spend.timestamp,
             notes = spend.notes,
-            historyType = HistoryType.DELETED
+            historyType = HistoryType.DELETED,
+            recordedAt = System.currentTimeMillis()
         )
         spendDao.insertHistory(history)
         syncHistoryToFirestore(history)

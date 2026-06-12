@@ -137,15 +137,17 @@ class SpendViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    fun addRecurringBill(name: String, purpose: String, category: String, appName: String, recurringDay: Int, notes: String = "") {
+    fun addRecurringBill(name: String, purpose: String, category: String, appName: String, amount: Double, dayOfMonth: Int, notes: String = "") {
         viewModelScope.launch {
             val bill = RecurringBill(
+                uuid = java.util.UUID.randomUUID().toString(),
                 userId = _userId.value,
                 name = name,
                 purpose = purpose,
                 category = category,
                 appName = appName,
-                recurringDay = recurringDay,
+                amount = amount,
+                dayOfMonth = dayOfMonth,
                 notes = notes
             )
             repository.insertRecurringBill(bill)
@@ -252,11 +254,66 @@ class SpendViewModel @Inject constructor(
             }
 
             // 2. Insert User Message
-            val userMsg = ChatMessage(userId = userId, text = question, isFromUser = true, sessionId = currentSessionId)
+            val userMsg = ChatMessage(
+                uuid = java.util.UUID.randomUUID().toString(),
+                userId = userId,
+                text = question,
+                fromUser = true,
+                timestamp = System.currentTimeMillis(),
+                sessionId = currentSessionId
+            )
             repository.insertChatMessage(userMsg)
             _historyStatus.value = AiHistoryStatus.Analyzing
 
-            // 3. Prepare Context
+            // 3. Proxy/Audit Layer: Intent Classification
+            // We use a small, fast model to check if the question is within the Spendley domain.
+            var isOffTopic = false
+            try {
+                remoteConfig.fetchAndActivate().await()
+                val groqKey = remoteConfig.getString("groq_api_key")
+                if (groqKey.isNotBlank()) {
+                    val classificationPrompt = """
+                        Classify the following user question for a personal finance app.
+                        Respond with ONLY "FINANCIAL" if it's about spending, budgets, history, or lend/borrow.
+                        Respond with "OFF_TOPIC" for anything else (general knowledge, coding, chat, math not related to data, etc.).
+                        
+                        QUESTION: "$question"
+                    """.trimIndent()
+                    
+                    val classifierRequest = GroqRequest(
+                        model = "llama-3.1-8b-instant",
+                        messages = listOf(GroqMessage("user", classificationPrompt)),
+                        temperature = 0.0
+                    )
+                    val response = groqApiService.getCompletion("Bearer $groqKey", classifierRequest)
+                    if (response.isSuccessful) {
+                        val result = response.body()?.choices?.firstOrNull()?.message?.content?.trim()?.uppercase()
+                        if (result == "OFF_TOPIC") {
+                            isOffTopic = true
+                        }
+                    }
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Classification failed, continuing with strict prompt: ${e.message}")
+            }
+
+            if (isOffTopic) {
+                val offTopicResponse = "I can only help with Spendley-related information, such as your transactions, budgets, and spending analytics. Please ask something about your finances! 🚀"
+                repository.insertChatMessage(
+                    ChatMessage(
+                        uuid = java.util.UUID.randomUUID().toString(),
+                        userId = userId,
+                        text = offTopicResponse,
+                        fromUser = false,
+                        timestamp = System.currentTimeMillis(),
+                        sessionId = currentSessionId
+                    )
+                )
+                _historyStatus.value = AiHistoryStatus.Idle
+                return@launch
+            }
+
+            // 4. Prepare Context (Only if on-topic)
             val allSpends = allSpendsFlow.value
             val filteredSpends = filterSpendsByQuery(allSpends, question)
             val historyPrefs = aiPreferences.value
@@ -279,7 +336,7 @@ class SpendViewModel @Inject constructor(
                 }
             }
 
-            // 4. Call AI (Prefer Groq/Llama for open-source & speed) with Retry logic
+            // 5. Call AI (Prefer Groq/Llama for open-source & speed) with Retry logic
             var responseText: String? = null
             var lastError: Exception? = null
 
@@ -287,7 +344,6 @@ class SpendViewModel @Inject constructor(
                 if (responseText != null) break
                 
                 try {
-                    remoteConfig.fetchAndActivate().await()
                     val groqKey = remoteConfig.getString("groq_api_key")
 
                     val systemPrompt = """
@@ -309,6 +365,7 @@ class SpendViewModel @Inject constructor(
                         - For trend questions, derive day-over-day or week-over-week patterns from the data when available.
                         - If data is insufficient to answer precisely, state it briefly and suggest what time range would help.
                         - Never fabricate transactions or amounts not present in the data.
+                        - If the question is outside the scope of personal finance/transactions, politely decline.
 
                         RESPONSE FORMAT:
                         - Use **bold** for amounts, category names, app names, and key numbers.
@@ -346,7 +403,7 @@ class SpendViewModel @Inject constructor(
                             repository.deleteChatMessage(userMsg)
                             return@launch
                         }
-                        val generativeModel = GenerativeModel(modelName = "gemini-3.5-flash", apiKey = geminiKey)
+                        val generativeModel = GenerativeModel(modelName = "gemini-1.5-flash", apiKey = geminiKey)
                         responseText = generativeModel.generateContent(content {
                             text(systemPrompt)
                             text("USER QUESTION: \"$question\"")
@@ -369,7 +426,16 @@ class SpendViewModel @Inject constructor(
             }
 
             if (!responseText.isNullOrBlank()) {
-                repository.insertChatMessage(ChatMessage(userId = userId, text = responseText, isFromUser = false, sessionId = currentSessionId))
+                repository.insertChatMessage(
+                    ChatMessage(
+                        uuid = java.util.UUID.randomUUID().toString(),
+                        userId = userId,
+                        text = responseText,
+                        fromUser = false,
+                        timestamp = System.currentTimeMillis(),
+                        sessionId = currentSessionId
+                    )
+                )
                 _historyStatus.value = AiHistoryStatus.Idle
             } else if (lastError != null) {
                 val e = lastError
@@ -704,6 +770,7 @@ class SpendViewModel @Inject constructor(
     ) {
         viewModelScope.launch {
             val spend = Spend(
+                uuid = java.util.UUID.randomUUID().toString(),
                 userId = _userId.value,
                 appName = appName,
                 amount = amount,

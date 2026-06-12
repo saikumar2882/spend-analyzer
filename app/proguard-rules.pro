@@ -16,6 +16,11 @@
 # debugging stack traces.
 #-keepattributes SourceFile,LineNumberTable
 
-# If you keep the line number information, uncomment this to
-# hide the original source file name.
-#-renamesourcefileattribute SourceFile
+# Keep the no-argument constructor for Firestore models
+-keepclassmembers class com.alpha.spendtracker.data.** {
+    !static <fields>;
+    public <init>();
+}
+
+# Alternatively, keep the entire data class package
+-keep class com.alpha.spendtracker.data.** { *; }

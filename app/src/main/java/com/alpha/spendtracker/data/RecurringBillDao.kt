@@ -14,7 +14,7 @@ interface RecurringBillDao {
     @Delete
     suspend fun deleteRecurringBill(bill: RecurringBill)
 
-    @Query("SELECT * FROM recurring_bills WHERE recurringDay = :day")
+    @Query("SELECT * FROM recurring_bills WHERE dayOfMonth = :day")
     suspend fun getBillsDueOn(day: Int): List<RecurringBill>
 
     @Query("SELECT * FROM spends WHERE userId = :userId AND appName = :appName AND purpose = :purpose AND timestamp >= :startTime AND timestamp <= :endTime LIMIT 1")

@@ -56,7 +56,7 @@ fun AiHistoryAssistantSheet(
     // Calculate remaining messages in current session (Limit is 7)
     val lastMessage = messages.lastOrNull()
     val userMessagesInCurrentSession = if (lastMessage != null) {
-        messages.count { it.sessionId == lastMessage.sessionId && it.isFromUser }
+        messages.count { it.sessionId == lastMessage.sessionId && it.fromUser }
     } else 0
     val remainingMessages = (7 - userMessagesInCurrentSession).coerceAtLeast(0)
 
@@ -353,7 +353,7 @@ fun ChatBubble(
     message: ChatMessage,
     onCopy: () -> Unit
 ) {
-    val isUser = message.isFromUser
+    val isUser = message.fromUser
     val arrangement = if (isUser) Arrangement.End else Arrangement.Start
     
     val locale = LocalConfiguration.current.locales[0]

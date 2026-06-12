@@ -30,7 +30,7 @@ import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 fun RecurringBillsScreen(
     bills: List<RecurringBill>,
     onBack: () -> Unit,
-    onAddBill: (String, String, String, String, Int, String) -> Unit,
+    onAddBill: (String, String, String, String, Double, Int, String) -> Unit,
     onUpdateBill: (RecurringBill) -> Unit,
     onDeleteBill: (RecurringBill) -> Unit
 ) {
@@ -107,14 +107,14 @@ fun RecurringBillsScreen(
                     showAddDialog = false
                     editingBill = null
                 },
-                onSave = { name, purpose, category, app, day, notes ->
+                onSave = { name, purpose, category, app, amount, day, notes ->
                     if (editingBill != null) {
                         onUpdateBill(editingBill!!.copy(
                             name = name, purpose = purpose,
-                            category = category, appName = app, recurringDay = day, notes = notes
+                            category = category, appName = app, amount = amount, dayOfMonth = day, notes = notes
                         ))
                     } else {
-                        onAddBill(name, purpose, category, app, day, notes)
+                        onAddBill(name, purpose, category, app, amount, day, notes)
                     }
                     showAddDialog = false
                     editingBill = null
@@ -141,7 +141,7 @@ fun RecurringBillItem(
         ) {
             Column(modifier = Modifier.weight(1f)) {
                 Text(bill.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Due on ${bill.recurringDay}${getDaySuffix(bill.recurringDay)}", style = MaterialTheme.typography.bodyMedium)
+                Text("Due on ${bill.dayOfMonth}${getDaySuffix(bill.dayOfMonth)}", style = MaterialTheme.typography.bodyMedium)
                 Text(bill.appName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
             }
             IconButton(onClick = { onEdit(bill) }) {
@@ -159,12 +159,13 @@ fun RecurringBillItem(
 fun BillEditDialog(
     bill: RecurringBill?,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, Int, String) -> Unit
+    onSave: (String, String, String, String, Double, Int, String) -> Unit
 ) {
     var name by remember { mutableStateOf(bill?.name ?: "") }
     var purpose by remember { mutableStateOf(bill?.purpose ?: PURPOSE_PRESETS.first()) }
     var appName by remember { mutableStateOf(bill?.appName ?: APP_PRESETS.first().displayName) }
-    var day by remember { mutableStateOf(bill?.recurringDay?.toString() ?: "1") }
+    var amount by remember { mutableStateOf(bill?.amount?.toString() ?: "") }
+    var day by remember { mutableStateOf(bill?.dayOfMonth?.toString() ?: "1") }
     var notes by remember { mutableStateOf(bill?.notes ?: "") }
 
     AlertDialog(
@@ -174,6 +175,14 @@ fun BillEditDialog(
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Bill Name") }, singleLine = true)
                 
+                OutlinedTextField(
+                    value = amount,
+                    onValueChange = { if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) amount = it },
+                    label = { Text("Amount (Optional)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true
+                )
+
                 var appExpanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(expanded = appExpanded, onExpandedChange = { appExpanded = it }) {
                     OutlinedTextField(
@@ -228,8 +237,9 @@ fun BillEditDialog(
             Button(
                 onClick = {
                     val d = day.toIntOrNull() ?: 1
+                    val a = amount.toDoubleOrNull() ?: 0.0
                     val category = APP_PRESETS.find { it.displayName == appName }?.category ?: "Other"
-                    onSave(name, purpose, category, appName, d, notes)
+                    onSave(name, purpose, category, appName, a, d, notes)
                 },
                 enabled = name.isNotBlank() && day.isNotBlank()
             ) {
@@ -243,6 +253,7 @@ fun BillEditDialog(
 }
 
 fun getDaySuffix(day: Int): String {
+    if (day <= 0) return ""
     if (day in 11..13) return "th"
     return when (day % 10) {
         1 -> "st"
