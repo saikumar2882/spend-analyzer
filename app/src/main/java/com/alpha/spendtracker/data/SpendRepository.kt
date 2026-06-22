@@ -43,7 +43,14 @@ class SpendRepository(
                     val spend = change.document.toObject(Spend::class.java)
                     scope.launch {
                         when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> spendDao.insertSpend(spend)
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
+                                // Last-write-wins: only apply the cloud copy if it is strictly
+                                // newer than the local row. Otherwise the local edit is preserved.
+                                val localUpdatedAt = spendDao.getSpendUpdatedAt(spend.uuid)
+                                if (localUpdatedAt == null || spend.updatedAt > localUpdatedAt) {
+                                    spendDao.insertSpend(spend)
+                                }
+                            }
                             DocumentChange.Type.REMOVED -> spendDao.deleteSpend(spend)
                         }
                     }
@@ -58,7 +65,13 @@ class SpendRepository(
                     val bill = change.document.toObject(RecurringBill::class.java)
                     scope.launch {
                         when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> recurringBillDao.insertRecurringBill(bill)
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
+                                // Last-write-wins: only apply the cloud copy if it is strictly newer.
+                                val localUpdatedAt = recurringBillDao.getRecurringBillUpdatedAt(bill.uuid)
+                                if (localUpdatedAt == null || bill.updatedAt > localUpdatedAt) {
+                                    recurringBillDao.insertRecurringBill(bill)
+                                }
+                            }
                             DocumentChange.Type.REMOVED -> recurringBillDao.deleteRecurringBill(bill)
                         }
                     }
@@ -105,6 +118,8 @@ class SpendRepository(
     }
 
     suspend fun insert(spend: Spend) {
+        // Stamp the local mutation time so last-write-wins sync can resolve conflicts.
+        val spend = spend.copy(updatedAt = System.currentTimeMillis())
         // For updates, we log the previous state
         val existing = spendDao.getSpendByUuid(spend.uuid)
         if (existing != null && (existing.amount != spend.amount || existing.notes != spend.notes || existing.purpose != spend.purpose)) {
@@ -160,7 +175,9 @@ class SpendRepository(
             purpose = history.purpose,
             category = history.category,
             timestamp = history.timestamp,
-            notes = history.notes
+            notes = history.notes,
+            // Restoring is a fresh mutation, so stamp it as the newest write.
+            updatedAt = System.currentTimeMillis()
         )
         spendDao.insertSpend(spend)
         syncToFirestore(spend)
@@ -243,6 +260,8 @@ class SpendRepository(
     fun getAllRecurringBills(userId: String): Flow<List<RecurringBill>> = recurringBillDao.getAllRecurringBills(userId)
 
     suspend fun insertRecurringBill(bill: RecurringBill) {
+        // Stamp the local mutation time so last-write-wins sync can resolve conflicts.
+        val bill = bill.copy(updatedAt = System.currentTimeMillis())
         recurringBillDao.insertRecurringBill(bill)
         syncRecurringBillToFirestore(bill)
     }
@@ -284,6 +303,8 @@ class SpendRepository(
     }
 
     suspend fun updateRecurringBill(bill: RecurringBill) {
+        // Stamp the local mutation time so last-write-wins sync can resolve conflicts.
+        val bill = bill.copy(updatedAt = System.currentTimeMillis())
         recurringBillDao.insertRecurringBill(bill)
         syncRecurringBillToFirestore(bill)
     }

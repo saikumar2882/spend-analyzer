@@ -16,8 +16,8 @@ android {
     applicationId = "com.alpha.spendtracker"
     minSdk = 24
     targetSdk = 37
-    versionCode = 5
-    versionName = "1.0.5"
+    versionCode = 8
+    versionName = "1.0.8"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -41,7 +41,8 @@ android {
   buildTypes {
     release {
       isCrunchPngs = false
-      isMinifyEnabled = false
+      isMinifyEnabled = true
+      isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
       
       // Only attach signing config if it was actually configured

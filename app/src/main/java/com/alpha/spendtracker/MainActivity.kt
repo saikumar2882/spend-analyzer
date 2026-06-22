@@ -83,6 +83,7 @@ import com.alpha.spendtracker.ui.screens.LendBorrowScreen
 import com.alpha.spendtracker.ui.screens.LoginScreen
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.ui.screens.RecurringBillsScreen
+import com.alpha.spendtracker.ui.screens.SettingsScreen
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.alpha.spendtracker.ui.theme.isDark
@@ -101,7 +102,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND, LEND_BORROW_HISTORY, RECURRING_BILLS }
+enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND, LEND_BORROW_HISTORY, RECURRING_BILLS, SETTINGS }
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -391,40 +392,52 @@ fun MainContainer(
     val deletedHistory by viewModel.deletedHistory.collectAsStateWithLifecycle()
     val updatedHistory by viewModel.updatedHistory.collectAsStateWithLifecycle()
 
-    var showGitHubUpdateDialog by remember { mutableStateOf<String?>(null) }
+    // Memoize derived spend lists so they aren't reallocated on every recomposition of
+    // MainContainer. Reallocating would hand a new list instance to DashboardScreen/HistoryScreen
+    // each frame, defeating Compose's skipping.
+    val nonLendBorrowSpends = remember(allSpends) {
+        allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
+    }
+    val recentSpends = remember(nonLendBorrowSpends) {
+        nonLendBorrowSpends.take(5)
+    }
+
+    var pendingUpdate by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
     val updateChecker = remember { UpdateChecker(context) }
 
-    LaunchedEffect(aiPrefs.lastUpdateDismissedAt) {
+    // Check once per signed-in session. Suppression is per-version (not time-based): we read the
+    // dismissed version inside without keying on it, so dismissing the dialog doesn't re-fire the
+    // network check — the user is only ever prompted once for a given release.
+    LaunchedEffect(currentUser) {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         val currentVersion = packageInfo.versionName ?: "0.0.0"
-        
-        val now = System.currentTimeMillis()
-        val lastDismissed = aiPrefs.lastUpdateDismissedAt
-        // Check if 24 hours have passed since last dismissal
-        if (now - lastDismissed > 24 * 60 * 60 * 1000) {
-            val updateUrl = updateChecker.checkForUpdates(currentVersion)
-            if (updateUrl != null) {
-                showGitHubUpdateDialog = updateUrl
-            }
+
+        val update = updateChecker.checkForUpdates(currentVersion)
+        // Only surface the dialog if a strictly newer version exists AND it isn't one the user
+        // already dismissed or downloaded.
+        if (update != null && update.version != aiPrefs.dismissedUpdateVersion) {
+            pendingUpdate = update
         }
     }
 
-    val updateUrl = showGitHubUpdateDialog
-    if (updateUrl != null) {
+    val update = pendingUpdate
+    if (update != null) {
         AlertDialog(
-            onDismissRequest = { showGitHubUpdateDialog = null },
+            onDismissRequest = { pendingUpdate = null },
             title = { Text("New Update Available") },
-            text = { Text("A newer version of Spendly is available on GitHub. Would you like to download it now?") },
+            text = { Text("Version ${update.version} of Spendly is available on GitHub. Would you like to download it now?") },
             confirmButton = {
                 Button(onClick = {
-                    updateChecker.openUpdateUrl(updateUrl)
-                    showGitHubUpdateDialog = null
+                    // Remember this version so we don't prompt again after the user heads off to install it.
+                    viewModel.dismissUpdateVersion(update.version)
+                    updateChecker.openUpdateUrl(update.downloadUrl)
+                    pendingUpdate = null
                 }) { Text("Download") }
             },
             dismissButton = {
-                TextButton(onClick = { 
-                    viewModel.updateLastUpdateDismissedAt()
-                    showGitHubUpdateDialog = null 
+                TextButton(onClick = {
+                    viewModel.dismissUpdateVersion(update.version)
+                    pendingUpdate = null
                 }) { Text("Later") }
             }
         )
@@ -456,7 +469,7 @@ fun MainContainer(
 
     LaunchedEffect(intent) {
         if (intent?.hasExtra("BILL_UUID") == true) {
-            android.util.Log.d("MainActivity", "Processing bill notification: ${intent.getStringExtra("BILL_NAME")}")
+            if (com.alpha.spendtracker.BuildConfig.DEBUG) android.util.Log.d("MainActivity", "Processing bill notification: ${intent.getStringExtra("BILL_UUID")}")
             val billName = intent.getStringExtra("BILL_NAME") ?: ""
             val billApp = intent.getStringExtra("BILL_APP") ?: ""
             val billPurpose = intent.getStringExtra("BILL_PURPOSE") ?: ""
@@ -705,10 +718,7 @@ fun MainContainer(
                         ActiveView.DASHBOARD -> DashboardScreen(
                             currentFilter = currentFilter,
                             analytics = analyticsState,
-                            recentSpends = allSpends.asSequence()
-                                .filter { it.purpose != "Lending" && it.purpose != "Borrowing" }
-                                .take(5)
-                                .toList(),
+                            recentSpends = recentSpends,
                             themePreference = themePreference,
                             aiPreferences = aiPrefs,
                             onCycleTheme = onCycleTheme,
@@ -752,7 +762,8 @@ fun MainContainer(
                                 val shareIntent = Intent.createChooser(sendIntent, "Share Spendly via")
                                 context.startActivity(shareIntent)
                             },
-                            onRecurringBillsClick = { activeView = ActiveView.RECURRING_BILLS }
+                            onRecurringBillsClick = { activeView = ActiveView.RECURRING_BILLS },
+                            onSettingsClick = { activeView = ActiveView.SETTINGS }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
                             allSpends = allSpends,
@@ -800,8 +811,32 @@ fun MainContainer(
                             onUpdateBill = viewModel::updateRecurringBill,
                             onDeleteBill = viewModel::deleteRecurringBill
                         )
+                        ActiveView.SETTINGS -> SettingsScreen(
+                            themePreference = themePreference,
+                            aiPreferences = aiPrefs,
+                            onBack = { activeView = ActiveView.DASHBOARD },
+                            onCycleTheme = onCycleTheme,
+                            onShowNotification = { msg, type -> showNotification(msg, type) },
+                            onUpdateAiPreferences = viewModel::updateAiPreferences,
+                            onToggleBiometrics = viewModel::updateBiometricEnabled,
+                            onAiAssistantClick = { showAiHistoryAssistant = true },
+                            onRecurringBillsClick = { activeView = ActiveView.RECURRING_BILLS },
+                            onShareApp = {
+                                val sendIntent: Intent = Intent().apply {
+                                    action = Intent.ACTION_SEND
+                                    putExtra(Intent.EXTRA_TEXT, "Take control of your finances with Spendly! 🚀\n\nDownload the latest version here: https://github.com/saikumar2882/spend-analyzer/releases/latest")
+                                    type = "text/plain"
+                                }
+                                val shareIntent = Intent.createChooser(sendIntent, "Share Spendly via")
+                                context.startActivity(shareIntent)
+                            },
+                            onLogout = {
+                                FirebaseAuth.getInstance().signOut()
+                                showNotification("Logged out successfully", NotificationType.INFO)
+                            }
+                        )
                         ActiveView.HISTORY -> HistoryScreen(
-                            allSpends = allSpends.filter { it.purpose != "Lending" && it.purpose != "Borrowing" },
+                            allSpends = nonLendBorrowSpends,
                             initialSearchQuery = historySearchQuery,
                             initialCategoryFilter = historyCategoryFilter,
                             initialTimeFilter = historyTimeFilter,

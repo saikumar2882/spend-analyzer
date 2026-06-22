@@ -86,14 +86,14 @@ fun DashboardScreen(
     onUpdateAiPreferences: (String, String, String) -> Unit,
     onToggleBiometrics: (Boolean) -> Unit,
     onShareApp: () -> Unit,
-    onRecurringBillsClick: () -> Unit
+    onRecurringBillsClick: () -> Unit,
+    onSettingsClick: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showSecurityOptions by remember { mutableStateOf(false) }
     var showPasswordUpdateDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
     var showAiSettingsDialog by remember { mutableStateOf(false) }
-    var menuExpanded by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val auth = FirebaseAuth.getInstance()
@@ -244,8 +244,7 @@ fun DashboardScreen(
     LazyColumn(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 16.dp)
-            .blur(if (menuExpanded) 12.dp else 0.dp),
+            .padding(horizontal = 16.dp),
         verticalArrangement = Arrangement.spacedBy(20.dp),
         contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
     ) {
@@ -254,17 +253,9 @@ fun DashboardScreen(
                 displayName = displayName,
                 themePreference = themePreference,
                 onCycleTheme = onCycleTheme,
-                onLogout = onLogout,
                 onProfileClick = { showProfileDialog = true },
-                onSecurityClick = { showSecurityOptions = true },
                 onAiAssistantClick = onAiAssistantClick,
-                onAiSettingsClick = { showAiSettingsDialog = true },
-                onShareApp = onShareApp,
-                onRecurringBillsClick = onRecurringBillsClick,
-                isBiometricEnabled = aiPreferences.isBiometricEnabled,
-                onToggleBiometrics = onToggleBiometrics,
-                menuExpanded = menuExpanded,
-                onMenuExpandedChange = { menuExpanded = it }
+                onSettingsClick = onSettingsClick
             )
         }
 
@@ -372,17 +363,9 @@ private fun DashboardHeader(
     displayName: String,
     themePreference: ThemePreference,
     onCycleTheme: () -> Unit,
-    onLogout: () -> Unit,
     onProfileClick: () -> Unit,
-    onSecurityClick: () -> Unit,
     onAiAssistantClick: () -> Unit,
-    onAiSettingsClick: () -> Unit,
-    onShareApp: () -> Unit,
-    onRecurringBillsClick: () -> Unit,
-    isBiometricEnabled: Boolean,
-    onToggleBiometrics: (Boolean) -> Unit,
-    menuExpanded: Boolean,
-    onMenuExpandedChange: (Boolean) -> Unit
+    onSettingsClick: () -> Unit
 ) {
     val firstName = displayName.trim().split(" ").firstOrNull().orEmpty()
     val greeting = if (firstName.isBlank()) "Hi there 👋" else "Hi, $firstName 👋"
@@ -443,91 +426,14 @@ private fun DashboardHeader(
                 tint = MaterialTheme.colorScheme.onSurface,
                 background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
             )
-            
-            Box {
-                HeaderActionButton(
-                    icon = Icons.Rounded.Menu,
-                    onClick = { onMenuExpandedChange(true) },
-                    contentDescription = "Menu",
-                    tint = MaterialTheme.colorScheme.onSurface,
-                    background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
-                )
-                DropdownMenu(
-                    expanded = menuExpanded,
-                    onDismissRequest = { onMenuExpandedChange(false) }
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Profile") },
-                        leadingIcon = { Icon(Icons.Rounded.Person, null) },
-                        onClick = {
-                            onMenuExpandedChange(false)
-                            onProfileClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Security") },
-                        leadingIcon = { Icon(Icons.Rounded.Security, null) },
-                        onClick = {
-                            onMenuExpandedChange(false)
-                            onSecurityClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("App Defaults") },
-                        leadingIcon = { Icon(Icons.Rounded.Settings, null) },
-                        onClick = {
-                            onMenuExpandedChange(false)
-                            onAiSettingsClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Recurring Bills") },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null) },
-                        onClick = {
-                            onMenuExpandedChange(false)
-                            onRecurringBillsClick()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Share App") },
-                        leadingIcon = { Icon(Icons.Rounded.Share, null) },
-                        onClick = {
-                            onMenuExpandedChange(false)
-                            onShareApp()
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Biometrics") },
-                        leadingIcon = { 
-                            Icon(
-                                Icons.Rounded.Fingerprint, 
-                                tint = if (isBiometricEnabled) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                                contentDescription = null
-                            ) 
-                        },
-                        trailingIcon = {
-                            Switch(
-                                checked = isBiometricEnabled,
-                                onCheckedChange = { 
-                                    onToggleBiometrics(it)
-                                },
-                                modifier = Modifier.scale(0.7f)
-                            )
-                        },
-                        onClick = { onToggleBiometrics(!isBiometricEnabled) }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp))
-                    DropdownMenuItem(
-                        text = { Text("Sign Out") },
-                        leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Logout, null, tint = MaterialTheme.colorScheme.error) },
-                        onClick = {
-                            onMenuExpandedChange(false)
-                            onLogout()
-                        },
-                        colors = MenuDefaults.itemColors(textColor = MaterialTheme.colorScheme.error)
-                    )
-                }
-            }
+            HeaderActionButton(
+                icon = Icons.Rounded.Settings,
+                onClick = onSettingsClick,
+                contentDescription = "Settings",
+                tint = MaterialTheme.colorScheme.onSurface,
+                background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+            )
+
         }
     }
 }
@@ -558,7 +464,7 @@ private fun HeaderActionButton(
 }
 
 @Composable
-private fun ProfileDialog(
+internal fun ProfileDialog(
     currentName: String,
     email: String,
     onDismiss: () -> Unit,

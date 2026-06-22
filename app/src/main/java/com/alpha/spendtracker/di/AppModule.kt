@@ -6,6 +6,7 @@ import com.alpha.spendtracker.data.AppDatabase
 import com.alpha.spendtracker.data.ChatDao
 import com.alpha.spendtracker.data.RecurringBillDao
 import com.alpha.spendtracker.data.SpendDao
+import com.alpha.spendtracker.BuildConfig
 import com.alpha.spendtracker.data.SpendRepository
 import com.alpha.spendtracker.data.GroqApiService
 import com.squareup.moshi.Moshi
@@ -37,7 +38,12 @@ object AppModule {
     @Singleton
     fun provideOkHttpClient(): OkHttpClient {
         val logging = HttpLoggingInterceptor().apply {
-            level = HttpLoggingInterceptor.Level.BODY
+            // Never log request/response bodies in release builds — they carry the user's spend
+            // text and the Bearer API key. Even in debug, redact the Authorization header so the
+            // key is never written to Logcat.
+            level = if (BuildConfig.DEBUG) HttpLoggingInterceptor.Level.BODY
+            else HttpLoggingInterceptor.Level.NONE
+            redactHeader("Authorization")
         }
         return OkHttpClient.Builder()
             .addInterceptor(logging)

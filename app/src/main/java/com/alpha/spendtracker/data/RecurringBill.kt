@@ -19,5 +19,6 @@ data class RecurringBill(
     val lastNotifiedDate: String = "",
     val notifiedAt1230: Boolean = false,
     val notifiedAt2200: Boolean = false,
-    val notes: String? = null
+    val notes: String? = null,
+    val updatedAt: Long = 0L
 )

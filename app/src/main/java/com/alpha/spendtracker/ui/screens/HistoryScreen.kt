@@ -43,6 +43,7 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.Immutable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -138,9 +139,19 @@ fun HistoryScreen(
                 spend.notes.contains(q, ignoreCase = true)
             val matchesCategory = (selectedCategory == ALL_CATEGORIES) || (spend.category == selectedCategory)
             val matchesTime = spend.timestamp in (filterStartTime..filterEndTime)
-            
+
             matchesQuery && matchesCategory && matchesTime
         }
+    }
+
+    // Total spend for the filter summary bar, hoisted so it isn't recomputed on every recomposition.
+    val filteredTotal = remember(filteredHistory) { filteredHistory.sumOf { it.amount } }
+
+    // Group spends by month and pre-compute each month's sum once, outside the LazyColumn content
+    // lambda. Doing this inside the lambda re-ran the grouping + per-group sumOf on every recomposition.
+    val groupedHistory = remember(filteredHistory) {
+        filteredHistory.groupBy { formatMonth(it.timestamp) }
+            .map { (monthHeader, spends) -> MonthGroup(monthHeader, spends, spends.sumOf { it.amount }) }
     }
 
     if (spendToDelete != null) {
@@ -291,7 +302,7 @@ fun HistoryScreen(
 
         if (filteredHistory.isNotEmpty()) {
             FilterSummaryBar(
-                total = filteredHistory.sumOf { it.amount }
+                total = filteredTotal
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -304,9 +315,10 @@ fun HistoryScreen(
                 verticalArrangement = Arrangement.spacedBy(8.dp),
                 contentPadding = PaddingValues(bottom = 80.dp)
             ) {
-                val grouped = filteredHistory.groupBy { formatMonth(it.timestamp) }
-                grouped.forEach { (monthHeader, spends) ->
-                    val monthSum = spends.sumOf { it.amount }
+                groupedHistory.forEach { group ->
+                    val monthHeader = group.monthHeader
+                    val spends = group.spends
+                    val monthSum = group.total
                     item(key = "header-$monthHeader") {
                         Row(
                             modifier = Modifier
@@ -481,3 +493,14 @@ private fun EmptyHistoryState(modifier: Modifier = Modifier) {
         }
     }
 }
+
+/**
+ * A month section of the history list with its spends and pre-computed total. Built once in a
+ * remember block so the grouping and per-group sum don't re-run on every recomposition.
+ */
+@Immutable
+private data class MonthGroup(
+    val monthHeader: String,
+    val spends: List<Spend>,
+    val total: Double
+)

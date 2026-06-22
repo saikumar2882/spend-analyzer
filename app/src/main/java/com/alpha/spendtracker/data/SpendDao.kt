@@ -14,6 +14,9 @@ interface SpendDao {
     @Query("SELECT * FROM spends WHERE uuid = :uuid LIMIT 1")
     suspend fun getSpendByUuid(uuid: String): Spend?
 
+    @Query("SELECT updatedAt FROM spends WHERE uuid = :uuid LIMIT 1")
+    suspend fun getSpendUpdatedAt(uuid: String): Long?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertSpend(spend: Spend)
 

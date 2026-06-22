@@ -55,7 +55,7 @@ fun RecentSpendRow(
     spend: Spend,
     onClick: () -> Unit = {}
 ) {
-    val accent = APP_PRESETS.firstOrNull { it.displayName == spend.appName }?.color ?: MaterialTheme.colorScheme.primary
+    val accent = APP_COLOR_BY_NAME[spend.appName] ?: MaterialTheme.colorScheme.primary
     val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
     val subtitle = if (isLendBorrow) spend.notes else spend.notes.ifBlank { spend.purpose }
 
@@ -137,7 +137,7 @@ fun HistorySpendCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val accent = APP_PRESETS.firstOrNull { it.displayName == spend.appName }?.color ?: MaterialTheme.colorScheme.primary
+    val accent = APP_COLOR_BY_NAME[spend.appName] ?: MaterialTheme.colorScheme.primary
     val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
 
     val isDark = isSystemInDarkTheme()
@@ -256,7 +256,7 @@ fun HistoryRecordCard(
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val accent = APP_PRESETS.firstOrNull { it.displayName == history.appName }?.color ?: MaterialTheme.colorScheme.primary
+    val accent = APP_COLOR_BY_NAME[history.appName] ?: MaterialTheme.colorScheme.primary
     val isDeleted = history.historyType == com.alpha.spendtracker.data.HistoryType.DELETED
     
     val daysLeft = if (isDeleted) {

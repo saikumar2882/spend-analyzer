@@ -4,6 +4,7 @@
 package com.alpha.spendtracker.ui.viewmodel
 
 import android.util.Log
+import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alpha.spendtracker.data.*
@@ -61,6 +62,20 @@ class SpendViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "SpendViewModel"
+        // Single source of truth for the Gemini fallback model so the two call sites can't drift.
+        private const val GEMINI_MODEL = "gemini-3.5-flash"
+    }
+
+    private val authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
+        val uid = firebaseAuth.currentUser?.uid
+        if (uid != null) {
+            _userId.value = uid
+            repository.startSync(uid, viewModelScope)
+            initializeChatSession(uid)
+        } else {
+            _userId.value = "anonymous"
+            repository.stopSync()
+        }
     }
 
     private val _userId = MutableStateFlow(auth.currentUser?.uid ?: "anonymous")
@@ -84,18 +99,10 @@ class SpendViewModel @Inject constructor(
             initializeChatSession(user.uid)
         }
 
-        // Listen to auth changes to start/stop sync
-        auth.addAuthStateListener { firebaseAuth ->
-            val uid = firebaseAuth.currentUser?.uid
-            if (uid != null) {
-                _userId.value = uid
-                repository.startSync(uid, viewModelScope)
-                initializeChatSession(uid)
-            } else {
-                _userId.value = "anonymous"
-                repository.stopSync()
-            }
-        }
+        // Listen to auth changes to start/stop sync. Held in a field so it can be removed in
+        // onCleared() — otherwise the FirebaseAuth singleton pins this ViewModel across every
+        // Activity recreation, leaking a sync listener each time.
+        auth.addAuthStateListener(authListener)
 
         // Periodic cleanup of old chat messages (12h TTL)
         viewModelScope.launch {
@@ -110,6 +117,14 @@ class SpendViewModel @Inject constructor(
                 repository.cleanupOldHistory(uid, 30)
             }
         }
+    }
+
+    override fun onCleared() {
+        // Detach from the FirebaseAuth singleton and stop the Firestore sync so this ViewModel
+        // (and its repository listeners) can be garbage-collected on Activity recreation.
+        auth.removeAuthStateListener(authListener)
+        repository.stopSync()
+        super.onCleared()
     }
 
     private fun initializeChatSession(userId: String) {
@@ -148,7 +163,8 @@ class SpendViewModel @Inject constructor(
                 appName = appName,
                 amount = amount,
                 dayOfMonth = dayOfMonth,
-                notes = notes
+                notes = notes,
+                updatedAt = System.currentTimeMillis()
             )
             repository.insertRecurringBill(bill)
         }
@@ -403,7 +419,7 @@ class SpendViewModel @Inject constructor(
                             repository.deleteChatMessage(userMsg)
                             return@launch
                         }
-                        val generativeModel = GenerativeModel(modelName = "gemini-1.5-flash", apiKey = geminiKey)
+                        val generativeModel = GenerativeModel(modelName = GEMINI_MODEL, apiKey = geminiKey)
                         responseText = generativeModel.generateContent(content {
                             text(systemPrompt)
                             text("USER QUESTION: \"$question\"")
@@ -487,9 +503,9 @@ class SpendViewModel @Inject constructor(
         }
     }
 
-    fun updateLastUpdateDismissedAt() {
+    fun dismissUpdateVersion(version: String) {
         viewModelScope.launch {
-            aiPrefsRepository.updateLastUpdateDismissedAt()
+            aiPrefsRepository.setDismissedUpdateVersion(version)
         }
     }
 
@@ -620,7 +636,7 @@ class SpendViewModel @Inject constructor(
                             _aiResult.value = Result.success(baseline)
                             return@launch
                         }
-                        val generativeModel = GenerativeModel(modelName = "gemini-3.5-flash", apiKey = geminiKey)
+                        val generativeModel = GenerativeModel(modelName = GEMINI_MODEL, apiKey = geminiKey)
                         responseText = generativeModel.generateContent(content {
                             text(systemPrompt)
                             text("USER INPUT: \"$text\"")
@@ -639,7 +655,7 @@ class SpendViewModel @Inject constructor(
                 }
             }
 
-            Log.d(TAG, "AI Raw Response: $responseText")
+            if (com.alpha.spendtracker.BuildConfig.DEBUG) Log.d(TAG, "AI Raw Response: $responseText")
 
             val merged = if (responseText.isNullOrBlank()) {
                 if (lastError != null) {
@@ -668,7 +684,8 @@ class SpendViewModel @Inject constructor(
         val json = try {
             JSONObject(jsonString)
         } catch (e: Exception) {
-            Log.e(TAG, "JSON Parse Failed. Raw: $responseText", e)
+            // Don't log the raw payload (PII) in release; length is enough to diagnose.
+            Log.e(TAG, "JSON Parse Failed (len=${responseText?.length ?: 0})", e)
             return baseline
         }
 
@@ -777,7 +794,8 @@ class SpendViewModel @Inject constructor(
                 purpose = purpose,
                 category = category,
                 timestamp = timestamp,
-                notes = notes
+                notes = notes,
+                updatedAt = System.currentTimeMillis()
             )
             repository.insert(spend)
         }
@@ -1132,6 +1150,7 @@ class SpendViewModel @Inject constructor(
 /**
  * Encapsulates spending metrics, groups, and breakdown reports for user interface rendering
  */
+@Immutable
 data class SpendingAnalytics(
     val totalAmount: Double = 0.0,
     val categoryBreakdown: Map<String, Double> = emptyMap(),
@@ -1155,3 +1174,4 @@ data class TrendPoint(
     val amount: Double,
     val sortKey: Int
 )
+

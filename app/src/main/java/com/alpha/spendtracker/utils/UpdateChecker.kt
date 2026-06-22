@@ -20,7 +20,10 @@ class UpdateChecker(private val context: Context) {
         private const val TAG = "UpdateChecker"
     }
 
-    suspend fun checkForUpdates(currentVersion: String): String? {
+    /** Details of an available update. [version] is the normalized release version (no leading "v"). */
+    data class UpdateInfo(val version: String, val downloadUrl: String)
+
+    suspend fun checkForUpdates(currentVersion: String): UpdateInfo? {
         return withContext(Dispatchers.IO) {
             try {
                 val url = URL("https://api.github.com/repos/$GITHUB_REPO/releases/latest")
@@ -31,8 +34,8 @@ class UpdateChecker(private val context: Context) {
                 if (connection.responseCode == 200) {
                     val response = connection.inputStream.bufferedReader().use { it.readText() }
                     val json = JSONObject(response)
-                    val latestVersion = json.getString("tag_name").removePrefix("v")
-                    
+                    val latestVersion = normalizeVersion(json.getString("tag_name"))
+
                     if (isNewerVersion(currentVersion, latestVersion)) {
                         // Try to find a direct APK link in assets
                         val assets = json.optJSONArray("assets")
@@ -41,12 +44,12 @@ class UpdateChecker(private val context: Context) {
                                 val asset = assets.getJSONObject(i)
                                 val name = asset.getString("name")
                                 if (name.endsWith(".apk")) {
-                                    return@withContext asset.getString("browser_download_url")
+                                    return@withContext UpdateInfo(latestVersion, asset.getString("browser_download_url"))
                                 }
                             }
                         }
                         // Fallback to the release page
-                        return@withContext json.getString("html_url")
+                        return@withContext UpdateInfo(latestVersion, json.getString("html_url"))
                     }
                 }
             } catch (e: Exception) {
@@ -56,15 +59,26 @@ class UpdateChecker(private val context: Context) {
         }
     }
 
+    /** Strips a leading "v"/"V" and any non version characters so "v1.0.5" and "1.0.5" compare equal. */
+    private fun normalizeVersion(raw: String): String =
+        raw.trim().removePrefix("v").removePrefix("V").trim()
+
+    /**
+     * Compares dotted version strings component-wise, padding the shorter one with zeros so that
+     * "1.0.5" and "1.0.5.0" are treated as EQUAL (not "newer"). Returns true only when [latest] is
+     * strictly greater than [current].
+     */
     private fun isNewerVersion(current: String, latest: String): Boolean {
-        val currentParts = current.split(".").mapNotNull { it.toIntOrNull() }
-        val latestParts = latest.split(".").mapNotNull { it.toIntOrNull() }
-        
-        for (i in 0 until minOf(currentParts.size, latestParts.size)) {
-            if (latestParts[i] > currentParts[i]) return true
-            if (latestParts[i] < currentParts[i]) return false
+        val currentParts = current.split(".").map { it.trim().toIntOrNull() ?: 0 }
+        val latestParts = latest.split(".").map { it.trim().toIntOrNull() ?: 0 }
+        val size = maxOf(currentParts.size, latestParts.size)
+        for (i in 0 until size) {
+            val c = currentParts.getOrElse(i) { 0 }
+            val l = latestParts.getOrElse(i) { 0 }
+            if (l > c) return true
+            if (l < c) return false
         }
-        return latestParts.size > currentParts.size
+        return false
     }
 
     fun openUpdateUrl(url: String) {

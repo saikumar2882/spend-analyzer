@@ -30,16 +30,25 @@ class SyncWorker @AssistedInject constructor(
         val userDoc = firestore.collection("users").document(userId)
 
         return try {
-            // 1. Sync Spends
+            // 1. Sync Spends — last-write-wins: only overwrite the cloud copy when the
+            // local row is strictly newer than what is already in Firestore.
             val localSpends = spendDao.getAllSpends(userId).first()
             localSpends.forEach { spend ->
-                userDoc.collection("spends").document(spend.uuid).set(spend).await()
+                val docRef = userDoc.collection("spends").document(spend.uuid)
+                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
+                if (remoteUpdatedAt == null || spend.updatedAt > remoteUpdatedAt) {
+                    docRef.set(spend).await()
+                }
             }
 
-            // 2. Sync Recurring Bills
+            // 2. Sync Recurring Bills — last-write-wins.
             val localBills = recurringBillDao.getAllRecurringBills(userId).first()
             localBills.forEach { bill ->
-                userDoc.collection("recurring_bills").document(bill.uuid).set(bill).await()
+                val docRef = userDoc.collection("recurring_bills").document(bill.uuid)
+                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
+                if (remoteUpdatedAt == null || bill.updatedAt > remoteUpdatedAt) {
+                    docRef.set(bill).await()
+                }
             }
 
             // 3. Sync Chat Messages
@@ -58,7 +67,7 @@ class SyncWorker @AssistedInject constructor(
             updatedHistory.forEach { h ->
                 userDoc.collection("history").document(h.historyUuid).set(h).await()
             }
-            
+
             Log.d("SyncWorker", "Background sync successful for all collections for user: $userId")
             Result.success()
         } catch (e: Exception) {

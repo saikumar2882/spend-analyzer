@@ -32,6 +32,12 @@ val APP_PRESETS = listOf(
     AppPreset("other", "Other Platform", "Other", Color(0xFF6B7280))
 )
 
+/**
+ * Display-name -> accent color lookup, built once so cards can resolve their accent with an O(1)
+ * map lookup instead of a linear scan over [APP_PRESETS] on every recomposition.
+ */
+val APP_COLOR_BY_NAME: Map<String, Color> = APP_PRESETS.associate { it.displayName to it.color }
+
 val CATEGORY_PRESETS = listOf(
     "UPI Apps",
     "Quick Commerce",

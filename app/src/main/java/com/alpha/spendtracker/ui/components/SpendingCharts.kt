@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.rememberTextMeasurer
@@ -89,8 +90,10 @@ fun SpendingDonutChart(
     }
 
     val categoryColors = getCategoryColors()
-    val total = categoryBreakdown.values.sum()
-    val items = categoryBreakdown.toList().sortedByDescending { it.second }
+    // Hoist the total and the sorted item list so they aren't recomputed on every recomposition
+    // (the donut animates, so this composable recomposes frequently).
+    val total = remember(categoryBreakdown) { categoryBreakdown.values.sum() }
+    val items = remember(categoryBreakdown) { categoryBreakdown.toList().sortedByDescending { it.second } }
 
     var animatedProgress by remember { mutableFloatStateOf(0f) }
     val progressFactor by animateFloatAsState(
@@ -98,6 +101,10 @@ fun SpendingDonutChart(
         animationSpec = tween(durationMillis = 800),
         label = "diagram_draw"
     )
+
+    // Read the animating progress inside the tap-gesture lambda without keying pointerInput on it.
+    // Keying on progressFactor would tear down and rebuild the gesture detector every animation frame.
+    val currentProgress = rememberUpdatedState(progressFactor)
 
     LaunchedEffect(categoryBreakdown) {
         animatedProgress = 1f
@@ -119,9 +126,9 @@ fun SpendingDonutChart(
             Canvas(
                 modifier = Modifier
                     .fillMaxSize()
-                    .pointerInput(items, total, progressFactor) {
+                    .pointerInput(items, total) {
                         detectTapGestures { offset ->
-                            if (total <= 0 || progressFactor < 0.9f) return@detectTapGestures
+                            if (total <= 0 || currentProgress.value < 0.9f) return@detectTapGestures
                             
                             val centerX = size.width / 2f
                             val centerY = size.height / 2f
@@ -311,6 +318,35 @@ fun SpendingTrendBarChart(
     val textStyle = MaterialTheme.typography.labelSmall.copy(color = MaterialTheme.colorScheme.onSurfaceVariant, fontSize = 9.sp)
     val outlineVariantColor = MaterialTheme.colorScheme.outlineVariant
 
+    // Pre-measure the per-bar axis labels and value labels once. These don't change as the bars
+    // animate, so measuring them inside the draw lambda re-ran textMeasurer.measure for every bar
+    // on every animation frame. The value label (null when amount <= 0) mirrors the draw logic below.
+    val valueStyle = remember(textStyle, barColor) {
+        textStyle.copy(
+            fontWeight = FontWeight.Bold,
+            color = barColor.copy(alpha = 0.8f),
+            fontSize = 8.sp
+        )
+    }
+    val measuredLabels = remember(trendPoints, textStyle, valueStyle, locale) {
+        trendPoints.map { point ->
+            val valueResult = if (point.amount > 0) {
+                val valueText = if (point.amount >= 1000) {
+                    String.format(locale, "%.1fk", point.amount / 1000)
+                } else {
+                    point.amount.toInt().toString()
+                }
+                textMeasurer.measure(text = valueText, style = valueStyle)
+            } else {
+                null
+            }
+            MeasuredBarLabels(
+                label = textMeasurer.measure(text = point.label, style = textStyle),
+                value = valueResult
+            )
+        }
+    }
+
     Column(
         modifier = modifier
             .background(chartContainerColor(), shape = RoundedCornerShape(24.dp))
@@ -388,12 +424,9 @@ fun SpendingTrendBarChart(
                         )
                     }
 
-                    // Label drawing
-                    val labelResult = textMeasurer.measure(
-                        text = point.label,
-                        style = textStyle
-                    )
-                    
+                    // Label drawing (pre-measured outside the draw lambda)
+                    val labelResult = measuredLabels[index].label
+
                     // Center labels under bars
                     val labelX = xStart + (barWidth / 2) - (labelResult.size.width / 2)
                     val labelY = availableHeight + 6.dp.toPx()
@@ -403,26 +436,12 @@ fun SpendingTrendBarChart(
                         topLeft = Offset(labelX, labelY)
                     )
 
-                    // Numerical value drawing on top of bar
-                    if (point.amount > 0) {
-                        val valueText = if (point.amount >= 1000) {
-                            String.format(locale, "%.1fk", point.amount / 1000)
-                        } else {
-                            point.amount.toInt().toString()
-                        }
-                        
-                        val valueResult = textMeasurer.measure(
-                            text = valueText,
-                            style = textStyle.copy(
-                                fontWeight = FontWeight.Bold,
-                                color = barColor.copy(alpha = 0.8f),
-                                fontSize = 8.sp
-                            )
-                        )
-                        
+                    // Numerical value drawing on top of bar (pre-measured outside the draw lambda)
+                    val valueResult = measuredLabels[index].value
+                    if (point.amount > 0 && valueResult != null) {
                         val valueX = xStart + (barWidth / 2) - (valueResult.size.width / 2)
                         val valueY = yStart - valueResult.size.height - 2.dp.toPx()
-                        
+
                         if (valueY > 0) { // Only draw if there's space at the top
                             drawText(
                                 textLayoutResult = valueResult,
@@ -435,6 +454,16 @@ fun SpendingTrendBarChart(
         }
     }
 }
+
+/**
+ * Pre-measured text for a single trend bar: its axis label and (optionally) the value drawn on top.
+ * Measured once in a remember block so the text layout isn't recomputed every animation frame.
+ */
+@Immutable
+private data class MeasuredBarLabels(
+    val label: TextLayoutResult,
+    val value: TextLayoutResult?
+)
 
 fun formatCurrency(amount: Double): String {
     val pattern = if (amount % 1 == 0.0) "%,.0f" else "%,.2f"

@@ -34,11 +34,11 @@ Spendly offers multiple secure ways to sign in, all handled via **Firebase Authe
 - **Dependency Injection**: Hilt
 - **Local Database**: Room (with multi-user support)
 - **Backend/Cloud**: Firebase (Auth & Firestore)
-- **AI Integration**: Gemini AI (Gemini 1.5 Flash) parsing for smart tracking
+- **AI Integration**: Groq (Llama 3.x) as the primary parser with **Gemini (3.5 Flash)** as fallback; a local heuristic `AiParser` baseline ensures it works even when the AI is unavailable. Keys are loaded at runtime from Firebase Remote Config (never baked into the APK).
 - **Background Tasks**: WorkManager for cloud synchronization
 - **App Widgets**: Jetpack Glance
 - **Security**: Android Biometric API & Credential Manager
-- **Updates**: Google Play In-App Update API
+- **Updates**: Google Play In-App Updates **and** a GitHub Releases checker (prompts once per new version)
 - **Architecture**: MVVM (Model-View-ViewModel)
 - **Asynchronous**: Kotlin Coroutines & Flow
 
@@ -66,12 +66,27 @@ Spendly offers multiple secure ways to sign in, all handled via **Firebase Authe
 
 Ensure your Firestore rules are set to protect user data:
 
+The repo ships a complete `firestore.rules`. Every subcollection is owner-scoped (a user can only access their own data), and `spends` writes are additionally schema-validated:
+
 ```javascript
 rules_version = '2';
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId}/spends/{spendId} {
-      allow read, write: if request.auth != null && request.auth.uid == userId;
+    function isAuthenticated() { return request.auth != null; }
+    function isOwner(userId) { return request.auth.uid == userId; }
+
+    match /users/{userId} {
+      match /spends/{spendId} {
+        allow read, delete: if isAuthenticated() && isOwner(userId);
+        allow create, update: if isAuthenticated() && isOwner(userId)
+          && request.resource.data.amount is number
+          && request.resource.data.appName is string
+          && request.resource.data.purpose is string
+          && request.resource.data.userId == request.auth.uid;
+      }
+      match /recurring_bills/{billId} { allow read, write: if isAuthenticated() && isOwner(userId); }
+      match /history/{historyId}      { allow read, write: if isAuthenticated() && isOwner(userId); }
+      match /chat_messages/{msgId}    { allow read, write: if isAuthenticated() && isOwner(userId); }
     }
   }
 }
@@ -85,7 +100,7 @@ service cloud.firestore {
 3.  **Dashboard**: The app fetches local data from **Room DB** to show immediate analytics.
 4.  **Data Entry**:
     *   **Manual**: User fills out amount, app, and purpose.
-    *   **AI (Smart)**: User types a natural sentence (e.g., "Paid 500 for lunch via GPay"). **Gemini AI** parses this into structured data.
+    *   **AI (Smart)**: User types a natural sentence (e.g., "Paid 500 for lunch via GPay"). An **LLM (Groq, with Gemini fallback)** refines a local heuristic parse into structured data.
 5.  **Processing**: Data is first saved to the local **Room Database** (Offline-first).
 6.  **Synchronization**: A background **SyncWorker** (via WorkManager) ensures local data is periodically backed up to **Firebase Firestore**.
 7.  **Insights**: The **Analytics Engine** groups data to generate donut/bar charts and provides an **AI Chat Assistant** for historical queries.
@@ -157,7 +172,7 @@ Leverage AI to understand your finances:
 *   **Notifications**: The app provides real-time feedback for successful saves, errors, and security updates.
 
 ### 8. Updates
-*   **Auto-Update**: The app checks for newer versions on both the Play Store and GitHub, prompting you to stay updated for the best experience.
+*   **Auto-Update**: The app checks for newer versions on both the Play Store and GitHub. The GitHub prompt appears **only once per new version** — if you tap "Later" or "Download", that version won't nag you again; you'll only be prompted when a strictly newer release is published.
 
 ### 9. Tips for Success
 *   **Be Descriptive**: Use the "Notes" field to remember specific details about unusual expenses.

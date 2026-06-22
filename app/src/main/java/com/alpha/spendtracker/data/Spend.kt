@@ -17,7 +17,8 @@ data class Spend(
     val purpose: String = "",
     val category: String = "",
     val timestamp: Long = 0L,
-    val notes: String = ""
+    val notes: String = "",
+    val updatedAt: Long = 0L
 )
 
 @IgnoreExtraProperties

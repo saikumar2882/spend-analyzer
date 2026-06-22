@@ -31,7 +31,7 @@ Open in Android Studio Ladybug or newer, add `app/google-services.json` from you
 
 **MVVM, offline-first, single-Activity, Hilt DI.**
 
-- `MainActivity` holds the `SpendViewModel`. All navigation is state-based — there is no NavController. `ActiveView` enum (`DASHBOARD`, `HISTORY`, `LEND_BORROW`, `ADD_SPEND`) drives `AnimatedContent` in `MainContainer`.
+- `MainActivity` holds the `SpendViewModel`. All navigation is state-based — there is no NavController. The `ActiveView` enum (`DASHBOARD`, `LEND_BORROW`, `HISTORY`, `ADD_SPEND`, `LEND_BORROW_HISTORY`, `RECURRING_BILLS`, `SETTINGS`) drives `AnimatedContent` in `MainContainer`. The active view is hoisted inside the `MainContainer` composable via `rememberSaveable` (survives config change / process death), not in `MainActivity` or the ViewModel. App configuration lives in a dedicated `SettingsScreen` (gear icon in the Dashboard toolbar) — appearance, security/biometric, AI defaults, account; the older Dashboard dropdown menu was removed in favor of it.
 - `MainActivity` also handles **Biometric Authentication** for app locking and **Play In-App Updates**.
 - `SpendViewModel` is the single source of truth for all UI state: spending data, time filters, AI processing, and chat history.
 
@@ -39,27 +39,27 @@ Open in Android Studio Ladybug or newer, add `app/google-services.json` from you
 
 | Component | Role |
 |-----------|------|
-| `AppDatabase` (Room v5) | Local source of truth. Uses explicit migrations where possible (destructive migration disabled for production safety). |
-| `SpendRepository` | Wraps `SpendDao` and manages a Firestore real-time listener (`startSync`/`stopSync`). Writes go to Room first, then Firestore. |
-| `SyncWorker` | `WorkManager` worker that performs periodic background synchronization to Firestore. |
+| `AppDatabase` (Room **v14**) | Local source of truth. Four entities: `Spend` (`spends`), `SpendHistory` (`spend_history`), `ChatMessage` (`chat_messages`), `RecurringBill` (`recurring_bills`). ⚠️ Currently uses `fallbackToDestructiveMigration(true)` with **no explicit migrations** and `exportSchema = false` — a schema bump wipes local data (mostly self-healing for signed-in users via the Firestore re-sync, but offline-only writes are lost). Adding real migrations is a known follow-up. |
+| `SpendRepository` | Wraps the DAOs and manages Firestore real-time listeners (`startSync`/`stopSync`) for all four collections. Writes go to Room first, then Firestore. `startSync` calls `stopSync` first, so listeners are not duplicated. |
+| `SyncWorker` | `WorkManager` worker that periodically uploads all local rows to Firestore via blind `set()`. ⚠️ No `updatedAt`/version field exists on entities, so conflict resolution is last-writer-to-execute-wins (acceptable for single-device use). |
 | `ChatDao` / `ChatMessage` | Stores AI history chat messages locally with a 12-hour TTL. |
-| `AiPreferencesRepository` | DataStore-backed preferences (default currency, app, purpose, daily usage counter, biometric setting). |
+| `AiPreferencesRepository` | DataStore-backed preferences (default currency, app, purpose, daily usage counter, biometric setting, dismissed update version). |
 
-Firestore path: `users/{userId}/spends/{spendId}`.
+Firestore paths (all owner-scoped in `firestore.rules`): `users/{userId}/spends/{spendId}`, `.../recurring_bills/{id}`, `.../history/{id}`, `.../chat_messages/{id}`.
 
 ### AI features
 
-Two separate AI flows, both using Gemini (`gemini-1.5-flash`) via `google/generative-ai`:
+Two separate AI flows. The **primary** provider is **Groq** (OpenAI-compatible, models `llama-3.1-8b-instant` / `llama-3.3-70b-versatile`) called via Retrofit (`GroqApiService`). **Gemini** (`gemini-3.5-flash`, via `google/generative-ai`) is the **fallback**, used only when the Groq key is blank. The model id is centralized in the `GEMINI_MODEL` constant in `SpendViewModel`.
 
 1. **AI Track** (`processAiInput`) — parses a natural-language expense entry.  
    - Client-side rate limit: 15 uses/day (tracked in DataStore).  
-   - `AiParser` runs first as a local heuristic baseline (amount extraction, app matching, purpose inference, date parsing). Gemini then refines it. If Gemini fails, the local result is used as fallback.  
+   - `AiParser` runs first as a local heuristic baseline (amount extraction, app matching, purpose inference, date parsing). The LLM then refines it. If the LLM fails, the local baseline is used as fallback (no crash).  
    - The merged result surfaces as `_aiResult: StateFlow<Result<AiTransactionResponse>?>`.
 
 2. **AI History Assistant** (`askAiAboutHistory`) — Q&A chat over the user's full spend history.  
    - Client-side limit: 2 sessions/day × 7 messages/session (tracked in Room).
 
-**Gemini API key is fetched at runtime from Firebase Remote Config** (`gemini_api_key`) to ensure 100% free usage on the Spark plan.
+**API keys are fetched at runtime from Firebase Remote Config** (`groq_api_key`, `gemini_api_key`) to keep usage free on the Spark plan — no keys are baked into the APK. Keys are held only in transient local vals. (Note: OkHttp body logging is debug-only and the `Authorization` header is redacted, so keys never reach Logcat.)
 
 ### Authentication & Security
 
@@ -73,8 +73,8 @@ Two separate AI flows, both using Gemini (`gemini-1.5-flash`) via `google/genera
 
 ### Update Mechanism
 
-- **Play Store**: Uses Google Play In-App Update API.
-- **GitHub/Free**: Uses a custom `UpdateChecker` to detect new releases via GitHub API.
+- **Play Store**: Uses Google Play In-App Update API (`IMMEDIATE`).
+- **GitHub/Free**: A custom `UpdateChecker` polls GitHub Releases (`releases/latest`) and compares the tag against the installed `versionName`. The "new version" dialog is suppressed **per-version**: once a version is dismissed or downloaded it is recorded in `dismissedUpdateVersion` (DataStore) and never prompted again — only a strictly newer release re-triggers it. Version comparison pads components with zeros so `1.0.5` and `1.0.5.0` are equal.
 
 ### Monitoring
 

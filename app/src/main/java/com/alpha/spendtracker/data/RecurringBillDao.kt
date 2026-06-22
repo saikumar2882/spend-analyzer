@@ -8,6 +8,9 @@ interface RecurringBillDao {
     @Query("SELECT * FROM recurring_bills WHERE userId = :userId")
     fun getAllRecurringBills(userId: String): Flow<List<RecurringBill>>
 
+    @Query("SELECT updatedAt FROM recurring_bills WHERE uuid = :uuid LIMIT 1")
+    suspend fun getRecurringBillUpdatedAt(uuid: String): Long?
+
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertRecurringBill(bill: RecurringBill)
 

@@ -1,6 +1,6 @@
 {
   "name": "Spend Tracker",
-  "description": "An elegant and powerful personal finance application to track, categorize, and analyze your visual spendings over days, weeks, months, and years with built-in analytics and local Room database.",
+  "description": "An elegant, offline-first personal finance app to track, categorize, and analyze spending over days, weeks, months, and years. Features AI-assisted natural-language expense entry, an AI history assistant, charts and insights, lend/borrow tracking, recurring bills, biometric lock, and Firestore sync — backed by a local Room database.",
   "requestFramePermissions": [],
   "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
 }
