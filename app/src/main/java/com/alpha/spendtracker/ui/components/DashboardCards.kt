@@ -4,6 +4,8 @@
 package com.alpha.spendtracker.ui.components
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
@@ -40,6 +42,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -48,7 +51,18 @@ import com.alpha.spendtracker.ui.theme.BrandAccentMint
 import com.alpha.spendtracker.ui.theme.BrandGradientEnd
 import com.alpha.spendtracker.ui.theme.BrandGradientMid
 import com.alpha.spendtracker.ui.theme.BrandGradientStart
+import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
+import com.alpha.spendtracker.ui.viewmodel.TrendPoint
+import androidx.compose.animation.AnimatedContent
+import androidx.compose.material.icons.automirrored.rounded.TrendingDown
+import androidx.compose.material.icons.automirrored.rounded.TrendingFlat
+import androidx.compose.material.icons.automirrored.rounded.TrendingUp
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.saveable.rememberSaveable
+import androidx.compose.runtime.setValue
+import kotlin.math.abs
 
 @Composable
 fun TimeFilterSelectorRow(
@@ -70,7 +84,7 @@ fun TimeFilterSelectorRow(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.45f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(18.dp)
     ) {
         Row(
@@ -119,6 +133,7 @@ fun TotalSpentHeroCard(
     totalAmount: Double,
     transactionCount: Int,
     dateRange: Pair<Long, Long>? = null,
+    periodDeltaPct: Double? = null,
     onLentClick: (() -> Unit)? = null,
     onTransactionsClick: (() -> Unit)? = null
 ) {
@@ -138,6 +153,23 @@ fun TotalSpentHeroCard(
     } else {
         "$transactionCount transactions"
     }
+
+    // Respect the system "remove animations" accessibility setting: when on, the total snaps to
+    // its final value with no count-up.
+    val context = LocalContext.current
+    val reduceMotion = android.provider.Settings.Global.getFloat(
+        context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+    ) == 0f
+
+    // Count the hero total up to its current value. animateFloatAsState animates from the previous
+    // composed value to the new target, so the number rolls up on first appearance and whenever the
+    // total changes (e.g. switching the time filter). Tabular digits keep the width stable.
+    val animatedTotal by animateFloatAsState(
+        targetValue = totalAmount.toFloat(),
+        animationSpec = tween(durationMillis = if (reduceMotion) 0 else 600),
+        label = "hero_total_countup"
+    )
+    val displayTotal = if (reduceMotion) totalAmount else animatedTotal.toDouble()
 
     val isDark = isSystemInDarkTheme()
     val gradientColors = remember(isDark) {
@@ -218,7 +250,7 @@ fun TotalSpentHeroCard(
                                 modifier = Modifier.padding(end = 4.dp, bottom = 6.dp)
                             )
                             Text(
-                                text = formatCurrency(totalAmount),
+                                text = formatCurrency(displayTotal),
                                 style = MaterialTheme.typography.displayMedium.copy(
                                     fontWeight = FontWeight.Bold,
                                     fontSize = 36.sp,
@@ -230,19 +262,23 @@ fun TotalSpentHeroCard(
                         }
                     }
 
-                    Surface(
-                        color = Color.White.copy(alpha = 0.18f),
-                        shape = CircleShape,
-                        border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
-                    ) {
-                        Icon(
-                            Icons.Rounded.AccountBalanceWallet,
-                            contentDescription = null,
-                            modifier = Modifier
-                                .padding(12.dp)
-                                .size(28.dp),
-                            tint = Color.White
-                        )
+                    if (periodDeltaPct != null) {
+                        HeroDeltaChip(periodDeltaPct)
+                    } else {
+                        Surface(
+                            color = Color.White.copy(alpha = 0.18f),
+                            shape = CircleShape,
+                            border = BorderStroke(1.dp, Color.White.copy(alpha = 0.3f))
+                        ) {
+                            Icon(
+                                Icons.Rounded.AccountBalanceWallet,
+                                contentDescription = null,
+                                modifier = Modifier
+                                    .padding(12.dp)
+                                    .size(28.dp),
+                                tint = Color.White
+                            )
+                        }
                     }
                 }
 
@@ -317,9 +353,8 @@ fun EmptyStateCard() {
             .padding(vertical = 12.dp),
         shape = RoundedCornerShape(24.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
+        )
     ) {
         Column(
             modifier = Modifier
@@ -362,6 +397,211 @@ fun EmptyStateCard() {
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = androidx.compose.ui.text.style.TextAlign.Center
             )
+        }
+    }
+}
+
+/**
+ * Period-over-period delta pill shown on the hero. Mint arrow = spending down (good),
+ * soft coral = spending up. Rendered on the gradient, so text stays white.
+ */
+@Composable
+private fun HeroDeltaChip(deltaPct: Double) {
+    val flat = abs(deltaPct) <= 1.0
+    val up = deltaPct > 0
+    val icon = when {
+        flat -> Icons.AutoMirrored.Rounded.TrendingFlat
+        up -> Icons.AutoMirrored.Rounded.TrendingUp
+        else -> Icons.AutoMirrored.Rounded.TrendingDown
+    }
+    val arrowTint = when {
+        flat -> Color.White
+        up -> Color(0xFFFFB4BC)      // soft coral — spending increased
+        else -> BrandAccentMint       // mint — spending decreased
+    }
+    val label = if (flat) "Flat vs last" else "${String.format("%.0f", abs(deltaPct))}% vs last"
+    Surface(
+        color = Color.White.copy(alpha = 0.16f),
+        shape = RoundedCornerShape(12.dp),
+        border = BorderStroke(0.5.dp, Color.White.copy(alpha = 0.22f))
+    ) {
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
+        ) {
+            Icon(icon, contentDescription = null, tint = arrowTint, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = label,
+                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                color = Color.White
+            )
+        }
+    }
+}
+
+/**
+ * Compact 3-stat row shown directly under the hero: daily average, top category, and
+ * projected total (falling back to transaction count when no projection is available).
+ */
+@Composable
+fun QuickStatsRow(analytics: SpendingAnalytics, modifier: Modifier = Modifier) {
+    Row(
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(12.dp)
+    ) {
+        StatTile(
+            modifier = Modifier.weight(1f),
+            label = "Daily Avg",
+            value = "₹${formatCurrency(analytics.dailyAverage)}",
+            accent = MaterialTheme.colorScheme.secondary
+        )
+        StatTile(
+            modifier = Modifier.weight(1f),
+            label = "Top Category",
+            value = analytics.topCategory?.first ?: "—",
+            accent = MaterialTheme.colorScheme.primary
+        )
+        if (analytics.projectedTotal != null) {
+            StatTile(
+                modifier = Modifier.weight(1f),
+                label = "Projected",
+                value = "₹${formatCurrency(analytics.projectedTotal)}",
+                accent = MaterialTheme.colorScheme.tertiary
+            )
+        } else {
+            StatTile(
+                modifier = Modifier.weight(1f),
+                label = "Transactions",
+                value = analytics.transactionCount.toString(),
+                accent = MaterialTheme.colorScheme.tertiary
+            )
+        }
+    }
+}
+
+@Composable
+private fun StatTile(
+    modifier: Modifier = Modifier,
+    label: String,
+    value: String,
+    accent: Color
+) {
+    Column(
+        modifier = modifier
+            .background(MaterialTheme.colorScheme.surfaceContainer, RoundedCornerShape(16.dp))
+            .padding(horizontal = 12.dp, vertical = 12.dp)
+    ) {
+        Row(verticalAlignment = Alignment.CenterVertically) {
+            Box(
+                modifier = Modifier
+                    .size(6.dp)
+                    .background(accent, CircleShape)
+            )
+            Spacer(modifier = Modifier.width(6.dp))
+            Text(
+                text = label.uppercase(),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 0.6.sp
+                ),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
+        }
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = value,
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+    }
+}
+
+/**
+ * "Where it went" — a single card hosting the category donut and the spending trend, with a
+ * segmented toggle to switch between them (replaces two separately-stacked chart cards).
+ */
+@Composable
+fun WhereItWentCard(
+    categoryBreakdown: Map<String, Double>,
+    trendPoints: List<TrendPoint>,
+    onCategoryClick: (String) -> Unit,
+    modifier: Modifier = Modifier
+) {
+    var tab by rememberSaveable { mutableStateOf(0) }
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(24.dp)
+    ) {
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = "Where it went",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                ChartToggle(selected = tab, onSelect = { tab = it })
+            }
+            Spacer(modifier = Modifier.height(14.dp))
+            AnimatedContent(targetState = tab, label = "where_it_went") { current ->
+                if (current == 0) {
+                    SpendingDonutChart(
+                        categoryBreakdown = categoryBreakdown,
+                        modifier = Modifier.fillMaxWidth(),
+                        inCard = true,
+                        onCategoryClick = onCategoryClick
+                    )
+                } else {
+                    SpendingTrendBarChart(
+                        trendPoints = trendPoints,
+                        modifier = Modifier.fillMaxWidth(),
+                        inCard = true
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun ChartToggle(selected: Int, onSelect: (Int) -> Unit) {
+    val labels = listOf("Categories", "Trend")
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        shape = RoundedCornerShape(10.dp)
+    ) {
+        Row(
+            modifier = Modifier.padding(3.dp),
+            horizontalArrangement = Arrangement.spacedBy(2.dp)
+        ) {
+            labels.forEachIndexed { index, label ->
+                val isSel = index == selected
+                Surface(
+                    onClick = { onSelect(index) },
+                    shape = RoundedCornerShape(8.dp),
+                    color = if (isSel) MaterialTheme.colorScheme.primary else Color.Transparent
+                ) {
+                    Text(
+                        text = label,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp),
+                        style = MaterialTheme.typography.labelMedium.copy(
+                            fontWeight = FontWeight.Bold,
+                            fontSize = 11.sp
+                        ),
+                        color = if (isSel) MaterialTheme.colorScheme.onPrimary
+                        else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
     }
 }

@@ -187,8 +187,7 @@ fun AiHistoryAssistantSheet(
                         Surface(
                             onClick = { textInput = example },
                             shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
                         ) {
                             Text(
                                 example,
@@ -218,7 +217,7 @@ fun AiHistoryAssistantSheet(
                             enabled = textInput.isNotBlank(),
                             shape = CircleShape,
                             color = if (textInput.isNotBlank()) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant,
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.size(38.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -377,16 +376,12 @@ fun ChatBubble(
         ) {
             Surface(
                 color = if (isUser) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surface,
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(
                     topStart = 18.dp,
                     topEnd = 18.dp,
                     bottomEnd = if (isUser) 4.dp else 18.dp,
                     bottomStart = if (isUser) 18.dp else 4.dp
-                ),
-                border = if (isUser) null else BorderStroke(
-                    1.dp,
-                    MaterialTheme.colorScheme.outlineVariant
                 ),
                 modifier = Modifier.widthIn(max = 280.dp)
             ) {
@@ -468,7 +463,7 @@ private fun AiAvatar() {
 @Composable
 private fun UserAvatar() {
     Surface(
-        color = MaterialTheme.colorScheme.surfaceVariant,
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = CircleShape,
         modifier = Modifier.size(32.dp),
         border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
@@ -538,8 +533,7 @@ fun EmptyChatState(
                 Surface(
                     onClick = { onExampleClick(example) },
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.6f),
-                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh
                 ) {
                     Text(
                         text = example,

@@ -18,12 +18,15 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.RecurringBill
+import com.alpha.spendtracker.ui.components.APP_COLOR_BY_NAME
 import com.alpha.spendtracker.ui.components.APP_PRESETS
 import com.alpha.spendtracker.ui.components.AppPreset
 import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
+import com.alpha.spendtracker.ui.components.formatCurrency
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -60,8 +63,9 @@ fun RecurringBillsScreen(
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
                     Spacer(modifier = Modifier.height(16.dp))
-                    Text("No recurring bills yet", style = MaterialTheme.typography.titleMedium)
-                    Text("Add your subscriptions or credit card bills", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Text("No recurring bills yet", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text("Tap + to add subscriptions or card bills.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 }
             }
         } else {
@@ -130,19 +134,69 @@ fun RecurringBillItem(
     onEdit: (RecurringBill) -> Unit,
     onDelete: (RecurringBill) -> Unit
 ) {
+    val accent = APP_COLOR_BY_NAME[bill.appName] ?: MaterialTheme.colorScheme.primary
+    val daysUntil = remember(bill.dayOfMonth) { daysUntilDue(bill.dayOfMonth) }
+    val dueLabel = when {
+        daysUntil == 0 -> "Due today"
+        daysUntil == 1 -> "Due tomorrow"
+        daysUntil <= 5 -> "Due in $daysUntil days"
+        else -> "Due ${bill.dayOfMonth}${getDaySuffix(bill.dayOfMonth)}"
+    }
+    val dueColor = if (daysUntil <= 5) MaterialTheme.colorScheme.error
+                   else MaterialTheme.colorScheme.onSurfaceVariant
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
         Row(
-            modifier = Modifier.padding(16.dp),
+            modifier = Modifier.padding(14.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // Day-of-month badge in the app's brand color
+            Box(
+                modifier = Modifier
+                    .size(46.dp)
+                    .background(accent.copy(alpha = 0.15f), RoundedCornerShape(14.dp)),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                    Text(
+                        text = bill.dayOfMonth.toString(),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = accent
+                    )
+                    Text(
+                        text = getDaySuffix(bill.dayOfMonth),
+                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                        color = accent.copy(alpha = 0.8f)
+                    )
+                }
+            }
+            Spacer(modifier = Modifier.width(12.dp))
             Column(modifier = Modifier.weight(1f)) {
-                Text(bill.name, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                Text("Due on ${bill.dayOfMonth}${getDaySuffix(bill.dayOfMonth)}", style = MaterialTheme.typography.bodyMedium)
-                Text(bill.appName, style = MaterialTheme.typography.labelSmall, color = MaterialTheme.colorScheme.primary)
+                Text(
+                    bill.name,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(bill.appName, style = MaterialTheme.typography.labelMedium, color = accent)
+                Text(
+                    dueLabel,
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = dueColor
+                )
+            }
+            if (bill.amount > 0) {
+                Text(
+                    "₹${formatCurrency(bill.amount)}",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.width(4.dp))
             }
             IconButton(onClick = { onEdit(bill) }) {
                 Icon(Icons.Rounded.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp))
@@ -152,6 +206,15 @@ fun RecurringBillItem(
             }
         }
     }
+}
+
+/** Approximate days until the next occurrence of [dayOfMonth] (for a "due soon" hint). */
+private fun daysUntilDue(dayOfMonth: Int): Int {
+    val cal = java.util.Calendar.getInstance()
+    val todayDay = cal.get(java.util.Calendar.DAY_OF_MONTH)
+    val maxDay = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+    val target = dayOfMonth.coerceIn(1, maxDay)
+    return if (target >= todayDay) target - todayDay else (maxDay - todayDay) + target
 }
 
 @OptIn(ExperimentalMaterial3Api::class)

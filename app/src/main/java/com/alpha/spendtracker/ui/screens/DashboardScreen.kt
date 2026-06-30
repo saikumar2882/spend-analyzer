@@ -53,12 +53,11 @@ import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.ui.components.AiSettingsDialog
 import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.EmptyStateCard
-import com.alpha.spendtracker.ui.components.InsightsCard
+import com.alpha.spendtracker.ui.components.QuickStatsRow
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.alpha.spendtracker.ui.components.RecentSpendRow
-import com.alpha.spendtracker.ui.components.SpendingDonutChart
-import com.alpha.spendtracker.ui.components.SpendingTrendBarChart
+import com.alpha.spendtracker.ui.components.WhereItWentCard
 import com.alpha.spendtracker.ui.components.TimeFilterSelectorRow
 import com.alpha.spendtracker.ui.components.TotalSpentHeroCard
 import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
@@ -268,39 +267,32 @@ fun DashboardScreen(
         }
 
         item {
+            val periodDeltaPct = if (currentFilter != TimeFilter.ALL && analytics.previousPeriodTotal > 0.0) {
+                ((analytics.totalAmount - analytics.previousPeriodTotal) / analytics.previousPeriodTotal) * 100.0
+            } else null
             TotalSpentHeroCard(
                 filterType = currentFilter,
                 totalAmount = analytics.totalAmount,
                 transactionCount = analytics.transactionCount,
                 dateRange = analytics.dateRange,
+                periodDeltaPct = periodDeltaPct,
                 onLentClick = onLentClick,
                 onTransactionsClick = onTransactionsClick
             )
         }
 
         if (analytics.transactionCount > 0) {
-            item {
-                Column {
-                    SectionHeader(title = "Category Breakdown")
-                    Spacer(modifier = Modifier.height(10.dp))
-                    SpendingDonutChart(
-                        categoryBreakdown = analytics.categoryBreakdown,
-                        modifier = Modifier.fillMaxWidth(),
-                        onCategoryClick = { category ->
-                            onShowNotification("Filtering by $category", NotificationType.INFO)
-                        }
-                    )
-                }
-            }
+            item { QuickStatsRow(analytics = analytics) }
 
             item {
-                SpendingTrendBarChart(
+                WhereItWentCard(
+                    categoryBreakdown = analytics.categoryBreakdown,
                     trendPoints = analytics.trendPoints,
-                    modifier = Modifier.fillMaxWidth()
+                    onCategoryClick = { category ->
+                        onShowNotification("Filtering by $category", NotificationType.INFO)
+                    }
                 )
             }
-
-            item { InsightsCard(analytics = analytics) }
         } else {
             item { EmptyStateCard() }
         }
@@ -424,14 +416,14 @@ private fun DashboardHeader(
                     ThemePreference.DARK -> "Theme: dark. Tap to follow system."
                 },
                 tint = MaterialTheme.colorScheme.onSurface,
-                background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                background = MaterialTheme.colorScheme.surfaceContainerHigh
             )
             HeaderActionButton(
                 icon = Icons.Rounded.Settings,
                 onClick = onSettingsClick,
                 contentDescription = "Settings",
                 tint = MaterialTheme.colorScheme.onSurface,
-                background = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f)
+                background = MaterialTheme.colorScheme.surfaceContainerHigh
             )
 
         }

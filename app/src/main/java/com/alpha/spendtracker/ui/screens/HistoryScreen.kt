@@ -358,8 +358,8 @@ private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        color = if (active) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        color = if (active) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.size(52.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -378,7 +378,7 @@ private fun FilterSummaryBar(
     total: Double
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -486,7 +486,13 @@ private fun EmptyHistoryState(modifier: Modifier = Modifier) {
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = "No matching expenses found",
+                text = "No expenses match",
+                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Spacer(modifier = Modifier.height(4.dp))
+            Text(
+                text = "Try clearing your filters or search.",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )

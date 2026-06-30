@@ -210,7 +210,7 @@ fun AiInputBottomSheet(
                             enabled = textInput.isNotBlank(),
                             shape = CircleShape,
                             color = if (textInput.isNotBlank()) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceVariant,
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
                             modifier = Modifier.size(38.dp)
                         ) {
                             Box(contentAlignment = Alignment.Center) {
@@ -265,8 +265,7 @@ fun AiInputBottomSheet(
                             Surface(
                                 onClick = { textInput = ex },
                                 shape = RoundedCornerShape(12.dp),
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                                border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant)
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh
                             ) {
                                 Text(
                                     text = ex,

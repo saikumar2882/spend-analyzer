@@ -92,6 +92,10 @@ fun LendBorrowScreen(
         SegmentedTabs(
             tabs = mainTabs,
             selectedIndex = selectedTab,
+            selectedColor = if (selectedTab == 0) MaterialTheme.colorScheme.secondary
+                            else MaterialTheme.colorScheme.error,
+            onSelectedColor = if (selectedTab == 0) MaterialTheme.colorScheme.onSecondary
+                              else MaterialTheme.colorScheme.onError,
             onSelect = { selectedTab = it }
         )
 
@@ -211,7 +215,9 @@ fun LendBorrowScreen(
         if (filteredSpends.isNotEmpty()) {
             SummaryBar(
                 label = if (selectedTab == 0) "Total Lent" else "Total Borrowed",
-                total = filteredSpends.sumOf { it.amount }
+                total = filteredSpends.sumOf { it.amount },
+                accent = if (selectedTab == 0) MaterialTheme.colorScheme.secondary
+                         else MaterialTheme.colorScheme.error
             )
             Spacer(modifier = Modifier.height(12.dp))
         }
@@ -228,6 +234,13 @@ fun LendBorrowScreen(
                     Spacer(modifier = Modifier.height(10.dp))
                     Text(
                         text = "No ${mainTabs[selectedTab].lowercase()} records yet",
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = if (selectedTab == 0) "Money you lend will show up here."
+                               else "Money you borrow will show up here.",
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -286,7 +299,7 @@ private fun HistoryIconButton(count: Int, onClick: () -> Unit) {
         Surface(
             onClick = onClick,
             shape = RoundedCornerShape(16.dp),
-            color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.size(52.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
@@ -348,11 +361,13 @@ private fun getTimeBounds(filter: TimeFilter, startOfToday: Long, calendar: Cale
 private fun SegmentedTabs(
     tabs: List<String>,
     selectedIndex: Int,
+    selectedColor: Color,
+    onSelectedColor: Color,
     onSelect: (Int) -> Unit
 ) {
     Surface(
         shape = RoundedCornerShape(18.dp),
-        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.fillMaxWidth()
     ) {
         Row(
@@ -364,7 +379,7 @@ private fun SegmentedTabs(
                 Surface(
                     onClick = { onSelect(index) },
                     shape = RoundedCornerShape(14.dp),
-                    color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
+                    color = if (isSelected) selectedColor else Color.Transparent,
                     modifier = Modifier.weight(1f)
                 ) {
                     Box(
@@ -375,7 +390,7 @@ private fun SegmentedTabs(
                             text = title,
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                            color = if (isSelected) MaterialTheme.colorScheme.onPrimary
+                            color = if (isSelected) onSelectedColor
                                     else MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
@@ -390,8 +405,8 @@ private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
     Surface(
         onClick = onClick,
         shape = RoundedCornerShape(16.dp),
-        color = if (active) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f)
-                else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+        color = if (active) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
         modifier = Modifier.size(52.dp)
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -408,10 +423,11 @@ private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
 @Composable
 private fun SummaryBar(
     label: String,
-    total: Double
+    total: Double,
+    accent: Color
 ) {
     Surface(
-        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
+        color = accent.copy(alpha = 0.12f),
         shape = RoundedCornerShape(14.dp),
         modifier = Modifier.fillMaxWidth()
     ) {
@@ -424,7 +440,7 @@ private fun SummaryBar(
                 Box(
                     modifier = Modifier
                         .size(8.dp)
-                        .background(MaterialTheme.colorScheme.primary, CircleShape)
+                        .background(accent, CircleShape)
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
@@ -436,7 +452,7 @@ private fun SummaryBar(
             Text(
                 text = "₹${formatCurrency(total)}",
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.primary
+                color = accent
             )
         }
     }

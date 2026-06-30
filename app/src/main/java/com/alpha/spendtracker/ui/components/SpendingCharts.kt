@@ -22,6 +22,7 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.StrokeCap
 import androidx.compose.ui.graphics.drawscope.Stroke
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.TextLayoutResult
 import androidx.compose.ui.text.drawText
 import androidx.compose.ui.text.font.FontWeight
@@ -70,12 +71,13 @@ fun getCategoryColors(): Map<String, Color> {
 fun SpendingDonutChart(
     categoryBreakdown: Map<String, Double>,
     modifier: Modifier = Modifier,
+    inCard: Boolean = false,
     onCategoryClick: ((String) -> Unit)? = null
 ) {
     if (categoryBreakdown.isEmpty()) {
         Box(
             modifier = modifier.background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                MaterialTheme.colorScheme.surfaceContainer,
                 shape = RoundedCornerShape(16.dp)
             ),
             contentAlignment = Alignment.Center
@@ -95,10 +97,17 @@ fun SpendingDonutChart(
     val total = remember(categoryBreakdown) { categoryBreakdown.values.sum() }
     val items = remember(categoryBreakdown) { categoryBreakdown.toList().sortedByDescending { it.second } }
 
-    var animatedProgress by remember { mutableFloatStateOf(0f) }
+    // Respect the system "remove animations" accessibility setting: when on, the draw animation
+    // snaps straight to its final state instead of tweening over 800ms.
+    val context = LocalContext.current
+    val reduceMotion = android.provider.Settings.Global.getFloat(
+        context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+    ) == 0f
+
+    var animatedProgress by remember { mutableFloatStateOf(if (reduceMotion) 1f else 0f) }
     val progressFactor by animateFloatAsState(
         targetValue = animatedProgress,
-        animationSpec = tween(durationMillis = 800),
+        animationSpec = tween(durationMillis = if (reduceMotion) 0 else 800),
         label = "diagram_draw"
     )
 
@@ -111,9 +120,12 @@ fun SpendingDonutChart(
     }
 
     Row(
-        modifier = modifier
-            .background(chartContainerColor(), shape = RoundedCornerShape(24.dp))
-            .padding(16.dp),
+        modifier = modifier.then(
+            if (inCard) Modifier
+            else Modifier
+                .background(chartContainerColor(), shape = RoundedCornerShape(24.dp))
+                .padding(16.dp)
+        ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Doughnut Canvas
@@ -278,12 +290,13 @@ fun SpendingDonutChart(
 @Composable
 fun SpendingTrendBarChart(
     trendPoints: List<TrendPoint>,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    inCard: Boolean = false
 ) {
     if (trendPoints.isEmpty()) {
         Box(
             modifier = modifier.background(
-                MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f),
+                MaterialTheme.colorScheme.surfaceContainer,
                 shape = RoundedCornerShape(16.dp)
             ),
             contentAlignment = Alignment.Center
@@ -300,10 +313,17 @@ fun SpendingTrendBarChart(
     val maxVal = trendPoints.maxOfOrNull { it.amount } ?: 1.0
     val displayMax = if (maxVal == 0.0) 100.0 else maxVal * 1.15 // 15% padding so bars don't clip at top
 
-    var animatedProgress by remember { mutableFloatStateOf(0f) }
+    // Respect the system "remove animations" accessibility setting: when on, the bars snap to their
+    // final heights instead of tweening over 800ms.
+    val context = LocalContext.current
+    val reduceMotion = android.provider.Settings.Global.getFloat(
+        context.contentResolver, android.provider.Settings.Global.ANIMATOR_DURATION_SCALE, 1f
+    ) == 0f
+
+    var animatedProgress by remember { mutableFloatStateOf(if (reduceMotion) 1f else 0f) }
     val progressFactor by animateFloatAsState(
         targetValue = animatedProgress,
-        animationSpec = tween(durationMillis = 800),
+        animationSpec = tween(durationMillis = if (reduceMotion) 0 else 800),
         label = "bar_draw"
     )
 
@@ -348,16 +368,21 @@ fun SpendingTrendBarChart(
     }
 
     Column(
-        modifier = modifier
-            .background(chartContainerColor(), shape = RoundedCornerShape(24.dp))
-            .padding(16.dp)
-    ) {
-        Text(
-            text = "Spending Trend Projections",
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            modifier = Modifier.padding(bottom = 12.dp)
+        modifier = modifier.then(
+            if (inCard) Modifier
+            else Modifier
+                .background(chartContainerColor(), shape = RoundedCornerShape(24.dp))
+                .padding(16.dp)
         )
+    ) {
+        if (!inCard) {
+            Text(
+                text = "Spending over time",
+                style = MaterialTheme.typography.titleSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.padding(bottom = 12.dp)
+            )
+        }
 
         Canvas(
             modifier = Modifier
@@ -472,4 +497,4 @@ fun formatCurrency(amount: Double): String {
 
 @Composable
 private fun chartContainerColor(): Color =
-    MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f)
+    MaterialTheme.colorScheme.surfaceContainer

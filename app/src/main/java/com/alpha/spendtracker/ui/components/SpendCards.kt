@@ -4,7 +4,6 @@
 package com.alpha.spendtracker.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -63,21 +62,16 @@ fun RecentSpendRow(
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.98f else 1f, label = "recentRowScale")
 
-    val isDark = isSystemInDarkTheme()
-    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant 
-                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-
     Card(
         onClick = onClick,
         interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale),
-        shape = RoundedCornerShape(18.dp),
+        shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
+            containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
-        border = BorderStroke(1.dp, borderColor),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -140,15 +134,10 @@ fun HistorySpendCard(
     val accent = APP_COLOR_BY_NAME[spend.appName] ?: MaterialTheme.colorScheme.primary
     val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
 
-    val isDark = isSystemInDarkTheme()
-    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant 
-                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, borderColor),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -211,7 +200,11 @@ fun HistorySpendCard(
                             fontWeight = FontWeight.ExtraBold,
                             letterSpacing = (-0.5).sp
                         ),
-                        color = MaterialTheme.colorScheme.onSurface
+                        color = when (spend.purpose) {
+                            "Lending" -> MaterialTheme.colorScheme.secondary
+                            "Borrowing" -> MaterialTheme.colorScheme.error
+                            else -> MaterialTheme.colorScheme.onSurface
+                        }
                     )
                     Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         IconButton(
@@ -266,15 +259,10 @@ fun HistoryRecordCard(
         remaining.coerceAtLeast(0)
     } else null
 
-    val isDark = isSystemInDarkTheme()
-    val borderColor = if (isDark) MaterialTheme.colorScheme.outlineVariant 
-                      else MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
-
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-        border = BorderStroke(1.dp, borderColor),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -485,7 +473,7 @@ fun PresetGridCard(
     val surfaceColor = if (isSelected) {
         preset.color.copy(alpha = 0.18f)
     } else {
-        MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f)
+        MaterialTheme.colorScheme.surfaceContainer
     }
 
     val interactionSource = remember { MutableInteractionSource() }

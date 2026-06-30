@@ -596,7 +596,7 @@ class SpendViewModel @Inject constructor(
                         Finance: credit card bill, cc bill, emi, loan payment → "Credit Card Bill"
                         Giving: "lent to", "gave to", "sent to [person]", "paid for [person]" → "Lending"
                         Receiving: "borrowed from", "took from", "received from" → "Borrowing"
-                        Default → "Others"
+                        Default (nothing clearly matches) → use the user's default purpose above: "${prefs.defaultPurpose}"
 
                         FIELD RULES:
                         - amount: largest monetary number found; null if absent.

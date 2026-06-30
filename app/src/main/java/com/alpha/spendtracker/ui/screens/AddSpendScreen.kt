@@ -457,7 +457,7 @@ private fun DateSelectorRow(
                 .weight(1.3f)
                 .background(
                     color = if (isCustomSelected) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                            else MaterialTheme.colorScheme.surfaceContainerHigh,
                     shape = RoundedCornerShape(12.dp)
                 )
                 .clickable {
@@ -523,7 +523,7 @@ private fun RowScope.DateChip(
             .weight(weight)
             .background(
                 color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                        else MaterialTheme.colorScheme.surfaceContainerHigh,
                 shape = RoundedCornerShape(12.dp)
             )
             .clickable(onClick = onClick)
@@ -559,7 +559,7 @@ private fun PurposePresetGrid(
                             .weight(1f)
                             .background(
                                 color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
-                                        else MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.4f),
+                                        else MaterialTheme.colorScheme.surfaceContainerHigh,
                                 shape = RoundedCornerShape(12.dp)
                             )
                             .clickable { onSelect(purpose) }

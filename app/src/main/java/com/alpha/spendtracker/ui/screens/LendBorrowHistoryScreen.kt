@@ -196,8 +196,8 @@ fun LendBorrowHistoryScreen(
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
                         text = if (isDeletedView) "Your trash is empty" else "No modifications tracked yet",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
             }

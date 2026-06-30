@@ -52,6 +52,7 @@ import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.ui.components.AiSettingsDialog
 import com.alpha.spendtracker.ui.components.NotificationType
+import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.google.firebase.auth.FirebaseAuth
 
@@ -244,8 +245,8 @@ fun SettingsScreen(
                         onClick = onCycleTheme,
                         trailing = {
                             Surface(
-                                color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                                shape = RoundedCornerShape(10.dp)
+                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                                shape = RoundedCornerShape(Radius.xs)
                             ) {
                                 Text(
                                     text = when (themePreference) {
@@ -368,8 +369,8 @@ private fun SettingsGroup(
         }
         Card(
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.3f))
+            shape = RoundedCornerShape(Radius.md),
+            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
         ) {
             Column(content = content)
         }
@@ -394,8 +395,8 @@ private fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f),
+            shape = RoundedCornerShape(Radius.sm),
+            color = iconTint.copy(alpha = 0.12f),
             modifier = Modifier.size(40.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {

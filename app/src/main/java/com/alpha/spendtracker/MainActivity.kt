@@ -23,6 +23,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.slideInHorizontally
+import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
@@ -696,7 +698,7 @@ fun MainContainer(
                                 Icon(Icons.Rounded.Add, null, modifier = Modifier.graphicsLayer { rotationZ = if (showFabMenu) 45f else 0f })
                             },
                             text = { Text(if (showFabMenu) "Close Tracking" else "Track Spend") },
-                            containerColor = if (showFabMenu) MaterialTheme.colorScheme.surfaceVariant else MaterialTheme.colorScheme.primaryContainer,
+                            containerColor = if (showFabMenu) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primary,
                             elevation = FloatingActionButtonDefaults.elevation(6.dp)
                         )
                     }
@@ -711,7 +713,21 @@ fun MainContainer(
             ) {
                 AnimatedContent(
                     targetState = activeView,
-                    transitionSpec = { fadeIn(tween(220)) togetherWith fadeOut(tween(180)) },
+                    transitionSpec = {
+                        // Shared-axis style: a subtle slide along X + fade. Direction follows the
+                        // enum ordinal so moving "forward" slides in from the right, "back" from
+                        // the left. The incoming screen enters from one side while the outgoing one
+                        // exits to the other, giving navigation a spatial feel.
+                        val forward = targetState.ordinal >= initialState.ordinal
+                        // Slide ~30% of the screen width so it reads as motion without a full swipe.
+                        val enter = slideInHorizontally(animationSpec = tween(280)) { fullWidth ->
+                            if (forward) fullWidth / 3 else -fullWidth / 3
+                        } + fadeIn(tween(280))
+                        val exit = slideOutHorizontally(animationSpec = tween(250)) { fullWidth ->
+                            if (forward) -fullWidth / 3 else fullWidth / 3
+                        } + fadeOut(tween(200))
+                        enter togetherWith exit
+                    },
                     label = "screen-switch"
                 ) { view ->
                     when (view) {
