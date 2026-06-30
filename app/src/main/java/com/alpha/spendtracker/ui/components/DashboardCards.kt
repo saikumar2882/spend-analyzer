@@ -220,7 +220,9 @@ fun TotalSpentHeroCard(
                             Text(
                                 text = formatCurrency(totalAmount),
                                 style = MaterialTheme.typography.displayMedium.copy(
-                                    fontWeight = FontWeight.Black,
+                                    fontWeight = FontWeight.Bold,
+                                    fontSize = 36.sp,
+                                    lineHeight = 40.sp,
                                     letterSpacing = (-1).sp
                                 ),
                                 color = Color.White

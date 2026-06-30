@@ -82,7 +82,7 @@ fun BillTrackingBottomSheet(
                         text = "₹${amount.ifBlank { "0" }}",
                         style = MaterialTheme.typography.displayMedium.copy(
                             fontWeight = FontWeight.Bold,
-                            fontSize = 44.sp
+                            fontSize = 36.sp
                         ),
                         color = MaterialTheme.colorScheme.primary
                     )

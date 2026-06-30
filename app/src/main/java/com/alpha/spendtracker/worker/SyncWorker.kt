@@ -30,23 +30,27 @@ class SyncWorker @AssistedInject constructor(
         val userDoc = firestore.collection("users").document(userId)
 
         return try {
-            // 1. Sync Spends — last-write-wins: only overwrite the cloud copy when the
-            // local row is strictly newer than what is already in Firestore.
+            // 1. Sync Spends — last-write-wins: overwrite the cloud copy when the local row
+            // is at least as new as what is already in Firestore. We use >= (not strict >)
+            // and treat a missing remote updatedAt as "upload" so that legacy/partial cloud
+            // docs (written before fields like `notes`/`category` existed, or whose updatedAt
+            // collides with the local baseline) are re-uploaded with the complete local
+            // record — fixing fields such as the person's name dropping out of sync.
             val localSpends = spendDao.getAllSpends(userId).first()
             localSpends.forEach { spend ->
                 val docRef = userDoc.collection("spends").document(spend.uuid)
                 val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
-                if (remoteUpdatedAt == null || spend.updatedAt > remoteUpdatedAt) {
+                if (remoteUpdatedAt == null || spend.updatedAt >= remoteUpdatedAt) {
                     docRef.set(spend).await()
                 }
             }
 
-            // 2. Sync Recurring Bills — last-write-wins.
+            // 2. Sync Recurring Bills — last-write-wins (>= for the same reasons as above).
             val localBills = recurringBillDao.getAllRecurringBills(userId).first()
             localBills.forEach { bill ->
                 val docRef = userDoc.collection("recurring_bills").document(bill.uuid)
                 val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
-                if (remoteUpdatedAt == null || bill.updatedAt > remoteUpdatedAt) {
+                if (remoteUpdatedAt == null || bill.updatedAt >= remoteUpdatedAt) {
                     docRef.set(bill).await()
                 }
             }

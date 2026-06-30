@@ -44,10 +44,15 @@ class SpendRepository(
                     scope.launch {
                         when (change.type) {
                             DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                // Last-write-wins: only apply the cloud copy if it is strictly
-                                // newer than the local row. Otherwise the local edit is preserved.
+                                // Last-write-wins: apply the cloud copy when it is at least as new
+                                // as the local row. We compare with >= (not strict >) so records
+                                // whose updatedAt collides on the same baseline — legacy docs with
+                                // no updatedAt that deserialize to 0, or migration-seeded rows —
+                                // still get every field populated (notably the person's name in
+                                // `notes` and the `category`) instead of being silently skipped.
+                                // A strictly-newer local edit (larger updatedAt) is still preserved.
                                 val localUpdatedAt = spendDao.getSpendUpdatedAt(spend.uuid)
-                                if (localUpdatedAt == null || spend.updatedAt > localUpdatedAt) {
+                                if (localUpdatedAt == null || spend.updatedAt >= localUpdatedAt) {
                                     spendDao.insertSpend(spend)
                                 }
                             }
@@ -66,9 +71,12 @@ class SpendRepository(
                     scope.launch {
                         when (change.type) {
                             DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                // Last-write-wins: only apply the cloud copy if it is strictly newer.
+                                // Last-write-wins: apply the cloud copy when it is at least as new
+                                // as the local row (>= so colliding/legacy baselines still fully
+                                // populate every field, e.g. name and notes). A strictly-newer
+                                // local edit is preserved.
                                 val localUpdatedAt = recurringBillDao.getRecurringBillUpdatedAt(bill.uuid)
-                                if (localUpdatedAt == null || bill.updatedAt > localUpdatedAt) {
+                                if (localUpdatedAt == null || bill.updatedAt >= localUpdatedAt) {
                                     recurringBillDao.insertRecurringBill(bill)
                                 }
                             }

@@ -31,6 +31,11 @@ abstract class AppDatabase : RoomDatabase() {
                 db.execSQL("UPDATE spends SET updatedAt = timestamp")
 
                 db.execSQL("ALTER TABLE recurring_bills ADD COLUMN updatedAt INTEGER NOT NULL DEFAULT 0")
+                // Seed bills with the current time so post-upgrade local rows have a real
+                // mutation stamp. Without this they stay at 0 and the last-write-wins gate
+                // would never re-upload them, leaving older Firestore copies (missing newer
+                // fields such as the person's name/notes) to win forever.
+                db.execSQL("UPDATE recurring_bills SET updatedAt = ${System.currentTimeMillis()}")
             }
         }
 
