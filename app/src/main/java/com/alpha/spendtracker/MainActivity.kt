@@ -349,6 +349,47 @@ fun MainContainer(
         }
     }
 
+    // App-update check lives ABOVE the auth early-return so it runs regardless of
+    // sign-in state — users on sideloaded/GitHub builds get prompted even on the
+    // Sign In / Register screen. The dialog floats in its own window, so it overlays
+    // whichever screen is showing. Runs once per app session; suppression is
+    // per-version so a dismissed release is never re-prompted.
+    val aiPrefs by viewModel.aiPreferences.collectAsStateWithLifecycle()
+    var pendingUpdate by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
+    val updateChecker = remember { UpdateChecker(context) }
+
+    LaunchedEffect(Unit) {
+        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
+        val currentVersion = packageInfo.versionName ?: "0.0.0"
+        val update = updateChecker.checkForUpdates(currentVersion)
+        if (update != null && update.version != aiPrefs.dismissedUpdateVersion) {
+            pendingUpdate = update
+        }
+    }
+
+    val update = pendingUpdate
+    if (update != null) {
+        AlertDialog(
+            onDismissRequest = { pendingUpdate = null },
+            title = { Text("New Update Available") },
+            text = { Text("Version ${update.version} of Spendly is available on GitHub. Would you like to download it now?") },
+            confirmButton = {
+                Button(onClick = {
+                    // Remember this version so we don't prompt again after the user heads off to install it.
+                    viewModel.dismissUpdateVersion(update.version)
+                    updateChecker.openUpdateUrl(update.downloadUrl)
+                    pendingUpdate = null
+                }) { Text("Download") }
+            },
+            dismissButton = {
+                TextButton(onClick = {
+                    viewModel.dismissUpdateVersion(update.version)
+                    pendingUpdate = null
+                }) { Text("Later") }
+            }
+        )
+    }
+
     if (currentUser == null || isRegistering) {
         val currentIsRegistering = isRegistering
         // Which auth screen is showing, and the email shared between them so it
@@ -425,7 +466,6 @@ fun MainContainer(
     val analyticsState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val customDateRange by viewModel.customDateRange.collectAsStateWithLifecycle()
-    val aiPrefs by viewModel.aiPreferences.collectAsStateWithLifecycle()
     val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
     val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
     val historyStatus by viewModel.historyStatus.collectAsStateWithLifecycle()
@@ -440,47 +480,6 @@ fun MainContainer(
     }
     val recentSpends = remember(nonLendBorrowSpends) {
         nonLendBorrowSpends.take(5)
-    }
-
-    var pendingUpdate by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
-    val updateChecker = remember { UpdateChecker(context) }
-
-    // Check once per signed-in session. Suppression is per-version (not time-based): we read the
-    // dismissed version inside without keying on it, so dismissing the dialog doesn't re-fire the
-    // network check — the user is only ever prompted once for a given release.
-    LaunchedEffect(currentUser) {
-        val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
-        val currentVersion = packageInfo.versionName ?: "0.0.0"
-
-        val update = updateChecker.checkForUpdates(currentVersion)
-        // Only surface the dialog if a strictly newer version exists AND it isn't one the user
-        // already dismissed or downloaded.
-        if (update != null && update.version != aiPrefs.dismissedUpdateVersion) {
-            pendingUpdate = update
-        }
-    }
-
-    val update = pendingUpdate
-    if (update != null) {
-        AlertDialog(
-            onDismissRequest = { pendingUpdate = null },
-            title = { Text("New Update Available") },
-            text = { Text("Version ${update.version} of Spendly is available on GitHub. Would you like to download it now?") },
-            confirmButton = {
-                Button(onClick = {
-                    // Remember this version so we don't prompt again after the user heads off to install it.
-                    viewModel.dismissUpdateVersion(update.version)
-                    updateChecker.openUpdateUrl(update.downloadUrl)
-                    pendingUpdate = null
-                }) { Text("Download") }
-            },
-            dismissButton = {
-                TextButton(onClick = {
-                    viewModel.dismissUpdateVersion(update.version)
-                    pendingUpdate = null
-                }) { Text("Later") }
-            }
-        )
     }
 
     val isBiometricAuthenticated by viewModel.isBiometricAuthenticated.collectAsStateWithLifecycle()
