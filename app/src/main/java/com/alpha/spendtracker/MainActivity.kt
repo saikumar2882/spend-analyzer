@@ -85,6 +85,7 @@ import com.alpha.spendtracker.ui.screens.LendBorrowScreen
 import com.alpha.spendtracker.ui.screens.LoginScreen
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.ui.screens.RecurringBillsScreen
+import com.alpha.spendtracker.ui.screens.RegisterScreen
 import com.alpha.spendtracker.ui.screens.SettingsScreen
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.ThemePreference
@@ -350,20 +351,57 @@ fun MainContainer(
 
     if (currentUser == null || isRegistering) {
         val currentIsRegistering = isRegistering
-        LoginScreen(
-            onLoginSuccess = { 
-                if (currentIsRegistering) {
-                    isRegistering = false
-                }
-            },
-            onShowNotification = { msg, type -> showNotification(msg, type) },
-            onRegisteringStart = { 
-                isRegistering = true 
-            },
-            onRegisteringFinished = { 
-                isRegistering = false 
+        // Which auth screen is showing, and the email shared between them so it
+        // carries over when the user switches Sign In <-> Register.
+        var showRegister by rememberSaveable { mutableStateOf(false) }
+        var authEmail by rememberSaveable { mutableStateOf("") }
+        Box(modifier = Modifier.fillMaxSize()) {
+            if (showRegister) {
+                RegisterScreen(
+                    initialEmail = authEmail,
+                    onEmailChange = { authEmail = it },
+                    onLoginSuccess = {
+                        if (currentIsRegistering) {
+                            isRegistering = false
+                        }
+                    },
+                    onShowNotification = { msg, type -> showNotification(msg, type) },
+                    onRegisteringStart = { isRegistering = true },
+                    onRegisteringFinished = { isRegistering = false },
+                    onNavigateToSignIn = { showRegister = false }
+                )
+            } else {
+                LoginScreen(
+                    initialEmail = authEmail,
+                    onEmailChange = { authEmail = it },
+                    onLoginSuccess = {
+                        if (currentIsRegistering) {
+                            isRegistering = false
+                        }
+                    },
+                    onShowNotification = { msg, type -> showNotification(msg, type) },
+                    onNavigateToRegister = { emailValue ->
+                        authEmail = emailValue
+                        showRegister = true
+                    }
+                )
             }
-        )
+
+            // Notification overlay is also needed here — the auth screen returns
+            // early, before the main content's notification banner is composed,
+            // so without this, the auth screens' messages (validation errors,
+            // "email sent", etc.) would be set but never displayed.
+            AnimatedVisibility(
+                visible = currentNotification != null,
+                enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+                exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+                modifier = Modifier.align(Alignment.TopCenter)
+            ) {
+                currentNotification?.let { (msg, type) ->
+                    AppNotification(message = msg, type = type)
+                }
+            }
+        }
         return
     }
 

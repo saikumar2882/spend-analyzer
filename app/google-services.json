@@ -12,7 +12,20 @@
           "package_name": "com.alpha.spendtracker"
         }
       },
-      "oauth_client": [],
+      "oauth_client": [
+        {
+          "client_id": "460156966019-53ct6ofbj3bel1nl6opk12pt33a9bjib.apps.googleusercontent.com",
+          "client_type": 1,
+          "android_info": {
+            "package_name": "com.alpha.spendtracker",
+            "certificate_hash": "a1674b932a6fecef23f7d9cbe79d318ea34c3ac9"
+          }
+        },
+        {
+          "client_id": "460156966019-r2qrfdrc2ucgn6bq177smm7o9fkb20gi.apps.googleusercontent.com",
+          "client_type": 3
+        }
+      ],
       "api_key": [
         {
           "current_key": "AIzaSyCkjH_Qsa4MU-e5vGitGuPFynl_YOsUt8c"
@@ -20,7 +33,12 @@
       ],
       "services": {
         "appinvite_service": {
-          "other_platform_oauth_client": []
+          "other_platform_oauth_client": [
+            {
+              "client_id": "460156966019-r2qrfdrc2ucgn6bq177smm7o9fkb20gi.apps.googleusercontent.com",
+              "client_type": 3
+            }
+          ]
         }
       }
     }

@@ -6,8 +6,6 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
@@ -39,31 +37,28 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
-import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
-import com.google.firebase.auth.FirebaseAuthInvalidUserException
+import com.google.firebase.auth.FirebaseAuthUserCollisionException
 
 @Composable
-fun LoginScreen(
+fun RegisterScreen(
     initialEmail: String = "",
     onEmailChange: (String) -> Unit = {},
     onLoginSuccess: () -> Unit,
     onShowNotification: (String, NotificationType) -> Unit,
-    onNavigateToRegister: (String) -> Unit = {}
+    onRegisteringStart: () -> Unit = {},
+    onRegisteringFinished: () -> Unit = {},
+    onNavigateToSignIn: () -> Unit = {}
 ) {
     var email by remember { mutableStateOf(initialEmail) }
     var password by remember { mutableStateOf("") }
     var passwordVisible by remember { mutableStateOf(false) }
     var isLoading by remember { mutableStateOf(false) }
     var errorMessage by remember { mutableStateOf<String?>(null) }
-    var infoMessage by remember { mutableStateOf<String?>(null) }
-    var isSendingReset by remember { mutableStateOf(false) }
-    // Set when sign-in fails in a way that suggests the user should register instead.
-    var registerPromptMessage by remember { mutableStateOf<String?>(null) }
-    // Set when an existing account signs in but hasn't verified its email yet.
+    // Set when the email is already registered — offers to switch to Sign In.
+    var signInPromptMessage by remember { mutableStateOf<String?>(null) }
     var showVerification by remember { mutableStateOf(false) }
 
     var emailTouched by remember { mutableStateOf(false) }
@@ -72,12 +67,14 @@ fun LoginScreen(
     val auth = remember { FirebaseAuth.getInstance() }
 
     fun isValidEmail(value: String): Boolean = Patterns.EMAIL_ADDRESS.matcher(value).matches()
+    fun isValidPassword(value: String): Boolean = value.length >= 6
 
     val emailError = emailTouched && email.isNotEmpty() && !isValidEmail(email)
+    val passwordError = passwordTouched && password.isNotEmpty() && !isValidPassword(password)
 
     val onGoogleSignIn = rememberGoogleSignIn(
         onSuccess = {
-            onShowNotification("Google Sign-In successful!", NotificationType.SUCCESS)
+            onShowNotification("Signed in with Google!", NotificationType.SUCCESS)
             onLoginSuccess()
         },
         onError = { msg ->
@@ -86,64 +83,51 @@ fun LoginScreen(
         }
     )
 
-    val signInAction: () -> Unit = {
-        if (!isValidEmail(email) || password.isEmpty()) {
+    val registerAction: () -> Unit = {
+        if (!isValidEmail(email) || !isValidPassword(password)) {
             emailTouched = true
             passwordTouched = true
-            val msg = if (!isValidEmail(email)) "Enter a valid email address." else "Enter your password."
+            val msg = when {
+                !isValidEmail(email) && !isValidPassword(password) ->
+                    "Enter a valid email address and a password of at least 6 characters."
+                !isValidEmail(email) -> "Enter a valid email address."
+                else -> "Password must be at least 6 characters."
+            }
             onShowNotification(msg, NotificationType.ERROR)
             errorMessage = msg
         } else {
+            onRegisteringStart()
             isLoading = true
-            auth.signInWithEmailAndPassword(email, password)
-                .addOnCompleteListener { signInTask ->
-                    if (!signInTask.isSuccessful) {
+            auth.createUserWithEmailAndPassword(email, password)
+                .addOnCompleteListener { createTask ->
+                    if (!createTask.isSuccessful) {
                         isLoading = false
-                        when (val ex = signInTask.exception) {
-                            is FirebaseAuthInvalidUserException -> {
-                                // ERROR_USER_NOT_FOUND / ERROR_USER_DISABLED
-                                if (ex.errorCode == "ERROR_USER_DISABLED") {
-                                    errorMessage = "This account has been disabled. Please contact support."
-                                } else {
-                                    registerPromptMessage =
-                                        "We couldn't find an account for $email. Would you like to register?"
-                                }
-                            }
-                            is FirebaseAuthInvalidCredentialsException -> {
-                                // Wrong password, or — when Email Enumeration Protection is
-                                // enabled — a generic credential error that can also mean the
-                                // email isn't registered. Offer registration either way.
-                                registerPromptMessage =
-                                    "Incorrect email or password. If you're new here, you can register instead."
-                            }
-                            else -> {
-                                val msg = ex?.message
-                                    ?: "Login failed. Please check your credentials or internet connection."
-                                onShowNotification(msg, NotificationType.ERROR)
-                                errorMessage = msg
-                            }
+                        onRegisteringFinished()
+                        val ex = createTask.exception
+                        if (ex is FirebaseAuthUserCollisionException) {
+                            signInPromptMessage =
+                                "An account already exists for $email. Please sign in instead."
+                        } else {
+                            val msg = ex?.message ?: "Registration failed. Please try again."
+                            onShowNotification("Error: $msg", NotificationType.ERROR)
+                            errorMessage = msg
                         }
                         return@addOnCompleteListener
                     }
-                    auth.currentUser?.reload()?.addOnCompleteListener { reloadTask ->
-                        isLoading = false
-                        val verified = auth.currentUser?.isEmailVerified == true
-                        if (verified) {
-                            onShowNotification("Login successful!", NotificationType.SUCCESS)
-                            onLoginSuccess()
-                        } else if (reloadTask.isSuccessful) {
-                            // Sign back out so MainActivity keeps showing the auth screen
-                            // (and this dialog) instead of dropping straight to the Dashboard.
+                    auth.currentUser?.sendEmailVerification()
+                        ?.addOnCompleteListener { sendTask ->
+                            isLoading = false
                             auth.signOut()
-                            showVerification = true
-                            onShowNotification("Please verify your email.", NotificationType.INFO)
-                        } else {
-                            val msg = "Sign-in successful, but couldn't verify email status: ${reloadTask.exception?.message}"
-                            onShowNotification(msg, NotificationType.ERROR)
-                            errorMessage = msg
-                            auth.signOut()
+                            if (sendTask.isSuccessful) {
+                                showVerification = true
+                                onShowNotification("Verification email sent!", NotificationType.SUCCESS)
+                            } else {
+                                onRegisteringFinished()
+                                onShowNotification("Error: ${sendTask.exception?.message}", NotificationType.ERROR)
+                                errorMessage = "Account created, but the verification email could not be sent: " +
+                                    "${sendTask.exception?.message}. Try signing in and tap \"Resend\"."
+                            }
                         }
-                    }
                 }
         }
     }
@@ -160,32 +144,20 @@ fun LoginScreen(
         )
     }
 
-    if (infoMessage != null) {
+    if (signInPromptMessage != null) {
         AlertDialog(
-            onDismissRequest = { infoMessage = null },
-            icon = { Icon(Icons.Rounded.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Check your inbox") },
-            text = { Text(infoMessage!!) },
-            confirmButton = {
-                TextButton(onClick = { infoMessage = null }) { Text("OK") }
-            }
-        )
-    }
-
-    if (registerPromptMessage != null) {
-        AlertDialog(
-            onDismissRequest = { registerPromptMessage = null },
+            onDismissRequest = { signInPromptMessage = null },
             icon = { Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Sign-in failed") },
-            text = { Text(registerPromptMessage!!) },
+            title = { Text("Already registered") },
+            text = { Text(signInPromptMessage!!) },
             confirmButton = {
                 Button(onClick = {
-                    registerPromptMessage = null
-                    onNavigateToRegister(email)
-                }) { Text("Register") }
+                    signInPromptMessage = null
+                    onNavigateToSignIn()
+                }) { Text("Sign in") }
             },
             dismissButton = {
-                TextButton(onClick = { registerPromptMessage = null }) { Text("Cancel") }
+                TextButton(onClick = { signInPromptMessage = null }) { Text("Cancel") }
             }
         )
     }
@@ -196,32 +168,35 @@ fun LoginScreen(
             password = password,
             onVerified = {
                 showVerification = false
-                onShowNotification("Login successful!", NotificationType.SUCCESS)
+                onRegisteringFinished()
                 onLoginSuccess()
             },
-            onDismiss = { showVerification = false }
+            onDismiss = {
+                showVerification = false
+                onRegisteringFinished()
+            }
         )
     }
 
     AuthScaffold(
-        title = "Welcome back",
-        subtitle = "Sign in to continue managing your spending",
+        title = "Create your account",
+        subtitle = "Sign up to start tracking your spending",
         footer = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Don't have an account?",
+                    text = "Already have an account?",
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 TextButton(
-                    onClick = { onNavigateToRegister(email) },
+                    onClick = onNavigateToSignIn,
                     enabled = !isLoading
                 ) {
                     Text(
-                        "Register",
+                        "Sign in",
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -269,54 +244,20 @@ fun LoginScreen(
             },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            shape = RoundedCornerShape(14.dp)
+            isError = passwordError,
+            shape = RoundedCornerShape(14.dp),
+            supportingText = if (passwordError) {
+                { Text("Password must be at least 6 characters") }
+            } else null
         )
 
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.End
-        ) {
-            if (isSendingReset) {
-                CircularProgressIndicator(modifier = Modifier.size(16.dp), strokeWidth = 2.dp)
-                Spacer(modifier = Modifier.width(8.dp))
-            }
-            TextButton(
-                onClick = {
-                    if (!isValidEmail(email)) {
-                        emailTouched = true
-                        val msg = "Enter a valid email address to receive a reset link."
-                        onShowNotification(msg, NotificationType.ERROR)
-                        errorMessage = msg
-                        return@TextButton
-                    }
-                    isSendingReset = true
-                    auth.sendPasswordResetEmail(email)
-                        .addOnCompleteListener { task ->
-                            isSendingReset = false
-                            if (task.isSuccessful) {
-                                onShowNotification("A password reset link has been sent to $email.", NotificationType.SUCCESS)
-                                infoMessage = "A password reset link has been sent to $email. Please check your inbox (and spam folder)."
-                            } else {
-                                val msg = task.exception?.message ?: "Could not send reset email. Please try again."
-                                onShowNotification(msg, NotificationType.ERROR)
-                                errorMessage = msg
-                            }
-                        }
-                },
-                enabled = !isSendingReset && !isLoading
-            ) {
-                Text("Forgot Password?")
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         if (isLoading) {
             CircularProgressIndicator(color = MaterialTheme.colorScheme.primary)
         } else {
             Button(
-                onClick = signInAction,
+                onClick = registerAction,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(54.dp),
@@ -324,7 +265,7 @@ fun LoginScreen(
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp, pressedElevation = 2.dp)
             ) {
                 Text(
-                    "Sign In",
+                    "Create account",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
