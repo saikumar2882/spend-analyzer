@@ -63,9 +63,21 @@ Two separate AI flows. The **primary** provider is **Groq** (OpenAI-compatible, 
 
 ### Authentication & Security
 
-- **Credential Manager**: Used for modern Google Sign-In flow.
+Auth is handled **inline in Composables** (no auth ViewModel; the `auth/AuthManager.kt` class is currently unused). The auth UI is **two dedicated screens**, switched by state in `MainContainer` (`showRegister` boolean + a shared `authEmail` that carries the typed email across the switch):
+
+- `LoginScreen` — **sign-in only**. On failure it maps the Firebase exception instead of surfacing a raw error: `FirebaseAuthInvalidUserException` (user-not-found) or `FirebaseAuthInvalidCredentialsException` shows a "Sign-in failed / register?" dialog with a **Register** button that jumps to `RegisterScreen` with the email pre-filled. Also hosts Forgot-Password and the unverified-email gate.
+- `RegisterScreen` — email + password + **Continue with Google**. Creates the account, sends a verification email, then signs out and shows the verify dialog. `FirebaseAuthUserCollisionException` (email already registered) offers a **Sign in** button.
+- `AuthComponents.kt` — shared pieces used by both screens: `AuthScaffold` (branded layout), `GoogleButton`, `rememberGoogleSignIn` (Credential Manager → Firebase; `NoCredentialException` yields a clear "no Google account on this device" message), and `EmailVerificationDialog`.
+
+⚠️ **Email verification is required** before a session is considered signed in — both flows sign the user back out and gate on `isEmailVerified` via the shared dialog.
+
+⚠️ **Precise "email not registered" detection depends on Firebase's Email Enumeration Protection** (Console → Authentication → Settings). When **ON** (default), `user-not-found` and `wrong-password` return the *same* generic `INVALID_CREDENTIAL` error, so the app shows a combined "incorrect email or password — register?" dialog. Turn it **OFF** to get the exact `USER_NOT_FOUND` → "no account, register" message. `fetchSignInMethodsForEmail` is intentionally **not** used (deprecated / unreliable under enumeration protection).
+
+⚠️ The auth screens **early-return** in `MainContainer` before the main notification banner is composed, so that banner is also rendered inside the auth branch — otherwise `onShowNotification` messages on Login/Register are set but never displayed.
+
+- **Credential Manager**: Used for modern Google Sign-In flow (requires a registered SHA-1 in Firebase + Google Play Services on the device; emulators must use a "Google Play" image).
 - **Biometric API**: Used in `MainActivity` to lock the app. State managed in `SpendViewModel`.
-- **Firebase Auth**: Supports Google, Email/Password, and Email Link.
+- **Firebase Auth**: Supports Google and Email/Password (with email verification). Password validation is a **minimum of 6 characters** (`RegisterScreen.isValidPassword`); an email-link/passwordless flow is **not** wired up (only a half-implemented receiver stub in `MainActivity.handleEmailLink`).
 
 ### Widgets
 
@@ -87,6 +99,7 @@ Two separate AI flows. The **primary** provider is **Groq** (OpenAI-compatible, 
 
 ### Key UI components
 
+- `LoginScreen` / `RegisterScreen` / `AuthComponents` → the two-screen auth flow (see Authentication & Security)
 - `AiInputBottomSheet` → user types natural language → `SpendViewModel.processAiInput`
 - `AiConfirmationScreen` → user confirms/edits the parsed result before saving
 - `AiHistoryAssistantSheet` → chat UI for history Q&A

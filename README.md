@@ -20,13 +20,14 @@ Spendly is a modern, privacy-focused Android application designed to help users 
 
 ## 🔐 Authentication
 
-Spendly offers multiple secure ways to sign in, all handled via **Firebase Authentication**:
+Spendly uses **Firebase Authentication** with two dedicated screens — a **Sign In** screen and a separate **Register** screen — that share the typed email when you switch between them.
 
-- **Google Sign-In**: Quick, one-tap access using your Google account.
-- **Email/Password**: Traditional registration and login with strict security requirements:
-    - Minimum 8 characters.
-    - At least one Uppercase, one Lowercase, one Number, and one Special Symbol.
-- **Passwordless Email Link**: Sign in securely by clicking a magic link sent to your inbox—no password required.
+- **Google Sign-In**: Quick access using your Google account via Android **Credential Manager**. Requires your app's SHA-1 registered in Firebase and Google Play Services on the device (emulators must use a "Google Play" system image).
+- **Email/Password Registration**: On the Register screen, create an account with an email and a password (**minimum 6 characters**). A verification email is sent, and the account must be **email-verified** before you can sign in.
+- **Smart sign-in errors**: If you try to sign in with an email that isn't registered, the app detects it and offers a **Register** button (with your email pre-filled) instead of showing a cryptic error.
+- **Forgot Password**: Request a password-reset link from the Sign In screen.
+
+> **Note on "email not registered" detection:** Firebase's **Email Enumeration Protection** (Console → Authentication → Settings) affects how precisely the app can tell an unknown email from a wrong password. Turn it **off** for exact "no account found → register" messages; leave it **on** (default) and the app shows a combined "incorrect email or password — register?" prompt (still with a Register button).
 
 ## 🛠 Tech Stack
 
@@ -54,9 +55,11 @@ Spendly offers multiple secure ways to sign in, all handled via **Firebase Authe
    git clone https://github.com/saikumar2882/spend-analyzer.git
    ```
 2. **Firebase Configuration**:
-   - Add your `google-services.json` to the `app/` directory.
-   - Enable **Google** and **Email/Password** (with Email Link) in the Firebase Auth console.
-   - Update `strings.xml` with your `default_web_client_id`.
+   - In the Firebase Console, register your app's **SHA-1 fingerprint** (Project Settings → your Android app → Add fingerprint). This is required for Google Sign-In — without it, Credential Manager fails with *"No credentials available."* Get your debug SHA-1 with `./gradlew signingReport`.
+   - Enable **Google** and **Email/Password** under Authentication → Sign-in method.
+   - Download the resulting `google-services.json` (its `oauth_client` array should be **non-empty**) into the `app/` directory.
+   - Ensure `strings.xml` has your **Web** OAuth client id in `default_web_client_id`.
+   - (Optional) Disable **Email Enumeration Protection** under Authentication → Settings for precise "email not registered → register" detection.
 3. **Environment Variables**:
    - Create a `.env` file based on `.env.example`.
 4. **Build & Run**:
@@ -95,7 +98,7 @@ service cloud.firestore {
 ## 🔄 App Workflow
 
 ### Workflow Description
-1.  **Authentication**: Users sign in via Google (using Credential Manager) or Email. A unique `userId` is assigned to maintain data privacy.
+1.  **Authentication**: New users **Register** (email + password, with email verification) or continue with Google; returning users **Sign In**. Google uses Credential Manager. A unique `userId` is assigned to maintain data privacy.
 2.  **Security**: If enabled, the app prompts for biometric authentication before granting access to the dashboard.
 3.  **Dashboard**: The app fetches local data from **Room DB** to show immediate analytics.
 4.  **Data Entry**:
@@ -116,8 +119,9 @@ service cloud.firestore {
 
 ### 1. Getting Started
 #### Login & Security
-*   **Authentication**: Securely log in using your email and password.
-*   **Reset Password**: If you forget your password, use the "Forgot Password" option in the Account Security menu to receive a reset link via email.
+*   **Register**: New here? Tap **Register** to create an account with your email and a password (at least 6 characters), or continue with Google. You'll receive a verification email — confirm it, then sign in.
+*   **Sign In**: Returning users log in with email and password. If you enter an email that isn't registered, the app offers to take you straight to the Register screen.
+*   **Reset Password**: If you forget your password, use the "Forgot Password" option on the Sign In screen to receive a reset link via email.
 *   **Update Password**: Change your password anytime from the **Dashboard > Security Settings** (shield icon).
 
 ### 2. Dashboard Overview
