@@ -36,7 +36,11 @@ class SyncWorker @AssistedInject constructor(
             // docs (written before fields like `notes`/`category` existed, or whose updatedAt
             // collides with the local baseline) are re-uploaded with the complete local
             // record — fixing fields such as the person's name dropping out of sync.
-            val localSpends = spendDao.getAllSpends(userId).first()
+            // Soft-delete tombstones (deleted=true) are included on purpose: they are how a
+            // deletion performed while this device was offline reaches other devices, and
+            // the LWW check below keeps this device from overwriting a newer tombstone
+            // with its stale live copy (which used to resurrect deleted records).
+            val localSpends = spendDao.getAllSpendsForSync(userId).first()
             localSpends.forEach { spend ->
                 val docRef = userDoc.collection("spends").document(spend.uuid)
                 val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
@@ -45,8 +49,9 @@ class SyncWorker @AssistedInject constructor(
                 }
             }
 
-            // 2. Sync Recurring Bills — last-write-wins (>= for the same reasons as above).
-            val localBills = recurringBillDao.getAllRecurringBills(userId).first()
+            // 2. Sync Recurring Bills — last-write-wins (>= for the same reasons as above),
+            // tombstones included so bill deletions propagate too.
+            val localBills = recurringBillDao.getAllRecurringBillsForSync(userId).first()
             localBills.forEach { bill ->
                 val docRef = userDoc.collection("recurring_bills").document(bill.uuid)
                 val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
@@ -55,21 +60,25 @@ class SyncWorker @AssistedInject constructor(
                 }
             }
 
-            // 3. Sync Chat Messages
-            val localMessages = chatDao.getChatMessages(userId).first()
+            // 3. Sync Chat Messages — same LWW gate; a blind set() here used to overwrite
+            // remote tombstones with this device's stale live copy.
+            val localMessages = chatDao.getChatMessagesForSync(userId).first()
             localMessages.forEach { msg ->
-                userDoc.collection("chat_messages").document(msg.uuid).set(msg).await()
+                val docRef = userDoc.collection("chat_messages").document(msg.uuid)
+                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
+                if (remoteUpdatedAt == null || msg.updatedAt >= remoteUpdatedAt) {
+                    docRef.set(msg).await()
+                }
             }
 
-            // 4. Sync History
-            // Since SpendDao doesn't have a direct "getAllHistory", we sync both types
-            val deletedHistory = spendDao.getHistory(userId, "DELETED").first()
-            deletedHistory.forEach { h ->
-                userDoc.collection("history").document(h.historyUuid).set(h).await()
-            }
-            val updatedHistory = spendDao.getHistory(userId, "UPDATED").first()
-            updatedHistory.forEach { h ->
-                userDoc.collection("history").document(h.historyUuid).set(h).await()
+            // 4. Sync History — same LWW gate, tombstones included.
+            val localHistory = spendDao.getAllHistoryForSync(userId).first()
+            localHistory.forEach { h ->
+                val docRef = userDoc.collection("history").document(h.historyUuid)
+                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
+                if (remoteUpdatedAt == null || h.updatedAt >= remoteUpdatedAt) {
+                    docRef.set(h).await()
+                }
             }
 
             Log.d("SyncWorker", "Background sync successful for all collections for user: $userId")

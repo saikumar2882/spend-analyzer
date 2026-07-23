@@ -56,6 +56,9 @@ class SpendRepository(
                                     spendDao.insertSpend(spend)
                                 }
                             }
+                            // Deletes arrive as MODIFIED with deleted=true (soft-delete
+                            // tombstones). REMOVED now only fires for tombstone purges and
+                            // legacy hard deletes — mirror the purge locally.
                             DocumentChange.Type.REMOVED -> spendDao.deleteSpend(spend)
                         }
                     }
@@ -80,6 +83,8 @@ class SpendRepository(
                                     recurringBillDao.insertRecurringBill(bill)
                                 }
                             }
+                            // Deletes arrive as MODIFIED with deleted=true; REMOVED only
+                            // fires for tombstone purges and legacy hard deletes.
                             DocumentChange.Type.REMOVED -> recurringBillDao.deleteRecurringBill(bill)
                         }
                     }
@@ -94,7 +99,15 @@ class SpendRepository(
                     val history = change.document.toObject(SpendHistory::class.java)
                     scope.launch {
                         when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> spendDao.insertHistory(history)
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
+                                // Same last-write-wins gate as spends — keeps a stale cloud
+                                // copy from overwriting a newer local tombstone.
+                                val localUpdatedAt = spendDao.getHistoryUpdatedAt(history.historyUuid)
+                                if (localUpdatedAt == null || history.updatedAt >= localUpdatedAt) {
+                                    spendDao.insertHistory(history)
+                                }
+                            }
+                            // REMOVED only fires when the 30-day cleanup purges docs.
                             DocumentChange.Type.REMOVED -> spendDao.deleteHistoryByUuid(history.historyUuid)
                         }
                     }
@@ -109,7 +122,15 @@ class SpendRepository(
                     val message = change.document.toObject(ChatMessage::class.java)
                     scope.launch {
                         when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> chatDao.insertMessage(message)
+                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
+                                // Same last-write-wins gate as spends — keeps a stale cloud
+                                // copy from overwriting a newer local tombstone.
+                                val localUpdatedAt = chatDao.getMessageUpdatedAt(message.uuid)
+                                if (localUpdatedAt == null || message.updatedAt >= localUpdatedAt) {
+                                    chatDao.insertMessage(message)
+                                }
+                            }
+                            // REMOVED only fires when the 12-hour TTL cleanup purges docs.
                             DocumentChange.Type.REMOVED -> chatDao.deleteMessageByUuid(message.uuid)
                         }
                     }
@@ -142,7 +163,8 @@ class SpendRepository(
                 timestamp = existing.timestamp,
                 notes = existing.notes,
                 historyType = HistoryType.UPDATED,
-                recordedAt = System.currentTimeMillis()
+                recordedAt = System.currentTimeMillis(),
+                updatedAt = System.currentTimeMillis()
             )
             spendDao.insertHistory(history)
             syncHistoryToFirestore(history)
@@ -165,13 +187,22 @@ class SpendRepository(
             timestamp = spend.timestamp,
             notes = spend.notes,
             historyType = HistoryType.DELETED,
-            recordedAt = System.currentTimeMillis()
+            recordedAt = System.currentTimeMillis(),
+            updatedAt = System.currentTimeMillis()
         )
         spendDao.insertHistory(history)
         syncHistoryToFirestore(history)
 
-        spendDao.deleteSpend(spend)
-        removeFromFirestore(spend)
+        // Soft delete: write a tombstone instead of removing the Firestore doc. A hard
+        // delete leaves no trace for last-write-wins to compare against, so another
+        // device's SyncWorker (which uploads all its local rows) would see "no remote
+        // doc" and re-create the record — deletes never stuck across devices, and the
+        // resurrected records read as duplicates. The tombstone rides the normal
+        // ADDED/MODIFIED sync path and is filtered out of every UI query; it is purged
+        // for real by cleanupOldHistory after the trash window.
+        val tombstone = spend.copy(deleted = true, updatedAt = System.currentTimeMillis())
+        spendDao.insertSpend(tombstone)
+        syncToFirestore(tombstone)
     }
 
     suspend fun restoreFromHistory(history: SpendHistory) {
@@ -184,23 +215,33 @@ class SpendRepository(
             category = history.category,
             timestamp = history.timestamp,
             notes = history.notes,
-            // Restoring is a fresh mutation, so stamp it as the newest write.
-            updatedAt = System.currentTimeMillis()
+            // Restoring is a fresh mutation, so stamp it as the newest write. deleted is
+            // explicitly cleared: the restore overwrites the tombstone left by delete(),
+            // and the newer updatedAt makes the un-delete win on every device.
+            updatedAt = System.currentTimeMillis(),
+            deleted = false
         )
         spendDao.insertSpend(spend)
         syncToFirestore(spend)
-        
-        spendDao.deleteHistoryByUuid(history.historyUuid)
-        removeHistoryFromFirestore(history)
+
+        tombstoneHistory(history)
     }
 
     suspend fun permanentlyDeleteHistory(history: SpendHistory) {
-        spendDao.deleteHistoryByUuid(history.historyUuid)
-        removeHistoryFromFirestore(history)
+        tombstoneHistory(history)
+    }
+
+    // Removing a history entry is also a soft delete, for the same resurrection reason
+    // as spends. The tombstone keeps recordedAt, so the regular 30-day cleanup purges it.
+    private suspend fun tombstoneHistory(history: SpendHistory) {
+        val tombstone = history.copy(deleted = true, updatedAt = System.currentTimeMillis())
+        spendDao.insertHistory(tombstone)
+        syncHistoryToFirestore(tombstone)
     }
 
     suspend fun clearHistory(userId: String, type: String) {
-        spendDao.deleteHistoryByType(userId, type)
+        val now = System.currentTimeMillis()
+        spendDao.tombstoneHistoryByType(userId, type, now)
         try {
             val snapshot = firestore.collection("users")
                 .document(userId)
@@ -208,9 +249,13 @@ class SpendRepository(
                 .whereEqualTo("historyType", type)
                 .get()
                 .await()
-            
+
+            // Tombstone in place instead of deleting — a hard delete would be undone by
+            // another device's SyncWorker re-uploading its local copies.
             val batch = firestore.batch()
-            snapshot.documents.forEach { batch.delete(it.reference) }
+            snapshot.documents.forEach {
+                batch.update(it.reference, mapOf("deleted" to true, "updatedAt" to now))
+            }
             batch.commit().await()
         } catch (e: Exception) {
             Log.e(tag, "Error clearing history from Firestore: ${e.message}")
@@ -227,12 +272,45 @@ class SpendRepository(
                 .whereLessThan("recordedAt", threshold)
                 .get()
                 .await()
-            
+
             val batch = firestore.batch()
             snapshot.documents.forEach { batch.delete(it.reference) }
             batch.commit().await()
         } catch (e: Exception) {
             Log.e(tag, "Error cleaning up old history from Firestore: ${e.message}")
+        }
+        cleanupOldTombstones(userId, threshold)
+    }
+
+    /**
+     * Purges soft-delete tombstones older than the trash window. Tombstones must outlive
+     * the trash entries so a device that was offline when the delete happened still sees
+     * deleted=true (instead of a missing doc it would re-upload) when it comes back.
+     * Covers spends and recurring bills — history and chat tombstones keep their original
+     * recordedAt/timestamp and are purged by the existing TTL cleanups instead.
+     */
+    private suspend fun cleanupOldTombstones(userId: String, threshold: Long) {
+        spendDao.deleteOldTombstones(threshold)
+        recurringBillDao.deleteOldTombstones(threshold)
+        for (collection in listOf("spends", "recurring_bills")) {
+            try {
+                // Equality-only query, filtered client-side on updatedAt: combining it with
+                // a range clause would require a Firestore composite index.
+                val snapshot = firestore.collection("users")
+                    .document(userId)
+                    .collection(collection)
+                    .whereEqualTo("deleted", true)
+                    .get()
+                    .await()
+
+                val batch = firestore.batch()
+                snapshot.documents
+                    .filter { (it.getLong("updatedAt") ?: 0L) < threshold }
+                    .forEach { batch.delete(it.reference) }
+                batch.commit().await()
+            } catch (e: Exception) {
+                Log.e(tag, "Error cleaning up old $collection tombstones from Firestore: ${e.message}")
+            }
         }
     }
 
@@ -260,6 +338,7 @@ class SpendRepository(
         if (existing != null) {
             delete(existing)
         } else {
+            // No local row to build a tombstone from — fall back to a hard delete.
             spendDao.deleteSpendByUuid(uuid)
             removeFromFirestoreByUuid(uuid, userId)
         }
@@ -275,8 +354,10 @@ class SpendRepository(
     }
 
     suspend fun deleteRecurringBill(bill: RecurringBill) {
-        recurringBillDao.deleteRecurringBill(bill)
-        removeRecurringBillFromFirestore(bill)
+        // Soft delete, same as spends — see delete() for the resurrection rationale.
+        val tombstone = bill.copy(deleted = true, updatedAt = System.currentTimeMillis())
+        recurringBillDao.insertRecurringBill(tombstone)
+        syncRecurringBillToFirestore(tombstone)
     }
 
     suspend fun getBillsDueOn(day: Int): List<RecurringBill> = recurringBillDao.getBillsDueOn(day)
@@ -294,19 +375,6 @@ class SpendRepository(
                 .await()
         } catch (e: Exception) {
             Log.e(tag, "Error syncing recurring bill to Firestore: ${e.message}")
-        }
-    }
-
-    private suspend fun removeRecurringBillFromFirestore(bill: RecurringBill) {
-        try {
-            firestore.collection("users")
-                .document(bill.userId)
-                .collection("recurring_bills")
-                .document(bill.uuid)
-                .delete()
-                .await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error removing recurring bill from Firestore: ${e.message}")
         }
     }
 
@@ -362,20 +430,9 @@ class SpendRepository(
         }
     }
 
-    private suspend fun removeHistoryFromFirestore(history: SpendHistory) {
-        try {
-            firestore.collection("users")
-                .document(history.userId)
-                .collection("history")
-                .document(history.historyUuid)
-                .delete()
-                .await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error removing history from Firestore: ${e.message}")
-        }
-    }
-
     suspend fun insertChatMessage(message: ChatMessage) {
+        // Stamp the local mutation time so last-write-wins sync can resolve conflicts.
+        val message = message.copy(updatedAt = System.currentTimeMillis())
         chatDao.insertMessage(message)
         syncChatMessageToFirestore(message)
     }
@@ -394,20 +451,9 @@ class SpendRepository(
     }
 
     suspend fun deleteChatMessage(message: ChatMessage) {
-        chatDao.deleteMessageByUuid(message.uuid)
-        removeChatMessageFromFirestore(message)
-    }
-
-    private suspend fun removeChatMessageFromFirestore(message: ChatMessage) {
-        try {
-            firestore.collection("users")
-                .document(message.userId)
-                .collection("chat_messages")
-                .document(message.uuid)
-                .delete()
-                .await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error removing chat message from Firestore: ${e.message}")
-        }
+        // Soft delete, same as spends — see delete() for the resurrection rationale.
+        val tombstone = message.copy(deleted = true, updatedAt = System.currentTimeMillis())
+        chatDao.insertMessage(tombstone)
+        syncChatMessageToFirestore(tombstone)
     }
 }

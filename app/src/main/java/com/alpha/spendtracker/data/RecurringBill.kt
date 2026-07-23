@@ -20,5 +20,8 @@ data class RecurringBill(
     val notifiedAt1230: Boolean = false,
     val notifiedAt2200: Boolean = false,
     val notes: String? = null,
-    val updatedAt: Long = 0L
+    val updatedAt: Long = 0L,
+    // Same soft-delete tombstone scheme as Spend (see comment there). Bills never expire
+    // on their own, so tombstones are purged explicitly after the 30-day window.
+    val deleted: Boolean = false
 )

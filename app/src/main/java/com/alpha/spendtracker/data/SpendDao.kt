@@ -8,8 +8,16 @@ import kotlinx.coroutines.flow.Flow
 
 @Dao
 interface SpendDao {
-    @Query("SELECT * FROM spends WHERE userId = :userId ORDER BY timestamp DESC")
+    @Query("SELECT * FROM spends WHERE userId = :userId AND deleted = 0 ORDER BY timestamp DESC")
     fun getAllSpends(userId: String): Flow<List<Spend>>
+
+    // Includes soft-deleted tombstones — used only by SyncWorker so deletions performed
+    // while another device was offline still propagate through the periodic upload.
+    @Query("SELECT * FROM spends WHERE userId = :userId ORDER BY timestamp DESC")
+    fun getAllSpendsForSync(userId: String): Flow<List<Spend>>
+
+    @Query("DELETE FROM spends WHERE deleted = 1 AND updatedAt < :threshold")
+    suspend fun deleteOldTombstones(threshold: Long)
 
     @Query("SELECT * FROM spends WHERE uuid = :uuid LIMIT 1")
     suspend fun getSpendByUuid(uuid: String): Spend?
@@ -29,14 +37,21 @@ interface SpendDao {
     @Insert(onConflict = OnConflictStrategy.REPLACE)
     suspend fun insertHistory(history: SpendHistory)
 
-    @Query("SELECT * FROM spend_history WHERE userId = :userId AND historyType = :type ORDER BY recordedAt DESC")
+    @Query("SELECT * FROM spend_history WHERE userId = :userId AND historyType = :type AND deleted = 0 ORDER BY recordedAt DESC")
     fun getHistory(userId: String, type: String): Flow<List<SpendHistory>>
+
+    // Includes tombstones and both history types — used only by SyncWorker.
+    @Query("SELECT * FROM spend_history WHERE userId = :userId")
+    fun getAllHistoryForSync(userId: String): Flow<List<SpendHistory>>
+
+    @Query("SELECT updatedAt FROM spend_history WHERE historyUuid = :historyUuid LIMIT 1")
+    suspend fun getHistoryUpdatedAt(historyUuid: String): Long?
 
     @Query("DELETE FROM spend_history WHERE historyUuid = :historyUuid")
     suspend fun deleteHistoryByUuid(historyUuid: String)
 
-    @Query("DELETE FROM spend_history WHERE userId = :userId AND historyType = :type")
-    suspend fun deleteHistoryByType(userId: String, type: String)
+    @Query("UPDATE spend_history SET deleted = 1, updatedAt = :now WHERE userId = :userId AND historyType = :type AND deleted = 0")
+    suspend fun tombstoneHistoryByType(userId: String, type: String, now: Long)
 
     @Query("DELETE FROM spend_history WHERE recordedAt < :threshold")
     suspend fun deleteOldHistory(threshold: Long)
