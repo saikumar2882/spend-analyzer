@@ -4,6 +4,7 @@ import android.content.Context
 import com.alpha.spendtracker.data.AiPreferencesRepository
 import com.alpha.spendtracker.data.AppDatabase
 import com.alpha.spendtracker.data.ChatDao
+import com.alpha.spendtracker.data.NotesDao
 import com.alpha.spendtracker.data.RecurringBillDao
 import com.alpha.spendtracker.data.SpendDao
 import com.alpha.spendtracker.BuildConfig
@@ -83,13 +84,19 @@ object AppModule {
     }
 
     @Provides
+    fun provideNotesDao(database: AppDatabase): NotesDao {
+        return database.notesDao()
+    }
+
+    @Provides
     @Singleton
     fun provideSpendRepository(
         spendDao: SpendDao,
         recurringBillDao: RecurringBillDao,
-        chatDao: ChatDao
+        chatDao: ChatDao,
+        notesDao: NotesDao
     ): SpendRepository {
-        return SpendRepository(spendDao, recurringBillDao, chatDao)
+        return SpendRepository(spendDao, recurringBillDao, chatDao, notesDao)
     }
 
     @Provides

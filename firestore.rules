@@ -38,6 +38,18 @@ service cloud.firestore {
         allow read, write: if isAuthenticated() && isOwner(userId);
       }
 
+      match /notes/{noteId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+
+      match /note_entries/{entryId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+
+      match /note_history/{historyId} {
+        allow read, write: if isAuthenticated() && isOwner(userId);
+      }
+
       // If you decide to store user-specific AI usage or profile data here:
       match /profile/{docId} {
         allow read, write: if isAuthenticated() && isOwner(userId);

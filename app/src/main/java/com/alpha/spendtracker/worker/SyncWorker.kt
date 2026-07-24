@@ -6,6 +6,7 @@ import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
 import com.alpha.spendtracker.data.ChatDao
+import com.alpha.spendtracker.data.NotesDao
 import com.alpha.spendtracker.data.RecurringBillDao
 import com.alpha.spendtracker.data.SpendDao
 import com.google.firebase.auth.FirebaseAuth
@@ -21,7 +22,8 @@ class SyncWorker @AssistedInject constructor(
     @Assisted workerParams: WorkerParameters,
     private val spendDao: SpendDao,
     private val recurringBillDao: RecurringBillDao,
-    private val chatDao: ChatDao
+    private val chatDao: ChatDao,
+    private val notesDao: NotesDao
 ) : CoroutineWorker(appContext, workerParams) {
 
     override suspend fun doWork(): Result {
@@ -75,6 +77,36 @@ class SyncWorker @AssistedInject constructor(
             val localHistory = spendDao.getAllHistoryForSync(userId).first()
             localHistory.forEach { h ->
                 val docRef = userDoc.collection("history").document(h.historyUuid)
+                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
+                if (remoteUpdatedAt == null || h.updatedAt >= remoteUpdatedAt) {
+                    docRef.set(h).await()
+                }
+            }
+
+            // 5. Sync Notes — same LWW gate, tombstones included so deletions propagate.
+            val localNotes = notesDao.getAllNotesForSync(userId).first()
+            localNotes.forEach { note ->
+                val docRef = userDoc.collection("notes").document(note.uuid)
+                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
+                if (remoteUpdatedAt == null || note.updatedAt >= remoteUpdatedAt) {
+                    docRef.set(note).await()
+                }
+            }
+
+            // 6. Sync Note Entries — same LWW gate, tombstones included.
+            val localNoteEntries = notesDao.getAllNoteEntriesForSync(userId).first()
+            localNoteEntries.forEach { entry ->
+                val docRef = userDoc.collection("note_entries").document(entry.uuid)
+                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
+                if (remoteUpdatedAt == null || entry.updatedAt >= remoteUpdatedAt) {
+                    docRef.set(entry).await()
+                }
+            }
+
+            // 7. Sync Note History — same LWW gate, tombstones included.
+            val localNoteHistory = notesDao.getNoteHistoryForSync(userId).first()
+            localNoteHistory.forEach { h ->
+                val docRef = userDoc.collection("note_history").document(h.historyUuid)
                 val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
                 if (remoteUpdatedAt == null || h.updatedAt >= remoteUpdatedAt) {
                     docRef.set(h).await()

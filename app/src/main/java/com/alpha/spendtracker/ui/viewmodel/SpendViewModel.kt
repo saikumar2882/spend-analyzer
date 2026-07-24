@@ -182,6 +182,114 @@ class SpendViewModel @Inject constructor(
         }
     }
 
+    // ---- Notes ----
+    // Notes are custom collections; noteEntries holds every entry for the user and the UI
+    // groups them by noteUuid. Amounts here are intentionally never fed into analytics.
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val notes: StateFlow<List<Note>> = _userId.flatMapLatest { userId ->
+        repository.getAllNotes(userId)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val noteEntries: StateFlow<List<NoteEntry>> = _userId.flatMapLatest { userId ->
+        repository.getAllNoteEntries(userId)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    fun addNote(title: String, colorIndex: Int) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val note = Note(
+                uuid = java.util.UUID.randomUUID().toString(),
+                userId = _userId.value,
+                title = title,
+                colorIndex = colorIndex,
+                createdAt = now,
+                updatedAt = now
+            )
+            repository.insertNote(note)
+        }
+    }
+
+    fun updateNote(note: Note) {
+        viewModelScope.launch {
+            repository.updateNote(note)
+        }
+    }
+
+    fun deleteNote(note: Note) {
+        viewModelScope.launch {
+            repository.deleteNote(note)
+        }
+    }
+
+    fun addNoteEntry(noteUuid: String, label: String, amount: Double, date: Long, detail: String?, customFields: List<NoteField>) {
+        viewModelScope.launch {
+            val now = System.currentTimeMillis()
+            val entry = NoteEntry(
+                uuid = java.util.UUID.randomUUID().toString(),
+                userId = _userId.value,
+                noteUuid = noteUuid,
+                label = label,
+                amount = amount,
+                detail = detail,
+                date = date,
+                customFields = customFields,
+                createdAt = now,
+                updatedAt = now
+            )
+            repository.insertNoteEntry(entry)
+        }
+    }
+
+    fun updateNoteEntry(entry: NoteEntry) {
+        viewModelScope.launch {
+            repository.updateNoteEntry(entry)
+        }
+    }
+
+    fun deleteNoteEntry(entry: NoteEntry) {
+        viewModelScope.launch {
+            repository.deleteNoteEntry(entry)
+        }
+    }
+
+    // ---- Notes history (Recycle Bin + Update History) ----
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val noteDeletedHistory: StateFlow<List<NoteHistory>> = _userId.flatMapLatest { userId ->
+        repository.getNoteHistory(userId, HistoryType.DELETED)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    @OptIn(ExperimentalCoroutinesApi::class)
+    val noteUpdatedHistory: StateFlow<List<NoteHistory>> = _userId.flatMapLatest { userId ->
+        repository.getNoteHistory(userId, HistoryType.UPDATED)
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
+
+    fun restoreNoteHistory(history: NoteHistory) {
+        viewModelScope.launch { repository.restoreNoteFromHistory(history) }
+    }
+
+    fun permanentlyDeleteNoteHistory(history: NoteHistory) {
+        viewModelScope.launch { repository.permanentlyDeleteNoteHistory(history) }
+    }
+
+    fun emptyNoteTrash() {
+        viewModelScope.launch { repository.clearNoteHistory(_userId.value, HistoryType.DELETED) }
+    }
+
+    fun clearNoteUpdateHistory() {
+        viewModelScope.launch { repository.clearNoteHistory(_userId.value, HistoryType.UPDATED) }
+    }
+
     private val _historyStatus = MutableStateFlow<AiHistoryStatus>(AiHistoryStatus.Idle)
     val historyStatus: StateFlow<AiHistoryStatus> = _historyStatus
 
@@ -215,15 +323,15 @@ class SpendViewModel @Inject constructor(
         }
     }
 
-    fun emptyTrash() {
+    fun emptyTrash(lendBorrow: Boolean) {
         viewModelScope.launch {
-            repository.clearHistory(_userId.value, HistoryType.DELETED)
+            repository.clearHistory(_userId.value, HistoryType.DELETED, lendBorrow)
         }
     }
 
-    fun clearUpdateHistory() {
+    fun clearUpdateHistory(lendBorrow: Boolean) {
         viewModelScope.launch {
-            repository.clearHistory(_userId.value, HistoryType.UPDATED)
+            repository.clearHistory(_userId.value, HistoryType.UPDATED, lendBorrow)
         }
     }
 
