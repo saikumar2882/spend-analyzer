@@ -24,6 +24,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.ChevronRight
@@ -68,6 +69,7 @@ fun SettingsScreen(
     onToggleBiometrics: (Boolean) -> Unit,
     onAiAssistantClick: () -> Unit,
     onRecurringBillsClick: () -> Unit,
+    onNotesClick: () -> Unit,
     onShareApp: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -314,6 +316,13 @@ fun SettingsScreen(
                         title = "Recurring Bills",
                         subtitle = "Manage subscriptions and bill reminders",
                         onClick = onRecurringBillsClick
+                    )
+                    SettingsDivider()
+                    SettingsRow(
+                        icon = Icons.AutoMirrored.Rounded.StickyNote2,
+                        title = "Notes",
+                        subtitle = "Custom collections of transaction entries",
+                        onClick = onNotesClick
                     )
                 }
             }

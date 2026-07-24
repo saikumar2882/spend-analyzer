@@ -29,6 +29,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
@@ -75,6 +76,7 @@ fun HistoryScreen(
     initialDateRange: Pair<Long, Long>? = null,
     onEditSpend: (Spend) -> Unit,
     onDeleteSpend: (Spend) -> Unit,
+    onShowHistory: () -> Unit = {},
 ) {
     var searchQuery by rememberSaveable(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var selectedCategory by rememberSaveable(initialCategoryFilter) { mutableStateOf(initialCategoryFilter) }
@@ -199,6 +201,22 @@ fun HistoryScreen(
             )
 
             FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
+
+            // Opens the Recycle Bin + Update History for regular transactions.
+            Surface(
+                onClick = onShowHistory,
+                shape = RoundedCornerShape(16.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.size(52.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Rounded.Restore,
+                        contentDescription = "Recycle bin & history",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
+            }
         }
 
         AnimatedVisibility(

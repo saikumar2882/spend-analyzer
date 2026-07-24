@@ -22,8 +22,14 @@ import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.SpendHistory
 import com.alpha.spendtracker.ui.components.HistoryRecordCard
 
+/**
+ * Reusable Recycle Bin + Update History screen for spend records. Used both for the
+ * lend/borrow trash and the main transaction-history trash — the [title] and the pre-filtered
+ * [deletedHistory]/[updatedHistory] lists are all that differ.
+ */
 @Composable
-fun LendBorrowHistoryScreen(
+fun TransactionHistoryScreen(
+    title: String,
     deletedHistory: List<SpendHistory>,
     updatedHistory: List<SpendHistory>,
     onRestoreHistory: (SpendHistory) -> Unit,
@@ -85,7 +91,7 @@ fun LendBorrowHistoryScreen(
                 Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
             }
             Text(
-                text = "Lend & Borrow History",
+                text = title,
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 8.dp)
@@ -218,4 +224,27 @@ fun LendBorrowHistoryScreen(
             }
         }
     }
+}
+
+/** Lend/borrow variant — a thin wrapper over [TransactionHistoryScreen]. */
+@Composable
+fun LendBorrowHistoryScreen(
+    deletedHistory: List<SpendHistory>,
+    updatedHistory: List<SpendHistory>,
+    onRestoreHistory: (SpendHistory) -> Unit,
+    onPermanentlyDeleteHistory: (SpendHistory) -> Unit,
+    onEmptyTrash: () -> Unit,
+    onClearUpdateHistory: () -> Unit,
+    onBack: () -> Unit
+) {
+    TransactionHistoryScreen(
+        title = "Lend & Borrow History",
+        deletedHistory = deletedHistory,
+        updatedHistory = updatedHistory,
+        onRestoreHistory = onRestoreHistory,
+        onPermanentlyDeleteHistory = onPermanentlyDeleteHistory,
+        onEmptyTrash = onEmptyTrash,
+        onClearUpdateHistory = onClearUpdateHistory,
+        onBack = onBack
+    )
 }

@@ -84,9 +84,12 @@ import com.alpha.spendtracker.ui.screens.HistoryScreen
 import com.alpha.spendtracker.ui.screens.LendBorrowScreen
 import com.alpha.spendtracker.ui.screens.LoginScreen
 import com.alpha.spendtracker.ui.screens.NewSpend
+import com.alpha.spendtracker.ui.screens.NotesHistoryScreen
+import com.alpha.spendtracker.ui.screens.NotesScreen
 import com.alpha.spendtracker.ui.screens.RecurringBillsScreen
 import com.alpha.spendtracker.ui.screens.RegisterScreen
 import com.alpha.spendtracker.ui.screens.SettingsScreen
+import com.alpha.spendtracker.ui.screens.TransactionHistoryScreen
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.alpha.spendtracker.ui.theme.isDark
@@ -105,7 +108,7 @@ import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
 
-enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, ADD_SPEND, LEND_BORROW_HISTORY, RECURRING_BILLS, SETTINGS }
+enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, HISTORY_TRASH, ADD_SPEND, LEND_BORROW_HISTORY, RECURRING_BILLS, NOTES, NOTES_HISTORY, SETTINGS }
 
 @AndroidEntryPoint
 class MainActivity : FragmentActivity() {
@@ -482,6 +485,13 @@ fun MainContainer(
         nonLendBorrowSpends.take(5)
     }
 
+    // Split trash/update history so the lend/borrow screen and the main-history trash each
+    // show only their own records (SpendHistory carries the purpose used for lend/borrow).
+    val lendBorrowDeleted = remember(deletedHistory) { deletedHistory.filter { it.purpose == "Lending" || it.purpose == "Borrowing" } }
+    val lendBorrowUpdated = remember(updatedHistory) { updatedHistory.filter { it.purpose == "Lending" || it.purpose == "Borrowing" } }
+    val regularDeleted = remember(deletedHistory) { deletedHistory.filter { it.purpose != "Lending" && it.purpose != "Borrowing" } }
+    val regularUpdated = remember(updatedHistory) { updatedHistory.filter { it.purpose != "Lending" && it.purpose != "Borrowing" } }
+
     val isBiometricAuthenticated by viewModel.isBiometricAuthenticated.collectAsStateWithLifecycle()
     val needsBiometric = aiPrefs.isBiometricEnabled
 
@@ -505,6 +515,10 @@ fun MainContainer(
     val billTrackingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 
     val recurringBills by viewModel.recurringBills.collectAsStateWithLifecycle()
+    val notes by viewModel.notes.collectAsStateWithLifecycle()
+    val noteEntries by viewModel.noteEntries.collectAsStateWithLifecycle()
+    val noteDeletedHistory by viewModel.noteDeletedHistory.collectAsStateWithLifecycle()
+    val noteUpdatedHistory by viewModel.noteUpdatedHistory.collectAsStateWithLifecycle()
 
     LaunchedEffect(intent) {
         if (intent?.hasExtra("BILL_UUID") == true) {
@@ -835,8 +849,8 @@ fun MainContainer(
                             }
                         )
                         ActiveView.LEND_BORROW_HISTORY -> com.alpha.spendtracker.ui.screens.LendBorrowHistoryScreen(
-                            deletedHistory = deletedHistory,
-                            updatedHistory = updatedHistory,
+                            deletedHistory = lendBorrowDeleted,
+                            updatedHistory = lendBorrowUpdated,
                             onRestoreHistory = { history ->
                                 viewModel.restoreSpend(history)
                                 showNotification("Record restored", NotificationType.SUCCESS)
@@ -846,15 +860,39 @@ fun MainContainer(
                                 showNotification("Record deleted permanently", NotificationType.INFO)
                             },
                             onEmptyTrash = {
-                                viewModel.emptyTrash()
+                                viewModel.emptyTrash(lendBorrow = true)
                                 showNotification("Trash emptied", NotificationType.INFO)
                             },
                             onClearUpdateHistory = {
-                                viewModel.clearUpdateHistory()
+                                viewModel.clearUpdateHistory(lendBorrow = true)
                                 showNotification("Update history cleared", NotificationType.INFO)
                             },
                             onBack = {
                                 activeView = ActiveView.LEND_BORROW
+                            }
+                        )
+                        ActiveView.HISTORY_TRASH -> TransactionHistoryScreen(
+                            title = "Transaction History",
+                            deletedHistory = regularDeleted,
+                            updatedHistory = regularUpdated,
+                            onRestoreHistory = { history ->
+                                viewModel.restoreSpend(history)
+                                showNotification("Record restored", NotificationType.SUCCESS)
+                            },
+                            onPermanentlyDeleteHistory = { history ->
+                                viewModel.permanentlyDeleteHistory(history)
+                                showNotification("Record deleted permanently", NotificationType.INFO)
+                            },
+                            onEmptyTrash = {
+                                viewModel.emptyTrash(lendBorrow = false)
+                                showNotification("Trash emptied", NotificationType.INFO)
+                            },
+                            onClearUpdateHistory = {
+                                viewModel.clearUpdateHistory(lendBorrow = false)
+                                showNotification("Update history cleared", NotificationType.INFO)
+                            },
+                            onBack = {
+                                activeView = ActiveView.HISTORY
                             }
                         )
                         ActiveView.RECURRING_BILLS -> RecurringBillsScreen(
@@ -863,6 +901,43 @@ fun MainContainer(
                             onAddBill = viewModel::addRecurringBill,
                             onUpdateBill = viewModel::updateRecurringBill,
                             onDeleteBill = viewModel::deleteRecurringBill
+                        )
+                        ActiveView.NOTES -> NotesScreen(
+                            notes = notes,
+                            entries = noteEntries,
+                            // Prefer the user's default currency symbol; fall back to ₹ when it's
+                            // blank or a multi-char code (e.g. "INR") so tiles stay clean.
+                            currencySymbol = aiPrefs.defaultCurrency.let { if (it.isBlank() || it.length > 2) "₹" else it },
+                            onBack = { activeView = ActiveView.DASHBOARD },
+                            onAddNote = viewModel::addNote,
+                            onUpdateNote = viewModel::updateNote,
+                            onDeleteNote = viewModel::deleteNote,
+                            onAddEntry = viewModel::addNoteEntry,
+                            onUpdateEntry = viewModel::updateNoteEntry,
+                            onDeleteEntry = viewModel::deleteNoteEntry,
+                            onShowHistory = { activeView = ActiveView.NOTES_HISTORY }
+                        )
+                        ActiveView.NOTES_HISTORY -> NotesHistoryScreen(
+                            deletedHistory = noteDeletedHistory,
+                            updatedHistory = noteUpdatedHistory,
+                            currencySymbol = aiPrefs.defaultCurrency.let { if (it.isBlank() || it.length > 2) "₹" else it },
+                            onRestore = { h ->
+                                viewModel.restoreNoteHistory(h)
+                                showNotification("Restored", NotificationType.SUCCESS)
+                            },
+                            onPermanentlyDelete = { h ->
+                                viewModel.permanentlyDeleteNoteHistory(h)
+                                showNotification("Deleted permanently", NotificationType.INFO)
+                            },
+                            onEmptyTrash = {
+                                viewModel.emptyNoteTrash()
+                                showNotification("Trash emptied", NotificationType.INFO)
+                            },
+                            onClearUpdateHistory = {
+                                viewModel.clearNoteUpdateHistory()
+                                showNotification("Update history cleared", NotificationType.INFO)
+                            },
+                            onBack = { activeView = ActiveView.NOTES }
                         )
                         ActiveView.SETTINGS -> SettingsScreen(
                             themePreference = themePreference,
@@ -874,6 +949,7 @@ fun MainContainer(
                             onToggleBiometrics = viewModel::updateBiometricEnabled,
                             onAiAssistantClick = { showAiHistoryAssistant = true },
                             onRecurringBillsClick = { activeView = ActiveView.RECURRING_BILLS },
+                            onNotesClick = { activeView = ActiveView.NOTES },
                             onShareApp = {
                                 val sendIntent: Intent = Intent().apply {
                                     action = Intent.ACTION_SEND
@@ -901,7 +977,8 @@ fun MainContainer(
                             onDeleteSpend = { spend ->
                                 viewModel.deleteSpend(spend)
                                 showNotification("Spend deleted", NotificationType.INFO)
-                            }
+                            },
+                            onShowHistory = { activeView = ActiveView.HISTORY_TRASH }
                         )
                         ActiveView.ADD_SPEND -> AddSpendScreen(
                             editingSpend = editingSpend,
