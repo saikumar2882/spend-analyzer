@@ -55,6 +55,7 @@ import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
@@ -458,12 +459,38 @@ fun MainContainer(
 
     // Navigation State
     var activeView by rememberSaveable { mutableStateOf(ActiveView.DASHBOARD) }
+    // Where ADD_SPEND should return to on save/dismiss — the major screen it was opened from.
+    var returnTo by rememberSaveable { mutableStateOf(ActiveView.DASHBOARD) }
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var historyCategoryFilter by rememberSaveable { mutableStateOf("All") }
     var historyTimeFilter by rememberSaveable { mutableStateOf(TimeFilter.ALL) }
     var editingSpend by remember { mutableStateOf<Spend?>(null) }
     var prefilledBillSpend by remember { mutableStateOf<NewSpend?>(null) }
     var showBillTrackingSheet by remember { mutableStateOf(false) }
+
+    // Real back history across the major screens (Dashboard, Lend/Borrow, History,
+    // Recurring Bills, Notes, Settings) so system back retraces actual visits instead of
+    // always jumping to Dashboard. Detail screens (ADD_SPEND and the trash/history
+    // sub-screens) are not pushed here — they each have exactly one valid parent already.
+    val backStack = rememberSaveable(
+        saver = listSaver(
+            save = { it.map(ActiveView::name) },
+            restore = { it.map(ActiveView::valueOf).toMutableStateList() }
+        )
+    ) { mutableStateListOf(ActiveView.DASHBOARD) }
+    val goToMajor: (ActiveView) -> Unit = { view ->
+        if (backStack.lastOrNull() != view) {
+            backStack.add(view)
+            if (backStack.size > 30) backStack.removeAt(0)
+        }
+        activeView = view
+    }
+    val goBackMajor: () -> Unit = {
+        if (backStack.size > 1) {
+            backStack.removeAt(backStack.lastIndex)
+            activeView = backStack.last()
+        }
+    }
 
     val allSpends by viewModel.allSpendsFlow.collectAsStateWithLifecycle()
     val analyticsState by viewModel.uiState.collectAsStateWithLifecycle()
@@ -661,7 +688,15 @@ fun MainContainer(
         }
     }
 
-    BackHandler(enabled = activeView != ActiveView.DASHBOARD) { activeView = ActiveView.DASHBOARD }
+    BackHandler(enabled = activeView == ActiveView.ADD_SPEND || backStack.size > 1) {
+        if (activeView == ActiveView.ADD_SPEND) {
+            editingSpend = null
+            prefilledBillSpend = null
+            activeView = returnTo
+        } else {
+            goBackMajor()
+        }
+    }
 
     // Collapse the "Track Spend" FAB to an icon while scrolling down; expand on scroll up.
     var fabExpanded by remember { mutableStateOf(true) }
@@ -683,13 +718,13 @@ fun MainContainer(
                     NavigationBar(modifier = Modifier.navigationBarsPadding(), tonalElevation = 8.dp) {
                         NavigationBarItem(
                             selected = activeView == ActiveView.DASHBOARD,
-                            onClick = { activeView = ActiveView.DASHBOARD },
+                            onClick = { goToMajor(ActiveView.DASHBOARD) },
                             icon = { Icon(Icons.Rounded.Dashboard, contentDescription = "Dashboard") },
                             label = { Text("Dashboard") }
                         )
                         NavigationBarItem(
                             selected = activeView == ActiveView.LEND_BORROW,
-                            onClick = { activeView = ActiveView.LEND_BORROW },
+                            onClick = { goToMajor(ActiveView.LEND_BORROW) },
                             icon = { Icon(Icons.Rounded.Handshake, contentDescription = "Lend & Borrow") },
                             label = { Text("Lend/Borrow") }
                         )
@@ -699,7 +734,7 @@ fun MainContainer(
                                 historySearchQuery = ""
                                 historyCategoryFilter = "All"
                                 historyTimeFilter = TimeFilter.ALL
-                                activeView = ActiveView.HISTORY
+                                goToMajor(ActiveView.HISTORY)
                             },
                             icon = { Icon(Icons.Rounded.History, contentDescription = "Spending History") },
                             label = { Text("History") }
@@ -734,6 +769,7 @@ fun MainContainer(
                                     onClick = {
                                         showFabMenu = false
                                         editingSpend = null
+                                        returnTo = activeView
                                         activeView = ActiveView.ADD_SPEND
                                     },
                                     containerColor = MaterialTheme.colorScheme.tertiaryContainer,
@@ -796,22 +832,22 @@ fun MainContainer(
                                 historySearchQuery = ""
                                 historyCategoryFilter = "All"
                                 historyTimeFilter = TimeFilter.ALL
-                                activeView = ActiveView.HISTORY
+                                goToMajor(ActiveView.HISTORY)
                             },
                             onAppClick = { appName ->
                                 historySearchQuery = appName
                                 historyCategoryFilter = "All"
                                 historyTimeFilter = TimeFilter.ALL
-                                activeView = ActiveView.HISTORY
+                                goToMajor(ActiveView.HISTORY)
                             },
                             onLentClick = {
-                                activeView = ActiveView.LEND_BORROW
+                                goToMajor(ActiveView.LEND_BORROW)
                             },
                             onTransactionsClick = {
                                 historySearchQuery = ""
                                 historyCategoryFilter = "All"
                                 historyTimeFilter = currentFilter
-                                activeView = ActiveView.HISTORY
+                                goToMajor(ActiveView.HISTORY)
                             },
                             onLogout = {
                                 FirebaseAuth.getInstance().signOut()
@@ -829,15 +865,16 @@ fun MainContainer(
                                 val shareIntent = Intent.createChooser(sendIntent, "Share Spendly via")
                                 context.startActivity(shareIntent)
                             },
-                            onRecurringBillsClick = { activeView = ActiveView.RECURRING_BILLS },
-                            onSettingsClick = { activeView = ActiveView.SETTINGS }
+                            onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
+                            onSettingsClick = { goToMajor(ActiveView.SETTINGS) }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
                             allSpends = allSpends,
-                            deletedHistory = deletedHistory,
-                            updatedHistory = updatedHistory,
+                            deletedHistory = lendBorrowDeleted,
+                            updatedHistory = lendBorrowUpdated,
                             onEditSpend = { spend ->
                                 editingSpend = spend
+                                returnTo = activeView
                                 activeView = ActiveView.ADD_SPEND
                             },
                             onDeleteSpend = { spend ->
@@ -897,7 +934,7 @@ fun MainContainer(
                         )
                         ActiveView.RECURRING_BILLS -> RecurringBillsScreen(
                             bills = recurringBills,
-                            onBack = { activeView = ActiveView.DASHBOARD },
+                            onBack = goBackMajor,
                             onAddBill = viewModel::addRecurringBill,
                             onUpdateBill = viewModel::updateRecurringBill,
                             onDeleteBill = viewModel::deleteRecurringBill
@@ -908,7 +945,7 @@ fun MainContainer(
                             // Prefer the user's default currency symbol; fall back to ₹ when it's
                             // blank or a multi-char code (e.g. "INR") so tiles stay clean.
                             currencySymbol = aiPrefs.defaultCurrency.let { if (it.isBlank() || it.length > 2) "₹" else it },
-                            onBack = { activeView = ActiveView.DASHBOARD },
+                            onBack = goBackMajor,
                             onAddNote = viewModel::addNote,
                             onUpdateNote = viewModel::updateNote,
                             onDeleteNote = viewModel::deleteNote,
@@ -942,14 +979,14 @@ fun MainContainer(
                         ActiveView.SETTINGS -> SettingsScreen(
                             themePreference = themePreference,
                             aiPreferences = aiPrefs,
-                            onBack = { activeView = ActiveView.DASHBOARD },
+                            onBack = goBackMajor,
                             onCycleTheme = onCycleTheme,
                             onShowNotification = { msg, type -> showNotification(msg, type) },
                             onUpdateAiPreferences = viewModel::updateAiPreferences,
                             onToggleBiometrics = viewModel::updateBiometricEnabled,
                             onAiAssistantClick = { showAiHistoryAssistant = true },
-                            onRecurringBillsClick = { activeView = ActiveView.RECURRING_BILLS },
-                            onNotesClick = { activeView = ActiveView.NOTES },
+                            onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
+                            onNotesClick = { goToMajor(ActiveView.NOTES) },
                             onShareApp = {
                                 val sendIntent: Intent = Intent().apply {
                                     action = Intent.ACTION_SEND
@@ -972,6 +1009,7 @@ fun MainContainer(
                             initialDateRange = customDateRange,
                             onEditSpend = { spend ->
                                 editingSpend = spend
+                                returnTo = activeView
                                 activeView = ActiveView.ADD_SPEND
                             },
                             onDeleteSpend = { spend ->
@@ -983,10 +1021,10 @@ fun MainContainer(
                         ActiveView.ADD_SPEND -> AddSpendScreen(
                             editingSpend = editingSpend,
                             prefilledSpend = prefilledBillSpend,
-                            onDismiss = { 
+                            onDismiss = {
                                 editingSpend = null
                                 prefilledBillSpend = null
-                                activeView = ActiveView.DASHBOARD 
+                                activeView = returnTo
                             },
                             onShowNotification = { msg, type -> showNotification(msg, type) },
                             onSave = { newSpend: NewSpend ->
@@ -1020,7 +1058,7 @@ fun MainContainer(
                                 }
                                 editingSpend = null
                                 prefilledBillSpend = null
-                                activeView = ActiveView.DASHBOARD
+                                activeView = returnTo
                             }
                         )
                     }
