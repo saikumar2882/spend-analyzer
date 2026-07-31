@@ -37,10 +37,8 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.layout.statusBarsPadding
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
@@ -743,10 +741,10 @@ fun MainContainer(
 
     Box(modifier = Modifier.fillMaxSize()) {
         Scaffold(
-            modifier = Modifier.fillMaxSize().statusBarsPadding(),
+            modifier = Modifier.fillMaxSize(),
             bottomBar = {
                 if (activeView != ActiveView.ADD_SPEND) {
-                    NavigationBar(modifier = Modifier.navigationBarsPadding(), tonalElevation = 8.dp) {
+                    NavigationBar(tonalElevation = 8.dp) {
                         NavigationBarItem(
                             selected = activeView == ActiveView.DASHBOARD,
                             onClick = { goToMajor(ActiveView.DASHBOARD) },
