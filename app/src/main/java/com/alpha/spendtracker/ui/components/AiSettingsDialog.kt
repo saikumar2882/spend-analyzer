@@ -19,8 +19,11 @@ fun AiSettingsDialog(
     var purpose by remember { mutableStateOf(currentPrefs.defaultPurpose) }
 
     val currencies = listOf("₹", "$", "€", "£")
-    val apps = listOf("Google Pay", "PhonePe", "Paytm", "Cash", "Credit Card", "Debit Card")
-    val purposes = listOf("Food", "Groceries", "Shopping", "Bills", "Others")
+    // Must be drawn from the canonical presets: the AI confirmation screen resolves the
+    // default back to an APP_PRESET / PURPOSE_PRESET, so an off-list value would silently
+    // fall back to "Other Platform" / "Others" instead of what the user picked.
+    val apps = APP_PRESETS.map { it.displayName }
+    val purposes = PURPOSE_PRESETS.filter { it != "Lending" && it != "Borrowing" }
 
     AlertDialog(
         onDismissRequest = onDismiss,

@@ -77,6 +77,8 @@ fun HistoryScreen(
     onEditSpend: (Spend) -> Unit,
     onDeleteSpend: (Spend) -> Unit,
     onShowHistory: () -> Unit = {},
+    // Opens the source note when a note-linked transaction (non-blank noteUuid) is tapped.
+    onOpenNote: (String) -> Unit = {},
 ) {
     var searchQuery by rememberSaveable(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var selectedCategory by rememberSaveable(initialCategoryFilter) { mutableStateOf(initialCategoryFilter) }
@@ -362,7 +364,10 @@ fun HistoryScreen(
                             spend = spend,
                             onEdit = { onEditSpend(spend) },
                             onDelete = { spendToDelete = spend },
-                            modifier = Modifier.animateItem()
+                            modifier = Modifier.animateItem(),
+                            onClick = if (spend.noteUuid.isNotBlank()) {
+                                { onOpenNote(spend.noteUuid) }
+                            } else null
                         )
                     }
                 }

@@ -6,6 +6,7 @@ package com.alpha.spendtracker.ui.components
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
@@ -23,6 +24,7 @@ import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Edit
@@ -129,13 +131,18 @@ fun HistorySpendCard(
     spend: Spend,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    // When non-null (a note-linked spend), tapping the card opens the source note.
+    onClick: (() -> Unit)? = null
 ) {
     val accent = APP_COLOR_BY_NAME[spend.appName] ?: MaterialTheme.colorScheme.primary
     val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
+    val isNoteLinked = spend.noteUuid.isNotBlank()
 
     Card(
-        modifier = modifier.fillMaxWidth(),
+        modifier = modifier
+            .fillMaxWidth()
+            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
         shape = RoundedCornerShape(16.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
@@ -164,7 +171,7 @@ fun HistorySpendCard(
                     DateBadge(timestamp = spend.timestamp, color = accent, size = 42.dp)
                     Spacer(modifier = Modifier.width(12.dp))
                     Column {
-                        SpendCardHeader(appName = spend.appName, category = spend.category, accent = accent)
+                        SpendCardHeader(appName = spend.appName, category = spend.category, accent = accent, showNoteIcon = isNoteLinked)
                         if (!isLendBorrow) {
                             Spacer(modifier = Modifier.height(2.dp))
                             Text(
@@ -429,7 +436,7 @@ fun DateBadge(
 }
 
 @Composable
-private fun SpendCardHeader(appName: String, category: String, accent: Color) {
+private fun SpendCardHeader(appName: String, category: String, accent: Color, showNoteIcon: Boolean = false) {
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
@@ -442,6 +449,15 @@ private fun SpendCardHeader(appName: String, category: String, accent: Color) {
             overflow = TextOverflow.Ellipsis
         )
         CategoryBadge(category = category, accent = accent)
+        // Marks a spend logged from a Note — tapping the card opens that note.
+        if (showNoteIcon) {
+            Icon(
+                imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                contentDescription = "Logged from a note. Tap to open.",
+                tint = accent,
+                modifier = Modifier.size(14.dp)
+            )
+        }
     }
 }
 

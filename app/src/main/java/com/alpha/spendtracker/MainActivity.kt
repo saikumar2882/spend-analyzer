@@ -227,6 +227,16 @@ class MainActivity : FragmentActivity() {
         biometricPrompt.authenticate(promptInfo)
     }
 
+    /**
+     * Whether this device can actually authenticate (enrolled biometric or a device PIN/
+     * pattern/password). Used to gate the one-time "enable app lock" offer so we never
+     * pitch a feature the device can't back.
+     */
+    fun canAuthenticate(): Boolean =
+        BiometricManager.from(this).canAuthenticate(
+            BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL
+        ) == BiometricManager.BIOMETRIC_SUCCESS
+
     fun handleEmailLink(intent: Intent?, onShowNotification: (String, NotificationType) -> Unit) {
         val auth = FirebaseAuth.getInstance()
         val link = intent?.data?.toString()
@@ -467,6 +477,9 @@ fun MainContainer(
     var editingSpend by remember { mutableStateOf<Spend?>(null) }
     var prefilledBillSpend by remember { mutableStateOf<NewSpend?>(null) }
     var showBillTrackingSheet by remember { mutableStateOf(false) }
+    // Set when a note-linked transaction is tapped in History; NotesScreen consumes it to
+    // auto-open that note, then clears it.
+    var pendingNoteUuid by rememberSaveable { mutableStateOf<String?>(null) }
 
     // Real back history across the major screens (Dashboard, Lend/Borrow, History,
     // Recurring Bills, Notes, Settings) so system back retraces actual visits instead of
@@ -535,7 +548,25 @@ fun MainContainer(
             }
         }
     }
-    
+
+    // One-time offer to turn on app lock, shown once after sign-in (like Google Pay's
+    // first-run security prompt). Only for signed-in users who haven't already enabled it
+    // and haven't been asked before, and only on devices that can actually authenticate.
+    // The 600ms delay lets DataStore emit the real (possibly already-prompted) prefs first,
+    // so a returning user never sees a flash of this dialog.
+    var showEnableBiometricPrompt by remember { mutableStateOf(false) }
+    LaunchedEffect(currentUser, aiPrefs.isBiometricEnabled, aiPrefs.hasPromptedBiometric, pendingUpdate) {
+        if (currentUser != null && !aiPrefs.isBiometricEnabled &&
+            !aiPrefs.hasPromptedBiometric && pendingUpdate == null &&
+            (context as? MainActivity)?.canAuthenticate() == true
+        ) {
+            delay(600)
+            showEnableBiometricPrompt = true
+        } else {
+            showEnableBiometricPrompt = false
+        }
+    }
+
     val aiInputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val aiConfirmationSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
     val aiHistorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
@@ -866,6 +897,7 @@ fun MainContainer(
                                 context.startActivity(shareIntent)
                             },
                             onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
+                            onNotesClick = { goToMajor(ActiveView.NOTES) },
                             onSettingsClick = { goToMajor(ActiveView.SETTINGS) }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
@@ -952,7 +984,21 @@ fun MainContainer(
                             onAddEntry = viewModel::addNoteEntry,
                             onUpdateEntry = viewModel::updateNoteEntry,
                             onDeleteEntry = viewModel::deleteNoteEntry,
-                            onShowHistory = { activeView = ActiveView.NOTES_HISTORY }
+                            onShowHistory = { activeView = ActiveView.NOTES_HISTORY },
+                            onLogAsTransaction = { note ->
+                                viewModel.logNoteAsTransaction(note, aiPrefs.defaultApp) { result ->
+                                    when (result) {
+                                        SpendViewModel.LogNoteResult.EMPTY ->
+                                            showNotification("Add an entry with an amount first", NotificationType.INFO)
+                                        SpendViewModel.LogNoteResult.CREATED ->
+                                            showNotification("Logged '${note.title}' to transactions", NotificationType.SUCCESS)
+                                        SpendViewModel.LogNoteResult.UPDATED ->
+                                            showNotification("Updated '${note.title}' transaction", NotificationType.SUCCESS)
+                                    }
+                                }
+                            },
+                            initialNoteUuid = pendingNoteUuid,
+                            onInitialNoteConsumed = { pendingNoteUuid = null }
                         )
                         ActiveView.NOTES_HISTORY -> NotesHistoryScreen(
                             deletedHistory = noteDeletedHistory,
@@ -1016,7 +1062,11 @@ fun MainContainer(
                                 viewModel.deleteSpend(spend)
                                 showNotification("Spend deleted", NotificationType.INFO)
                             },
-                            onShowHistory = { activeView = ActiveView.HISTORY_TRASH }
+                            onShowHistory = { activeView = ActiveView.HISTORY_TRASH },
+                            onOpenNote = { noteUuid ->
+                                pendingNoteUuid = noteUuid
+                                goToMajor(ActiveView.NOTES)
+                            }
                         )
                         ActiveView.ADD_SPEND -> AddSpendScreen(
                             editingSpend = editingSpend,
@@ -1097,6 +1147,9 @@ fun MainContainer(
             ) {
                 AiConfirmationScreen(
                     extractedData = currentAiConfirmationResult,
+                    defaultApp = aiPrefs.defaultApp,
+                    defaultPurpose = aiPrefs.defaultPurpose,
+                    currencySymbol = aiPrefs.defaultCurrency.let { if (it.isBlank() || it.length > 2) "₹" else it },
                     onShowNotification = { msg, type -> showNotification(msg, type) },
                     onConfirm = { newSpend ->
                         viewModel.addSpend(
@@ -1174,6 +1227,45 @@ fun MainContainer(
                 },
                 dismissButton = {
                     TextButton(onClick = dismissDiscardDialog) { Text("Cancel") }
+                }
+            )
+        }
+
+        // First-run "enable app lock" offer (see the trigger effect above).
+        if (showEnableBiometricPrompt) {
+            AlertDialog(
+                onDismissRequest = {
+                    // Treat an outside tap / back as "Not now" — one-time offer, so record it.
+                    viewModel.setBiometricPrompted()
+                    showEnableBiometricPrompt = false
+                },
+                icon = { Icon(Icons.Rounded.Fingerprint, contentDescription = null) },
+                title = { Text("Enable App Lock?") },
+                text = {
+                    Text(
+                        "Protect your expenses with your fingerprint, face, or device PIN. " +
+                        "Spendly will ask you to unlock it each time you open the app. " +
+                        "You can change this anytime in Settings."
+                    )
+                },
+                confirmButton = {
+                    Button(onClick = {
+                        showEnableBiometricPrompt = false
+                        viewModel.setBiometricPrompted()
+                        // Verify once before turning the lock on, and mark this session
+                        // authenticated so the lock overlay doesn't immediately re-prompt.
+                        (context as? MainActivity)?.showBiometricPrompt {
+                            viewModel.setBiometricAuthenticated(true)
+                            viewModel.updateBiometricEnabled(true)
+                            showNotification("App lock enabled", NotificationType.SUCCESS)
+                        }
+                    }) { Text("Enable") }
+                },
+                dismissButton = {
+                    TextButton(onClick = {
+                        viewModel.setBiometricPrompted()
+                        showEnableBiometricPrompt = false
+                    }) { Text("Not Now") }
                 }
             )
         }

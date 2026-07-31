@@ -22,6 +22,11 @@ interface SpendDao {
     @Query("SELECT * FROM spends WHERE uuid = :uuid LIMIT 1")
     suspend fun getSpendByUuid(uuid: String): Spend?
 
+    // The single active (non-deleted) spend logged from a given note, if any. Used to
+    // upsert the note's linked transaction so re-logging updates it instead of duplicating.
+    @Query("SELECT * FROM spends WHERE userId = :userId AND noteUuid = :noteUuid AND deleted = 0 LIMIT 1")
+    suspend fun getActiveSpendByNoteUuid(userId: String, noteUuid: String): Spend?
+
     @Query("SELECT updatedAt FROM spends WHERE uuid = :uuid LIMIT 1")
     suspend fun getSpendUpdatedAt(uuid: String): Long?
 

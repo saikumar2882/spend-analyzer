@@ -228,6 +228,7 @@ class SpendRepository(
                 category = existing.category,
                 timestamp = existing.timestamp,
                 notes = existing.notes,
+                noteUuid = existing.noteUuid,
                 historyType = HistoryType.UPDATED,
                 recordedAt = System.currentTimeMillis(),
                 updatedAt = System.currentTimeMillis()
@@ -239,6 +240,11 @@ class SpendRepository(
         spendDao.insertSpend(spend)
         syncToFirestore(spend)
     }
+
+    // The active spend previously logged from [noteUuid], if any — used by
+    // logNoteAsTransaction to upsert (update-in-place) instead of creating duplicates.
+    suspend fun getActiveSpendByNoteUuid(userId: String, noteUuid: String): Spend? =
+        spendDao.getActiveSpendByNoteUuid(userId, noteUuid)
 
     suspend fun delete(spend: Spend) {
         // Move to history
@@ -252,6 +258,7 @@ class SpendRepository(
             category = spend.category,
             timestamp = spend.timestamp,
             notes = spend.notes,
+            noteUuid = spend.noteUuid,
             historyType = HistoryType.DELETED,
             recordedAt = System.currentTimeMillis(),
             updatedAt = System.currentTimeMillis()
@@ -281,6 +288,7 @@ class SpendRepository(
             category = history.category,
             timestamp = history.timestamp,
             notes = history.notes,
+            noteUuid = history.noteUuid,
             // Restoring is a fresh mutation, so stamp it as the newest write. deleted is
             // explicitly cleared: the restore overwrites the tombstone left by delete(),
             // and the newer updatedAt makes the un-delete win on every device.

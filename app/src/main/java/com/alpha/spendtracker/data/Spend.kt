@@ -18,6 +18,9 @@ data class Spend(
     val category: String = "",
     val timestamp: Long = 0L,
     val notes: String = "",
+    // Links this spend back to the Note it was logged from (see logNoteAsTransaction).
+    // Blank for ordinary spends. Tapping a note-linked spend in History opens that note.
+    val noteUuid: String = "",
     val updatedAt: Long = 0L,
     // Soft-delete tombstone. Deletes must NOT remove the Firestore doc: the periodic
     // SyncWorker on another device would treat the missing doc as "never uploaded" and
@@ -40,6 +43,8 @@ data class SpendHistory(
     val category: String = "",
     val timestamp: Long = 0L,
     val notes: String = "",
+    // Preserved so restoring a note-linked spend from trash keeps its link to the Note.
+    val noteUuid: String = "",
     val historyType: String = "DELETED", // "DELETED" or "UPDATED"
     val recordedAt: Long = 0L,
     // Same soft-delete tombstone scheme as Spend (see comment there). History rows are

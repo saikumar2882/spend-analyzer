@@ -11,7 +11,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Spend::class, ChatMessage::class, SpendHistory::class, RecurringBill::class, Note::class, NoteEntry::class, NoteHistory::class], version = 20, exportSchema = false)
+@Database(entities = [Spend::class, ChatMessage::class, SpendHistory::class, RecurringBill::class, Note::class, NoteEntry::class, NoteHistory::class], version = 21, exportSchema = false)
 @TypeConverters(NoteConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun spendDao(): SpendDao
@@ -157,6 +157,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * v20 -> v21: link a Spend back to the Note it was logged from (Notes "Log as
+         * transaction"). Additive `noteUuid` columns on both `spends` and `spend_history`
+         * (the latter so restoring a note-linked spend from trash keeps its link).
+         */
+        val MIGRATION_20_21 = object : Migration(20, 21) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL("ALTER TABLE spends ADD COLUMN noteUuid TEXT NOT NULL DEFAULT ''")
+                db.execSQL("ALTER TABLE spend_history ADD COLUMN noteUuid TEXT NOT NULL DEFAULT ''")
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -164,7 +176,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "spend_database"
                 )
-                .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20)
+                .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21)
                 // The real migrations handle the common 14 -> 15 -> 16 path without data loss.
                 // Older installs can be on a pre-14 schema (the app historically shipped only
                 // destructive migration and skipped some release versions), and there is no

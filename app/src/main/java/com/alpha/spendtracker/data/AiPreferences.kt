@@ -18,6 +18,9 @@ data class AiPreferences(
     val lastUsageDate: Long = 0L,
     val isConfigured: Boolean = false,
     val isBiometricEnabled: Boolean = false,
+    // Whether we've already offered to enable app-lock once on this device, so the one-time
+    // prompt never nags again after the user enables or dismisses it.
+    val hasPromptedBiometric: Boolean = false,
     val dismissedUpdateVersion: String = ""
 )
 
@@ -31,6 +34,7 @@ class AiPreferencesRepository(private val context: Context) {
         val LAST_USAGE_DATE = longPreferencesKey("last_usage_date")
         val IS_CONFIGURED = booleanPreferencesKey("is_configured")
         val IS_BIOMETRIC_ENABLED = booleanPreferencesKey("is_biometric_enabled")
+        val HAS_PROMPTED_BIOMETRIC = booleanPreferencesKey("has_prompted_biometric")
         val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
     }
 
@@ -51,6 +55,7 @@ class AiPreferencesRepository(private val context: Context) {
                 lastUsageDate = lastDate,
                 isConfigured = preferences[PreferencesKeys.IS_CONFIGURED] ?: false,
                 isBiometricEnabled = preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] ?: false,
+                hasPromptedBiometric = preferences[PreferencesKeys.HAS_PROMPTED_BIOMETRIC] ?: false,
                 dismissedUpdateVersion = preferences[PreferencesKeys.DISMISSED_UPDATE_VERSION] ?: ""
             )
         }
@@ -67,6 +72,13 @@ class AiPreferencesRepository(private val context: Context) {
     suspend fun updateBiometricEnabled(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] = enabled
+        }
+    }
+
+    /** Marks the one-time app-lock offer as shown so it is never prompted again. */
+    suspend fun setBiometricPrompted() {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.HAS_PROMPTED_BIOMETRIC] = true
         }
     }
 

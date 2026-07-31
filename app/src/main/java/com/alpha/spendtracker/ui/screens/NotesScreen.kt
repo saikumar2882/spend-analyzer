@@ -25,6 +25,7 @@ import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -74,10 +75,22 @@ fun NotesScreen(
     onAddEntry: (noteUuid: String, label: String, amount: Double, date: Long, detail: String?, customFields: List<NoteField>) -> Unit,
     onUpdateEntry: (NoteEntry) -> Unit,
     onDeleteEntry: (NoteEntry) -> Unit,
-    onShowHistory: () -> Unit = {}
+    onShowHistory: () -> Unit = {},
+    onLogAsTransaction: (Note) -> Unit = {},
+    // When set (e.g. from tapping a note-linked transaction in History), auto-open this note.
+    // Consumed once, then cleared via [onInitialNoteConsumed].
+    initialNoteUuid: String? = null,
+    onInitialNoteConsumed: () -> Unit = {}
 ) {
     var selectedNoteUuid by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedNote = selectedNoteUuid?.let { id -> notes.find { it.uuid == id } }
+
+    LaunchedEffect(initialNoteUuid) {
+        if (initialNoteUuid != null) {
+            selectedNoteUuid = initialNoteUuid
+            onInitialNoteConsumed()
+        }
+    }
 
     // Dialog / confirmation state (shared across both levels).
     var showAddNote by remember { mutableStateOf(false) }
@@ -108,6 +121,9 @@ fun NotesScreen(
                 },
                 actions = {
                     if (selectedNote != null) {
+                        IconButton(onClick = { onLogAsTransaction(selectedNote) }) {
+                            Icon(Icons.Rounded.ReceiptLong, contentDescription = "Log as transaction")
+                        }
                         IconButton(onClick = { editingNote = selectedNote }) {
                             Icon(Icons.Rounded.Edit, contentDescription = "Edit note")
                         }
@@ -150,7 +166,8 @@ fun NotesScreen(
                             currencySymbol = currencySymbol,
                             onOpen = { selectedNoteUuid = note.uuid },
                             onEdit = { editingNote = note },
-                            onDelete = { noteToDelete = note }
+                            onDelete = { noteToDelete = note },
+                            onLogAsTransaction = { onLogAsTransaction(note) }
                         )
                     }
                 }
@@ -293,7 +310,8 @@ private fun NoteTile(
     currencySymbol: String,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
-    onDelete: () -> Unit
+    onDelete: () -> Unit,
+    onLogAsTransaction: () -> Unit
 ) {
     val accent = noteColor(note.colorIndex)
     var menuOpen by remember { mutableStateOf(false) }
@@ -323,6 +341,11 @@ private fun NoteTile(
                         Icon(Icons.Rounded.MoreVert, contentDescription = "Options", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
                     }
                     DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                        DropdownMenuItem(
+                            text = { Text("Log as transaction") },
+                            leadingIcon = { Icon(Icons.Rounded.ReceiptLong, null) },
+                            onClick = { menuOpen = false; onLogAsTransaction() }
+                        )
                         DropdownMenuItem(
                             text = { Text("Edit") },
                             leadingIcon = { Icon(Icons.Rounded.Edit, null) },

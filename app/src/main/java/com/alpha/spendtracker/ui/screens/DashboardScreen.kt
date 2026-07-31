@@ -26,6 +26,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.LightMode
@@ -86,6 +87,7 @@ fun DashboardScreen(
     onToggleBiometrics: (Boolean) -> Unit,
     onShareApp: () -> Unit,
     onRecurringBillsClick: () -> Unit,
+    onNotesClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
@@ -254,6 +256,7 @@ fun DashboardScreen(
                 onCycleTheme = onCycleTheme,
                 onProfileClick = { showProfileDialog = true },
                 onAiAssistantClick = onAiAssistantClick,
+                onNotesClick = onNotesClick,
                 onSettingsClick = onSettingsClick
             )
         }
@@ -357,6 +360,7 @@ private fun DashboardHeader(
     onCycleTheme: () -> Unit,
     onProfileClick: () -> Unit,
     onAiAssistantClick: () -> Unit,
+    onNotesClick: () -> Unit,
     onSettingsClick: () -> Unit
 ) {
     val firstName = displayName.trim().split(" ").firstOrNull().orEmpty()
@@ -402,6 +406,13 @@ private fun DashboardHeader(
                 contentDescription = "AI Assistant",
                 tint = MaterialTheme.colorScheme.primary,
                 background = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f)
+            )
+            HeaderActionButton(
+                icon = Icons.AutoMirrored.Rounded.StickyNote2,
+                onClick = onNotesClick,
+                contentDescription = "Notes",
+                tint = MaterialTheme.colorScheme.tertiary,
+                background = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.14f)
             )
             HeaderActionButton(
                 icon = when (themePreference) {

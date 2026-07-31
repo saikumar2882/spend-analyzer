@@ -225,6 +225,49 @@ class SpendViewModel @Inject constructor(
         }
     }
 
+    /** Outcome of [logNoteAsTransaction], surfaced so the UI can show the right message. */
+    enum class LogNoteResult { EMPTY, CREATED, UPDATED }
+
+    /**
+     * Logs a whole note as a single spend in the main transaction log: amount = sum of the
+     * note's entry amounts, purpose = note title, appName = the user's default payment app
+     * ([defaultApp], "Google Pay" by default), category derived from that app's preset.
+     * Upserts by [Note.uuid] — re-logging after adding entries updates the same transaction
+     * instead of creating duplicates — so tapping it in History always maps back to one note.
+     */
+    fun logNoteAsTransaction(note: Note, defaultApp: String, onComplete: (LogNoteResult) -> Unit = {}) {
+        viewModelScope.launch {
+            val userId = _userId.value
+            val total = noteEntries.value
+                .filter { it.noteUuid == note.uuid }
+                .sumOf { it.amount }
+            if (total <= 0.0) {
+                onComplete(LogNoteResult.EMPTY)
+                return@launch
+            }
+            val app = defaultApp.ifBlank { "Google Pay" }
+            val category = com.alpha.spendtracker.ui.components.APP_PRESETS
+                .find { it.displayName == app }?.category ?: "Other"
+            val now = System.currentTimeMillis()
+            val existing = repository.getActiveSpendByNoteUuid(userId, note.uuid)
+            val spend = (existing ?: Spend(
+                uuid = java.util.UUID.randomUUID().toString(),
+                userId = userId,
+                timestamp = now
+            )).copy(
+                appName = app,
+                amount = total,
+                purpose = note.title,
+                category = category,
+                notes = "",
+                noteUuid = note.uuid,
+                updatedAt = now
+            )
+            repository.insert(spend)
+            onComplete(if (existing != null) LogNoteResult.UPDATED else LogNoteResult.CREATED)
+        }
+    }
+
     fun deleteNote(note: Note) {
         viewModelScope.launch {
             repository.deleteNote(note)
@@ -611,6 +654,13 @@ class SpendViewModel @Inject constructor(
         }
     }
 
+    /** Records that the one-time app-lock enable prompt has been shown. */
+    fun setBiometricPrompted() {
+        viewModelScope.launch {
+            aiPrefsRepository.setBiometricPrompted()
+        }
+    }
+
     fun dismissUpdateVersion(version: String) {
         viewModelScope.launch {
             aiPrefsRepository.setDismissedUpdateVersion(version)
@@ -772,7 +822,7 @@ class SpendViewModel @Inject constructor(
                 baseline
             } else {
                 aiPrefsRepository.incrementUsage()
-                parseAndMerge(responseText, baseline)
+                parseAndMerge(responseText, baseline, text, prefs.defaultApp)
             }
 
             _aiResult.value = Result.success(merged)
@@ -782,8 +832,18 @@ class SpendViewModel @Inject constructor(
     /**
      * Parse the LLM JSON and merge with the local-parser baseline. Per field:
      * AI wins if it provided a non-blank, valid value; otherwise we keep baseline.
+     *
+     * [originalText] and [defaultApp] let us honor the user's configured default payment
+     * app: the small LLM tends to guess "Google Pay" whenever the input names no app, which
+     * would override the user's default. We only trust an LLM-detected app when it is actually
+     * grounded in the input; otherwise we fall back to the user's default, not the guess.
      */
-    private fun parseAndMerge(responseText: String, baseline: AiTransactionResponse): AiTransactionResponse {
+    private fun parseAndMerge(
+        responseText: String,
+        baseline: AiTransactionResponse,
+        originalText: String,
+        defaultApp: String
+    ): AiTransactionResponse {
         val jsonString = run {
             val start = responseText.indexOf("{")
             val end = responseText.lastIndexOf("}")
@@ -806,7 +866,22 @@ class SpendViewModel @Inject constructor(
         val aiNeedsAmount = json.optBoolean("needsAmount", false)
 
         val aiPreset = AiParser.normalizeAppToPreset(aiAppRaw)
-        val finalPreset = aiPreset ?: AiParser.normalizeAppToPreset(baseline.appName)
+        // Resolve the payment app in priority order:
+        //  1. An app the user actually named in the input (local alias match is ground truth).
+        //  2. An app the LLM detected that ALSO literally appears in the input — catches apps
+        //     the local matcher doesn't know, while ignoring the LLM's ungrounded guesses.
+        //  3. Neither — the user named no app, so use their configured default, NOT the LLM guess.
+        val localApp = AiParser.findAppPreset(originalText)
+        val llmAppGrounded = aiPreset != null && run {
+            val hay = " ${originalText.lowercase()} "
+            hay.contains(" ${aiPreset.displayName.lowercase()} ") ||
+                (!aiAppRaw.isNullOrBlank() && hay.contains(aiAppRaw.lowercase()))
+        }
+        val finalPreset = localApp
+            ?: aiPreset?.takeIf { llmAppGrounded }
+            ?: AiParser.normalizeAppToPreset(defaultApp)
+            ?: aiPreset
+            ?: AiParser.normalizeAppToPreset(baseline.appName)
         val finalPurpose = AiParser.normalizePurpose(aiPurposeRaw) ?: baseline.purpose
         val finalNotes = aiNotesRaw.ifBlank { baseline.notes }
         val finalAmount = aiAmount ?: baseline.amount

@@ -42,11 +42,17 @@ fun AiConfirmationScreen(
     extractedData: AiTransactionResponse,
     onConfirm: (NewSpend) -> Unit,
     onCancel: () -> Unit,
-    onShowNotification: (String, NotificationType) -> Unit
+    onShowNotification: (String, NotificationType) -> Unit,
+    // The user's transaction defaults, so a spend the AI couldn't fully classify falls
+    // back to what the user configured (not a hardcoded preset). See AiSettingsDialog.
+    defaultApp: String = "Google Pay",
+    defaultPurpose: String = "Others",
+    currencySymbol: String = "₹"
 ) {
-    val initialPreset = remember(extractedData) {
+    val initialPreset = remember(extractedData, defaultApp) {
         APP_PRESETS.firstOrNull { it.id == extractedData.appPresetId }
             ?: APP_PRESETS.firstOrNull { it.displayName.equals(extractedData.appName, ignoreCase = true) }
+            ?: APP_PRESETS.firstOrNull { it.displayName.equals(defaultApp, ignoreCase = true) }
             ?: APP_PRESETS.last()
     }
 
@@ -61,6 +67,7 @@ fun AiConfirmationScreen(
     var purpose by remember {
         mutableStateOf(
             PURPOSE_PRESETS.firstOrNull { it.equals(extractedData.purpose, ignoreCase = true) }
+                ?: PURPOSE_PRESETS.firstOrNull { it.equals(defaultPurpose, ignoreCase = true) }
                 ?: "Others"
         )
     }
@@ -109,7 +116,8 @@ fun AiConfirmationScreen(
             appName = if (selectedPreset.id == "other") customAppName.ifBlank { "Other" } else selectedPreset.displayName,
             purpose = purpose,
             notes = notes,
-            dateLabel = dateFormatter.format(selectedTimestamp)
+            dateLabel = dateFormatter.format(selectedTimestamp),
+            currencySymbol = currencySymbol
         )
 
         if (extractedData.needsAmount && amount.isBlank()) {
@@ -214,7 +222,8 @@ private fun ExtractedSummaryCard(
     appName: String,
     purpose: String,
     notes: String,
-    dateLabel: String
+    dateLabel: String,
+    currencySymbol: String
 ) {
     Card(
         modifier = Modifier.fillMaxWidth(),
@@ -226,7 +235,7 @@ private fun ExtractedSummaryCard(
         Column(modifier = Modifier.padding(16.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
-                    text = "₹${amount.ifBlank { "0" }}",
+                    text = "$currencySymbol${amount.ifBlank { "0" }}",
                     style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.primary
                 )
