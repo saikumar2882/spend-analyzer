@@ -490,9 +490,16 @@ fun MainContainer(
         )
     ) { mutableStateListOf(ActiveView.DASHBOARD) }
     val goToMajor: (ActiveView) -> Unit = { view ->
-        if (backStack.lastOrNull() != view) {
+        if (view == ActiveView.DASHBOARD) {
+            backStack.clear()
+            backStack.add(ActiveView.DASHBOARD)
+        } else if (backStack.lastOrNull() != view) {
+            // Remove previous occurrence of this view to keep the stack flat and unique.
+            // This prevents "too much back" by ensuring a visit to a screen only appears once.
+            backStack.removeAll { it == view }
             backStack.add(view)
-            if (backStack.size > 30) backStack.removeAt(0)
+            // Safety cap
+            if (backStack.size > 15) backStack.removeAt(0)
         }
         activeView = view
     }
@@ -824,7 +831,7 @@ fun MainContainer(
             Box(
                 modifier = Modifier
                     .fillMaxSize()
-                    .padding(innerPadding)
+                    .padding(bottom = innerPadding.calculateBottomPadding())
                     .nestedScroll(fabScrollConnection)
             ) {
                 AnimatedContent(

@@ -86,7 +86,7 @@ fun LendBorrowScreen(
         )
     }
 
-    Column(modifier = Modifier.fillMaxSize().padding(horizontal = 16.dp)) {
+    Column(modifier = Modifier.fillMaxSize().statusBarsPadding().padding(horizontal = 16.dp)) {
         Spacer(modifier = Modifier.height(8.dp))
 
         SegmentedTabs(
