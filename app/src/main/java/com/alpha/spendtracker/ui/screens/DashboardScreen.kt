@@ -88,8 +88,7 @@ fun DashboardScreen(
     onToggleBiometrics: (Boolean) -> Unit,
     onShareApp: () -> Unit,
     onRecurringBillsClick: () -> Unit,
-    onNotesClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onNotesClick: () -> Unit
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showSecurityOptions by remember { mutableStateOf(false) }
@@ -248,8 +247,8 @@ fun DashboardScreen(
             .fillMaxSize()
             .statusBarsPadding()
             .padding(horizontal = 16.dp),
-        verticalArrangement = Arrangement.spacedBy(20.dp),
-        contentPadding = PaddingValues(top = 12.dp, bottom = 96.dp)
+        verticalArrangement = Arrangement.spacedBy(14.dp),
+        contentPadding = PaddingValues(top = 10.dp, bottom = 96.dp)
     ) {
         item {
             DashboardHeader(
@@ -258,8 +257,7 @@ fun DashboardScreen(
                 onCycleTheme = onCycleTheme,
                 onProfileClick = { showProfileDialog = true },
                 onAiAssistantClick = onAiAssistantClick,
-                onNotesClick = onNotesClick,
-                onSettingsClick = onSettingsClick
+                onNotesClick = onNotesClick
             )
         }
 
@@ -292,9 +290,13 @@ fun DashboardScreen(
             item {
                 WhereItWentCard(
                     categoryBreakdown = analytics.categoryBreakdown,
+                    purposeBreakdown = analytics.purposeBreakdown,
                     trendPoints = analytics.trendPoints,
                     onCategoryClick = { category ->
                         onShowNotification("Filtering by $category", NotificationType.INFO)
+                    },
+                    onPurposeClick = { purpose ->
+                        onShowNotification("Filtering by $purpose", NotificationType.INFO)
                     }
                 )
             }
@@ -362,8 +364,7 @@ private fun DashboardHeader(
     onCycleTheme: () -> Unit,
     onProfileClick: () -> Unit,
     onAiAssistantClick: () -> Unit,
-    onNotesClick: () -> Unit,
-    onSettingsClick: () -> Unit
+    onNotesClick: () -> Unit
 ) {
     val firstName = displayName.trim().split(" ").firstOrNull().orEmpty()
     val greeting = if (firstName.isBlank()) "Hi there 👋" else "Hi, $firstName 👋"
@@ -400,7 +401,7 @@ private fun DashboardHeader(
 
         Row(
             verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(8.dp)
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             HeaderActionButton(
                 icon = Icons.Rounded.AutoAwesome,
@@ -431,14 +432,6 @@ private fun DashboardHeader(
                 tint = MaterialTheme.colorScheme.onSurface,
                 background = MaterialTheme.colorScheme.surfaceContainerHigh
             )
-            HeaderActionButton(
-                icon = Icons.Rounded.Settings,
-                onClick = onSettingsClick,
-                contentDescription = "Settings",
-                tint = MaterialTheme.colorScheme.onSurface,
-                background = MaterialTheme.colorScheme.surfaceContainerHigh
-            )
-
         }
     }
 }

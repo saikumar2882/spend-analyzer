@@ -448,7 +448,7 @@ private fun HeroDeltaChip(deltaPct: Double) {
 fun QuickStatsRow(analytics: SpendingAnalytics, modifier: Modifier = Modifier) {
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(12.dp)
+        horizontalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         StatTile(
             modifier = Modifier.weight(1f),
@@ -528,8 +528,10 @@ private fun StatTile(
 @Composable
 fun WhereItWentCard(
     categoryBreakdown: Map<String, Double>,
+    purposeBreakdown: Map<String, Double>,
     trendPoints: List<TrendPoint>,
     onCategoryClick: (String) -> Unit,
+    onPurposeClick: (String) -> Unit,
     modifier: Modifier = Modifier
 ) {
     var tab by rememberSaveable { mutableStateOf(0) }
@@ -538,9 +540,9 @@ fun WhereItWentCard(
         color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(24.dp)
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(4.dp)) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                modifier = Modifier.fillMaxWidth().padding(horizontal = 8.dp, vertical = 6.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
@@ -551,17 +553,23 @@ fun WhereItWentCard(
                 )
                 ChartToggle(selected = tab, onSelect = { tab = it })
             }
-            Spacer(modifier = Modifier.height(14.dp))
+            Spacer(modifier = Modifier.height(2.dp))
             AnimatedContent(targetState = tab, label = "where_it_went") { current ->
-                if (current == 0) {
-                    SpendingDonutChart(
+                when (current) {
+                    0 -> SpendingDonutChart(
                         categoryBreakdown = categoryBreakdown,
                         modifier = Modifier.fillMaxWidth(),
                         inCard = true,
                         onCategoryClick = onCategoryClick
                     )
-                } else {
-                    SpendingTrendBarChart(
+                    1 -> SpendingDonutChart(
+                        categoryBreakdown = purposeBreakdown,
+                        modifier = Modifier.fillMaxWidth(),
+                        inCard = true,
+                        usePurposeColors = true,
+                        onCategoryClick = onPurposeClick
+                    )
+                    else -> SpendingTrendBarChart(
                         trendPoints = trendPoints,
                         modifier = Modifier.fillMaxWidth(),
                         inCard = true
@@ -574,7 +582,7 @@ fun WhereItWentCard(
 
 @Composable
 private fun ChartToggle(selected: Int, onSelect: (Int) -> Unit) {
-    val labels = listOf("Categories", "Trend")
+    val labels = listOf("Categories", "Purpose", "Trend")
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
         shape = RoundedCornerShape(10.dp)

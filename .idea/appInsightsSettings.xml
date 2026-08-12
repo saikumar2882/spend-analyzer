@@ -17,7 +17,6 @@
               </option>
               <option name="failureTypes">
                 <list>
-                  <option value="FATAL" />
                   <option value="ANR" />
                 </list>
               </option>

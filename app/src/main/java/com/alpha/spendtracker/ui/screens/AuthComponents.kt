@@ -213,6 +213,7 @@ fun rememberGoogleSignIn(
     val context = LocalContext.current
     val activity = remember(context) { context.findActivity() }
     val googleServerClientId = stringResource(R.string.default_web_client_id)
+    android.util.Log.d("GoogleSignIn", "Client ID: $googleServerClientId")
     val auth = remember { FirebaseAuth.getInstance() }
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
@@ -220,9 +221,11 @@ fun rememberGoogleSignIn(
     return {
         scope.launch {
             try {
+                android.util.Log.d("GoogleSignIn", "Starting sign-in flow")
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
                     .setServerClientId(googleServerClientId)
+                    .setAutoSelectEnabled(true)
                     .setNonce(generateNonce())
                     .build()
 
@@ -235,6 +238,7 @@ fun rememberGoogleSignIn(
                 } ?: throw Exception("Activity not found")
 
                 val credential = result.credential
+                android.util.Log.d("GoogleSignIn", "Credential received: ${credential.type}")
                 if (credential is CustomCredential &&
                     credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
                 ) {
@@ -244,22 +248,29 @@ fun rememberGoogleSignIn(
 
                     auth.signInWithCredential(firebaseCredential).addOnCompleteListener { authTask ->
                         if (authTask.isSuccessful) {
+                            android.util.Log.d("GoogleSignIn", "Firebase sign-in success")
                             onSuccess()
                         } else {
-                            onError("Google sign-in failed: ${authTask.exception?.message}")
+                            val error = authTask.exception?.message ?: "Unknown error"
+                            android.util.Log.e("GoogleSignIn", "Firebase sign-in failed: $error")
+                            onError("Google sign-in failed: $error")
                         }
                     }
                 } else {
-                    onError("Unexpected credential type")
+                    android.util.Log.e("GoogleSignIn", "Unexpected credential type: ${credential.type}")
+                    onError("Unexpected credential type: ${credential.type}")
                 }
             } catch (e: NoCredentialException) {
+                android.util.Log.e("GoogleSignIn", "NoCredentialException: ${e.message}")
                 onError(
                     "No Google account found on this device. Add a Google account in " +
                         "Settings, or use a device/emulator that has Google Play."
                 )
             } catch (e: GetCredentialException) {
+                android.util.Log.e("GoogleSignIn", "GetCredentialException: ${e.type} - ${e.message}")
                 onError("Google sign-in error: ${e.message}")
             } catch (e: Exception) {
+                android.util.Log.e("GoogleSignIn", "Exception: ${e.message}")
                 onError("An error occurred: ${e.message}")
             }
         }

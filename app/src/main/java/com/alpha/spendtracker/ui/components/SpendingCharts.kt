@@ -65,6 +65,43 @@ fun getCategoryColors(): Map<String, Color> {
 }
 
 /**
+ * Returns a theme-aware color map for spending purposes.
+ */
+@Composable
+fun getPurposeColors(): Map<String, Color> {
+    val isDark = isSystemInDarkTheme()
+    return remember(isDark) {
+        if (isDark) {
+            mapOf(
+                "Groceries & Food" to Color(0xFF4CAF50),
+                "Shopping & Apparels" to Color(0xFFFF9800),
+                "Lending" to Color(0xFF2196F3),
+                "Borrowing" to Color(0xFFE91E63),
+                "Credit Card Bill" to Color(0xFF9C27B0),
+                "Rent & Utilities" to Color(0xFF827717),
+                "Travel & Commute" to Color(0xFF00BCD4),
+                "Subscription & Leisure" to Color(0xFF795548),
+                "Healthcare & Medical" to Color(0xFFF44336),
+                "Others" to Color(0xFF607D8B)
+            )
+        } else {
+            mapOf(
+                "Groceries & Food" to Color(0xFF388E3C),
+                "Shopping & Apparels" to Color(0xFFF57C00),
+                "Lending" to Color(0xFF1976D2),
+                "Borrowing" to Color(0xFFC2185B),
+                "Credit Card Bill" to Color(0xFF7B1FA2),
+                "Rent & Utilities" to Color(0xFFFBC02D),
+                "Travel & Commute" to Color(0xFF0097A7),
+                "Subscription & Leisure" to Color(0xFF5D4037),
+                "Healthcare & Medical" to Color(0xFFD32F2F),
+                "Others" to Color(0xFF455A64)
+            )
+        }
+    }
+}
+
+/**
  * A beautiful, custom Canvas-drawn Pie/Donut Chart for category breakdown
  */
 @Composable
@@ -72,6 +109,7 @@ fun SpendingDonutChart(
     categoryBreakdown: Map<String, Double>,
     modifier: Modifier = Modifier,
     inCard: Boolean = false,
+    usePurposeColors: Boolean = false,
     onCategoryClick: ((String) -> Unit)? = null
 ) {
     if (categoryBreakdown.isEmpty()) {
@@ -83,7 +121,7 @@ fun SpendingDonutChart(
             contentAlignment = Alignment.Center
         ) {
             Text(
-                text = "No category data to display",
+                text = "No data to display",
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -91,7 +129,7 @@ fun SpendingDonutChart(
         return
     }
 
-    val categoryColors = getCategoryColors()
+    val chartColors = if (usePurposeColors) getPurposeColors() else getCategoryColors()
     // Hoist the total and the sorted item list so they aren't recomputed on every recomposition
     // (the donut animates, so this composable recomposes frequently).
     val total = remember(categoryBreakdown) { categoryBreakdown.values.sum() }
@@ -124,15 +162,15 @@ fun SpendingDonutChart(
             if (inCard) Modifier
             else Modifier
                 .background(chartContainerColor(), shape = RoundedCornerShape(24.dp))
-                .padding(16.dp)
+                .padding(6.dp)
         ),
         verticalAlignment = Alignment.CenterVertically
     ) {
         // Doughnut Canvas
         Box(
             modifier = Modifier
-                .size(130.dp)
-                .padding(8.dp),
+                .size(108.dp)
+                .padding(1.dp),
             contentAlignment = Alignment.Center
         ) {
             Canvas(
@@ -141,22 +179,23 @@ fun SpendingDonutChart(
                     .pointerInput(items, total) {
                         detectTapGestures { offset ->
                             if (total <= 0 || currentProgress.value < 0.9f) return@detectTapGestures
-                            
+
                             val centerX = size.width / 2f
                             val centerY = size.height / 2f
                             val dx = offset.x - centerX
                             val dy = offset.y - centerY
                             val distance = kotlin.math.sqrt(dx * dx + dy * dy)
-                            
-                            val strokeWidth = 14.dp.toPx()
+
+                            val strokeWidth = 12.dp.toPx()
                             val outerRadius = kotlin.math.min(size.width, size.height) / 2f
                             val innerRadius = outerRadius - strokeWidth
-                            
+
                             if (distance in innerRadius..outerRadius) {
-                                var angle = kotlin.math.atan2(dy, dx) * (180f / kotlin.math.PI).toFloat()
+                                var angle =
+                                    kotlin.math.atan2(dy, dx) * (180f / kotlin.math.PI).toFloat()
                                 if (angle < -90f) angle += 360f
                                 val clickAngle = angle + 90f // Offset to match -90f start
-                                
+
                                 var currentAngle = 0f
                                 for ((cat, amount) in items) {
                                     val sweep = (amount / total * 360f).toFloat()
@@ -170,7 +209,7 @@ fun SpendingDonutChart(
                         }
                     }
             ) {
-                val strokeWidth = 14.dp.toPx()
+                val strokeWidth = 12.dp.toPx()
                 val radius = (size.minDimension - strokeWidth) / 2
                 val center = Offset(size.width / 2, size.height / 2)
                 val rectSize = Size(radius * 2, radius * 2)
@@ -181,7 +220,7 @@ fun SpendingDonutChart(
                 items.forEach { (cat, amount) ->
                     val rawSweepAngle = if (total > 0) ((amount / total) * 360f).toFloat() * progressFactor else 0f
                     val sweepAngle = if (rawSweepAngle.isNaN() || rawSweepAngle < 0f) 0f else rawSweepAngle
-                    val color = categoryColors[cat] ?: categoryColors["Other"]!!
+                    val color = chartColors[cat] ?: if (usePurposeColors) Color.Gray else chartColors["Other"]!!
 
                     drawArc(
                         color = color,
@@ -200,27 +239,27 @@ fun SpendingDonutChart(
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
                     text = "Total",
-                    style = MaterialTheme.typography.labelSmall,
+                    style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 Text(
                     text = "₹${formatCurrency(total)}",
-                    style = MaterialTheme.typography.titleMedium,
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold, fontSize = 14.sp),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1
                 )
             }
         }
 
-        Spacer(modifier = Modifier.width(16.dp))
+        Spacer(modifier = Modifier.width(8.dp))
 
         // Legend list
         Column(
             modifier = Modifier.weight(1f),
-            verticalArrangement = Arrangement.spacedBy(6.dp)
+            verticalArrangement = Arrangement.spacedBy(2.dp)
         ) {
             items.take(4).forEach { (category, amount) ->
-                val color = categoryColors[category] ?: categoryColors["Other"]!!
+                val color = chartColors[category] ?: if (usePurposeColors) Color.Gray else chartColors["Other"]!!
                 val percent = if (total > 0) (amount / total * 100).toInt() else 0
 
                 Row(
@@ -234,20 +273,20 @@ fun SpendingDonutChart(
                     ) {
                         Box(
                             modifier = Modifier
-                                .size(10.dp)
+                                .size(8.dp)
                                 .background(color, RoundedCornerShape(2.dp))
                         )
-                        Spacer(modifier = Modifier.width(8.dp))
+                        Spacer(modifier = Modifier.width(6.dp))
                         Text(
                             text = category,
-                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                            style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium, fontSize = 11.sp),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1
                         )
                     }
                     Text(
                         text = "$percent%",
-                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold, fontSize = 10.sp),
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.8f)
                     )
                 }

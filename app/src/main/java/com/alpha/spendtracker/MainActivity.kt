@@ -49,6 +49,7 @@ import androidx.compose.material.icons.rounded.Dashboard
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Handshake
 import androidx.compose.material.icons.rounded.History
+import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material3.*
@@ -775,11 +776,17 @@ fun MainContainer(
                             icon = { Icon(Icons.Rounded.History, contentDescription = "Spending History") },
                             label = { Text("History") }
                         )
+                        NavigationBarItem(
+                            selected = activeView == ActiveView.SETTINGS,
+                            onClick = { goToMajor(ActiveView.SETTINGS) },
+                            icon = { Icon(Icons.Rounded.Settings, contentDescription = "Settings") },
+                            label = { Text("Settings") }
+                        )
                     }
                 }
             },
             floatingActionButton = {
-                if (activeView == ActiveView.DASHBOARD || activeView == ActiveView.HISTORY || activeView == ActiveView.LEND_BORROW) {
+                if (activeView == ActiveView.DASHBOARD || activeView == ActiveView.HISTORY || activeView == ActiveView.LEND_BORROW || activeView == ActiveView.SETTINGS) {
                     var showFabMenu by remember { mutableStateOf(false) }
                     Column(horizontalAlignment = Alignment.End) {
                         AnimatedVisibility(
@@ -902,8 +909,7 @@ fun MainContainer(
                                 context.startActivity(shareIntent)
                             },
                             onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
-                            onNotesClick = { goToMajor(ActiveView.NOTES) },
-                            onSettingsClick = { goToMajor(ActiveView.SETTINGS) }
+                            onNotesClick = { goToMajor(ActiveView.NOTES) }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
                             allSpends = allSpends,
@@ -1071,7 +1077,8 @@ fun MainContainer(
                             onOpenNote = { noteUuid ->
                                 pendingNoteUuid = noteUuid
                                 goToMajor(ActiveView.NOTES)
-                            }
+                            },
+                            onShowNotification = { msg, type -> showNotification(msg, type) }
                         )
                         ActiveView.ADD_SPEND -> AddSpendScreen(
                             editingSpend = editingSpend,
