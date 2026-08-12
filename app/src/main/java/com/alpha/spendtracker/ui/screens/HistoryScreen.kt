@@ -929,7 +929,11 @@ private data class MonthGroup(
 
 @Composable
 private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier = Modifier) {
-    val sdf = remember { java.text.SimpleDateFormat("dd MMM yy", Locale.getDefault()) }
+    val locale = androidx.compose.ui.platform.LocalConfiguration.current.locales[0]
+    val sdf = remember(locale) { java.text.SimpleDateFormat("dd MMM yy", locale) }
+    val generatedDate = remember(locale) { 
+        java.text.SimpleDateFormat("dd MMM yyyy", locale).format(System.currentTimeMillis()) 
+    }
     Column(
         modifier = modifier
             .background(Color.White)
@@ -941,7 +945,7 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
             modifier = Modifier.padding(bottom = 2.dp)
         )
         Text(
-            "Generated on ${java.text.SimpleDateFormat("dd MMM yyyy", Locale.getDefault()).format(System.currentTimeMillis())}",
+            "Generated on $generatedDate",
             style = MaterialTheme.typography.bodySmall,
             color = Color.DarkGray
         )

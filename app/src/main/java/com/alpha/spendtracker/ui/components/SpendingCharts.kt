@@ -4,6 +4,7 @@
 package com.alpha.spendtracker.ui.components
 
 import androidx.compose.foundation.isSystemInDarkTheme
+import android.annotation.SuppressLint
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.foundation.Canvas
@@ -529,6 +530,7 @@ private data class MeasuredBarLabels(
     val value: TextLayoutResult?
 )
 
+@SuppressLint("NonObservableLocale")
 fun formatCurrency(amount: Double): String {
     val pattern = if (amount % 1 == 0.0) "%,.0f" else "%,.2f"
     return String.format(Locale.getDefault(), pattern, amount)
