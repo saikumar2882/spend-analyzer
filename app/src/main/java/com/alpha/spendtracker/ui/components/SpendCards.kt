@@ -14,17 +14,18 @@ import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
-import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.sizeIn
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.Edit
@@ -44,12 +45,16 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.Spend
+import com.alpha.spendtracker.ui.icons.AppIcons
+import com.alpha.spendtracker.ui.theme.Radius
+import com.alpha.spendtracker.ui.theme.Sizes
+import com.alpha.spendtracker.ui.theme.Spacing
+import com.alpha.spendtracker.ui.theme.asMoney
 
 @Composable
 fun RecentSpendRow(
@@ -70,26 +75,28 @@ fun RecentSpendRow(
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Radius.md),
         colors = CardDefaults.cardColors(
             containerColor = MaterialTheme.colorScheme.surfaceContainer
         ),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically
         ) {
             // Accent strip
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .height(56.dp)
+                    .width(Spacing.xs)
+                    .fillMaxHeight()
                     .background(accent)
             )
             Row(
                 modifier = Modifier
-                    .padding(14.dp)
+                    .padding(Spacing.md)
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -99,10 +106,10 @@ fun RecentSpendRow(
                     modifier = Modifier.weight(1f)
                 ) {
                     DateBadge(timestamp = spend.timestamp, color = accent)
-                    Spacer(modifier = Modifier.width(14.dp))
+                    Spacer(modifier = Modifier.width(Spacing.md))
                     Column {
                         SpendCardHeader(appName = spend.appName, category = spend.category, accent = accent)
-                        Spacer(modifier = Modifier.height(2.dp))
+                        Spacer(modifier = Modifier.height(Spacing.xs))
                         Text(
                             text = subtitle,
                             style = MaterialTheme.typography.bodyMedium,
@@ -113,13 +120,13 @@ fun RecentSpendRow(
                     }
                 }
 
+                Spacer(modifier = Modifier.width(Spacing.sm))
+
                 Text(
                     text = "₹${formatCurrency(spend.amount)}",
-                    style = MaterialTheme.typography.titleLarge.copy(
-                        fontWeight = FontWeight.ExtraBold,
-                        letterSpacing = (-0.5).sp
-                    ),
-                    color = MaterialTheme.colorScheme.onSurface
+                    style = MaterialTheme.typography.titleLarge.asMoney(),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1
                 )
             }
         }
@@ -143,23 +150,28 @@ fun HistorySpendCard(
         modifier = modifier
             .fillMaxWidth()
             .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Radius.md),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // fillMaxHeight only resolves because the Row above is measured at IntrinsicSize.Min:
+            // in an unbounded-height Row (a plain list item) it collapses to zero and the strip
+            // never draws.
             Box(
                 modifier = Modifier
-                    .width(4.dp)
+                    .width(Spacing.xs)
                     .fillMaxHeight()
                     .background(accent)
             )
             Row(
                 modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 11.dp)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.md)
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -168,22 +180,21 @@ fun HistorySpendCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    DateBadge(timestamp = spend.timestamp, color = accent, size = 42.dp)
-                    Spacer(modifier = Modifier.width(12.dp))
+                    DateBadge(timestamp = spend.timestamp, color = accent, size = Sizes.dateBadgeCompact)
+                    Spacer(modifier = Modifier.width(Spacing.md))
                     Column {
                         SpendCardHeader(appName = spend.appName, category = spend.category, accent = accent, showNoteIcon = isNoteLinked)
                         if (!isLendBorrow) {
-                            Spacer(modifier = Modifier.height(2.dp))
+                            Spacer(modifier = Modifier.height(Spacing.xs))
                             Text(
                                 text = spend.purpose,
-                                style = MaterialTheme.typography.bodyMedium.copy(
-                                    fontWeight = FontWeight.SemiBold,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
+                                style = MaterialTheme.typography.titleSmall,
+                                color = MaterialTheme.colorScheme.primary,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
                             )
                         }
                         if (spend.notes.isNotBlank()) {
-                            Spacer(modifier = Modifier.height(1.dp))
                             Text(
                                 text = spend.notes,
                                 style = MaterialTheme.typography.bodySmall,
@@ -195,57 +206,65 @@ fun HistorySpendCard(
                     }
                 }
 
-                Spacer(modifier = Modifier.width(10.dp))
+                Spacer(modifier = Modifier.width(Spacing.sm))
 
                 Column(
                     horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
                 ) {
                     Text(
                         text = "₹${formatCurrency(spend.amount)}",
-                        style = MaterialTheme.typography.titleLarge.copy(
-                            fontWeight = FontWeight.ExtraBold,
-                            letterSpacing = (-0.5).sp
-                        ),
+                        style = MaterialTheme.typography.titleLarge.asMoney(),
                         color = when (spend.purpose) {
                             "Lending" -> MaterialTheme.colorScheme.secondary
                             "Borrowing" -> MaterialTheme.colorScheme.error
                             else -> MaterialTheme.colorScheme.onSurface
-                        }
+                        },
+                        maxLines = 1
                     )
-                    Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
-                        IconButton(
-                            onClick = onEdit,
-                            colors = IconButtonDefaults.iconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                                contentColor = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                Icons.Rounded.Edit,
-                                contentDescription = "Edit transaction",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                        IconButton(
-                            onClick = onDelete,
-                            colors = IconButtonDefaults.iconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
-                                contentColor = MaterialTheme.colorScheme.error
-                            ),
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                Icons.Rounded.Delete,
-                                contentDescription = "Delete transaction",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
+                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
+                        CardActionButton(
+                            icon = Icons.Rounded.Edit,
+                            contentDescription = "Edit transaction",
+                            tint = MaterialTheme.colorScheme.primary,
+                            onClick = onEdit
+                        )
+                        CardActionButton(
+                            icon = Icons.Rounded.Delete,
+                            contentDescription = "Delete transaction",
+                            tint = MaterialTheme.colorScheme.error,
+                            onClick = onDelete
+                        )
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * Tinted icon button for the in-card row actions.
+ *
+ * Deliberately does not set an explicit size: `IconButton` paints a 40dp container but reserves a
+ * 48dp touch target, and the `Modifier.size(34.dp)` these call sites used to pass overrode that
+ * reservation — shrinking every edit/delete/restore target on the transaction and history lists
+ * well below the accessible minimum.
+ */
+@Composable
+private fun CardActionButton(
+    icon: androidx.compose.ui.graphics.vector.ImageVector,
+    contentDescription: String,
+    tint: Color,
+    onClick: () -> Unit
+) {
+    IconButton(
+        onClick = onClick,
+        colors = IconButtonDefaults.iconButtonColors(
+            containerColor = tint.copy(alpha = 0.14f),
+            contentColor = tint
+        )
+    ) {
+        Icon(icon, contentDescription = contentDescription, modifier = Modifier.size(Sizes.iconAction))
     }
 }
 
@@ -268,23 +287,28 @@ fun HistoryRecordCard(
 
     Card(
         modifier = modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Radius.md),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            // fillMaxHeight only resolves because the Row above is measured at IntrinsicSize.Min:
+            // in an unbounded-height Row (a plain list item) it collapses to zero and the strip
+            // never draws.
             Box(
                 modifier = Modifier
-                    .width(4.dp)
-                    .height(84.dp)
+                    .width(Spacing.xs)
+                    .fillMaxHeight()
                     .background(accent)
             )
             Row(
                 modifier = Modifier
-                    .padding(horizontal = 12.dp, vertical = 11.dp)
+                    .padding(horizontal = Spacing.md, vertical = Spacing.md)
                     .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.SpaceBetween
@@ -293,51 +317,42 @@ fun HistoryRecordCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    DateBadge(timestamp = history.recordedAt, color = accent, size = 42.dp)
-                    Spacer(modifier = Modifier.width(12.dp))
+                    DateBadge(timestamp = history.recordedAt, color = accent, size = Sizes.dateBadgeCompact)
+                    Spacer(modifier = Modifier.width(Spacing.md))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = history.appName,
-                                style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+                                style = MaterialTheme.typography.titleSmall,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
                             )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Surface(
-                                color = if (isDeleted) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
-                                        else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
-                                shape = RoundedCornerShape(6.dp)
-                            ) {
-                                Text(
-                                    text = history.historyType,
-                                    modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                                    style = MaterialTheme.typography.labelSmall.copy(
-                                        fontSize = 8.sp,
-                                        fontWeight = FontWeight.ExtraBold
-                                    ),
-                                    color = if (isDeleted) MaterialTheme.colorScheme.onErrorContainer
-                                            else MaterialTheme.colorScheme.onSecondaryContainer
-                                )
-                            }
+                            Spacer(modifier = Modifier.width(Spacing.sm))
+                            Pill(
+                                text = history.historyType,
+                                container = if (isDeleted) MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.7f)
+                                else MaterialTheme.colorScheme.secondaryContainer.copy(alpha = 0.7f),
+                                content = if (isDeleted) MaterialTheme.colorScheme.onErrorContainer
+                                else MaterialTheme.colorScheme.onSecondaryContainer
+                            )
                         }
-                        
+
                         if (daysLeft != null) {
                             Text(
                                 text = if (daysLeft == 0) "Expires today" else "$daysLeft days left",
                                 style = MaterialTheme.typography.labelSmall,
-                                color = if (daysLeft <= 3) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.onSurfaceVariant,
-                                fontWeight = FontWeight.Bold
+                                color = if (daysLeft <= 3) MaterialTheme.colorScheme.error
+                                else MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
 
                         Text(
-                            text = "₹${formatCurrency(history.amount)} - ${history.purpose}",
-                            style = MaterialTheme.typography.bodyMedium.copy(
-                                fontWeight = FontWeight.SemiBold,
-                                color = MaterialTheme.colorScheme.primary
-                            )
+                            text = "₹${formatCurrency(history.amount)} · ${history.purpose}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.primary,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         if (history.notes.isNotBlank()) {
                             Text(
@@ -351,37 +366,23 @@ fun HistoryRecordCard(
                     }
                 }
 
-                Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+                Spacer(modifier = Modifier.width(Spacing.sm))
+
+                Row(horizontalArrangement = Arrangement.spacedBy(Spacing.xs)) {
                     if (isDeleted) {
-                        IconButton(
-                            onClick = onRestore,
-                            colors = IconButtonDefaults.iconButtonColors(
-                                containerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.14f),
-                                contentColor = MaterialTheme.colorScheme.primary
-                            ),
-                            modifier = Modifier.size(34.dp)
-                        ) {
-                            Icon(
-                                Icons.Rounded.Restore,
-                                contentDescription = "Restore record",
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-                    IconButton(
-                        onClick = onDelete,
-                        colors = IconButtonDefaults.iconButtonColors(
-                            containerColor = MaterialTheme.colorScheme.error.copy(alpha = 0.12f),
-                            contentColor = MaterialTheme.colorScheme.error
-                        ),
-                        modifier = Modifier.size(34.dp)
-                    ) {
-                        Icon(
-                            if (isDeleted) Icons.Rounded.DeleteForever else Icons.Rounded.Delete,
-                            contentDescription = if (isDeleted) "Permanently delete" else "Remove history",
-                            modifier = Modifier.size(18.dp)
+                        CardActionButton(
+                            icon = Icons.Rounded.Restore,
+                            contentDescription = "Restore record",
+                            tint = MaterialTheme.colorScheme.primary,
+                            onClick = onRestore
                         )
                     }
+                    CardActionButton(
+                        icon = if (isDeleted) Icons.Rounded.DeleteForever else Icons.Rounded.Delete,
+                        contentDescription = if (isDeleted) "Permanently delete" else "Remove history",
+                        tint = MaterialTheme.colorScheme.error,
+                        onClick = onDelete
+                    )
                 }
             }
         }
@@ -392,7 +393,7 @@ fun HistoryRecordCard(
 fun DateBadge(
     timestamp: Long,
     color: Color,
-    size: androidx.compose.ui.unit.Dp = 44.dp
+    size: Dp = Sizes.dateBadge
 ) {
     val calendar = remember(timestamp) {
         java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
@@ -402,36 +403,61 @@ fun DateBadge(
         java.text.SimpleDateFormat("MMM", java.util.Locale.getDefault()).format(timestamp)
     }
 
+    // `size` is a *floor*, not a fixed square: at a large system font scale the day and month lines
+    // together are taller than 44/48dp, and a hard `Modifier.size` cropped the month clean off the
+    // bottom of the badge ("26" over a half-drawn "aug"). sizeIn lets the badge grow to whatever the
+    // two lines need while staying square at the default scale.
     Surface(
-        modifier = Modifier.size(size),
-        shape = RoundedCornerShape(12.dp),
+        modifier = Modifier.sizeIn(minWidth = size, minHeight = size),
+        shape = RoundedCornerShape(Radius.sm),
         color = color.copy(alpha = 0.12f),
         border = BorderStroke(1.dp, color.copy(alpha = 0.25f))
     ) {
         Column(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier.padding(horizontal = Spacing.xs, vertical = 2.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
+            // Fixed scale steps rather than fractions of `size`: the old `size.value * 0.35f`
+            // produced a different, off-scale font size for every call site that passed a
+            // different badge size.
             Text(
                 text = day,
-                style = MaterialTheme.typography.titleMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = (size.value * 0.35f).sp,
-                    lineHeight = (size.value * 0.35f).sp
-                ),
-                color = color
+                style = MaterialTheme.typography.titleMedium,
+                color = color,
+                maxLines = 1
             )
             Text(
                 text = month.lowercase(),
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.SemiBold,
-                    fontSize = (size.value * 0.22f).sp,
-                    lineHeight = (size.value * 0.22f).sp
-                ),
-                color = color.copy(alpha = 0.8f)
+                style = MaterialTheme.typography.labelSmall,
+                color = color.copy(alpha = 0.8f),
+                maxLines = 1
             )
         }
+    }
+}
+
+/**
+ * Small tinted label — a category tag, a DELETED/UPDATED marker. One implementation so these stop
+ * drifting apart (they previously sat at 8sp/ExtraBold and 9sp/Bold with different corner radii).
+ */
+@Composable
+internal fun Pill(
+    text: String,
+    container: Color,
+    content: Color
+) {
+    Surface(color = container, shape = RoundedCornerShape(Radius.xxs)) {
+        Text(
+            text = text,
+            modifier = Modifier.padding(horizontal = Spacing.sm, vertical = 2.dp),
+            style = MaterialTheme.typography.labelSmall,
+            color = content,
+            maxLines = 1,
+            // Ellipsis, not the default Clip: a long category at a large font scale otherwise ran
+            // off the pill mid-glyph. "Quick Commerce" becomes "Quick Com…", which still reads.
+            overflow = TextOverflow.Ellipsis
+        )
     }
 }
 
@@ -441,9 +467,12 @@ private fun SpendCardHeader(appName: String, category: String, accent: Color, sh
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
+        // `fill = false` so the name takes only what it needs at the default font scale, but is the
+        // first thing to give way when a larger scale makes the row wider than the card.
         Text(
             text = appName,
-            style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Bold),
+            modifier = Modifier.weight(1f, fill = false),
+            style = MaterialTheme.typography.titleSmall,
             color = MaterialTheme.colorScheme.onSurface,
             maxLines = 1,
             overflow = TextOverflow.Ellipsis
@@ -452,7 +481,7 @@ private fun SpendCardHeader(appName: String, category: String, accent: Color, sh
         // Marks a spend logged from a Note — tapping the card opens that note.
         if (showNoteIcon) {
             Icon(
-                imageVector = Icons.AutoMirrored.Rounded.StickyNote2,
+                imageVector = AppIcons.Notes,
                 contentDescription = "Logged from a note. Tap to open.",
                 tint = accent,
                 modifier = Modifier.size(14.dp)
@@ -463,21 +492,7 @@ private fun SpendCardHeader(appName: String, category: String, accent: Color, sh
 
 @Composable
 private fun CategoryBadge(category: String, accent: Color) {
-    Surface(
-        color = accent.copy(alpha = 0.15f),
-        shape = RoundedCornerShape(6.dp)
-    ) {
-        Text(
-            text = category,
-            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontSize = 9.sp,
-                fontWeight = FontWeight.Bold,
-                letterSpacing = 0.6.sp
-            ),
-            color = accent
-        )
-    }
+    Pill(text = category, container = accent.copy(alpha = 0.15f), content = accent)
 }
 
 @Composable
@@ -500,31 +515,30 @@ fun PresetGridCard(
         onClick = onClick,
         interactionSource = interactionSource,
         color = surfaceColor,
-        shape = RoundedCornerShape(16.dp),
+        shape = RoundedCornerShape(Radius.md),
         border = if (isSelected) BorderStroke(2.dp, preset.color)
         else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
         modifier = Modifier
             .fillMaxWidth()
-            .height(76.dp)
+            // A floor, not a fixed height: at a large system font scale the two label lines exceed
+            // 76dp and a hard height cropped the category line off the bottom of every tile.
+            .heightIn(min = 76.dp)
             .scale(scale)
     ) {
         Column(
-            modifier = Modifier.padding(8.dp),
+            modifier = Modifier.padding(Spacing.sm),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
             Box(
                 modifier = Modifier
-                    .size(18.dp)
+                    .size(Sizes.iconInline)
                     .background(preset.color, CircleShape)
             )
-            Spacer(modifier = Modifier.height(6.dp))
+            Spacer(modifier = Modifier.height(Spacing.sm))
             Text(
                 text = preset.displayName,
-                style = MaterialTheme.typography.labelSmall.copy(
-                    fontWeight = FontWeight.Bold,
-                    fontSize = 11.sp
-                ),
+                style = MaterialTheme.typography.labelMedium,
                 color = if (isSelected) MaterialTheme.colorScheme.onSurface
                 else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
                 textAlign = TextAlign.Center,
@@ -533,8 +547,9 @@ fun PresetGridCard(
             )
             Text(
                 text = preset.category,
-                style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
+                style = MaterialTheme.typography.labelSmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
+                textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )

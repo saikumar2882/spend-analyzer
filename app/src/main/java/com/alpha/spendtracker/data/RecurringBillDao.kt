@@ -24,18 +24,9 @@ interface RecurringBillDao {
     @Query("DELETE FROM recurring_bills WHERE deleted = 1 AND updatedAt < :threshold")
     suspend fun deleteOldTombstones(threshold: Long)
 
-    // deleted = 0 matters here: a tombstoned bill must never auto-log a spend again.
-    @Query("SELECT * FROM recurring_bills WHERE dayOfMonth = :day AND deleted = 0")
-    suspend fun getBillsDueOn(day: Int): List<RecurringBill>
-
-    // Intentionally matches soft-deleted tombstones too: if the user deleted this
-    // month's auto-logged bill spend, the RecurringBillWorker must not re-create it.
-    @Query("SELECT * FROM spends WHERE userId = :userId AND appName = :appName AND purpose = :purpose AND timestamp >= :startTime AND timestamp <= :endTime LIMIT 1")
-    suspend fun findMatchingSpend(
-        userId: String,
-        appName: String,
-        purpose: String,
-        startTime: Long,
-        endTime: Long
-    ): Spend?
+    // userId scoping matters as much as deleted = 0 here: Room is shared across accounts on a
+    // device, so an unscoped query fired reminders for a previously signed-in user's bills.
+    // deleted = 0 keeps a tombstoned bill from ever auto-logging a spend again.
+    @Query("SELECT * FROM recurring_bills WHERE userId = :userId AND dayOfMonth = :day AND deleted = 0")
+    suspend fun getBillsDueOn(userId: String, day: Int): List<RecurringBill>
 }

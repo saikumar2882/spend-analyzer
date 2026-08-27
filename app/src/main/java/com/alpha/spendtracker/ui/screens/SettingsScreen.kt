@@ -24,13 +24,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
-import androidx.compose.material.icons.automirrored.rounded.StickyNote2
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.BrightnessAuto
 import androidx.compose.material.icons.rounded.ChevronRight
-import androidx.compose.material.icons.rounded.DarkMode
 import androidx.compose.material.icons.rounded.Fingerprint
-import androidx.compose.material.icons.rounded.LightMode
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Security
@@ -52,7 +47,9 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.ui.components.AiSettingsDialog
+import com.alpha.spendtracker.ui.components.ProfileDialog
 import com.alpha.spendtracker.ui.components.NotificationType
+import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.google.firebase.auth.FirebaseAuth
@@ -234,9 +231,9 @@ fun SettingsScreen(
                 SettingsGroup(title = "Appearance") {
                     SettingsRow(
                         icon = when (themePreference) {
-                            ThemePreference.SYSTEM -> Icons.Rounded.BrightnessAuto
-                            ThemePreference.LIGHT -> Icons.Rounded.LightMode
-                            ThemePreference.DARK -> Icons.Rounded.DarkMode
+                            ThemePreference.SYSTEM -> AppIcons.ThemeAuto
+                            ThemePreference.LIGHT -> AppIcons.ThemeLight
+                            ThemePreference.DARK -> AppIcons.ThemeDark
                         },
                         title = "Theme",
                         subtitle = when (themePreference) {
@@ -304,7 +301,7 @@ fun SettingsScreen(
                     )
                     SettingsDivider()
                     SettingsRow(
-                        icon = Icons.Rounded.AutoAwesome,
+                        icon = AppIcons.Ai,
                         title = "AI History Assistant",
                         subtitle = "Ask questions about your spending",
                         iconTint = MaterialTheme.colorScheme.primary,
@@ -319,7 +316,7 @@ fun SettingsScreen(
                     )
                     SettingsDivider()
                     SettingsRow(
-                        icon = Icons.AutoMirrored.Rounded.StickyNote2,
+                        icon = AppIcons.Notes,
                         title = "Notes",
                         subtitle = "Custom collections of transaction entries",
                         onClick = onNotesClick

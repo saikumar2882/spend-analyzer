@@ -10,8 +10,6 @@ import androidx.glance.GlanceModifier
 import androidx.glance.GlanceTheme
 import androidx.glance.Image
 import androidx.glance.ImageProvider
-import androidx.glance.action.ActionParameters
-import androidx.glance.action.actionParametersOf
 import androidx.glance.action.actionStartActivity
 import androidx.glance.action.clickable
 import androidx.glance.appwidget.GlanceAppWidget
@@ -22,7 +20,6 @@ import androidx.glance.layout.*
 import androidx.glance.text.Text
 import androidx.glance.text.TextStyle
 import androidx.glance.unit.ColorProvider
-import com.alpha.spendtracker.MainActivity
 import com.alpha.spendtracker.R
 
 /**
@@ -54,11 +51,10 @@ class QuickAddWidget : GlanceAppWidget() {
 
     @Composable
     private fun WidgetContent() {
-        val intentAction = actionStartActivity<MainActivity>(
-            actionParametersOf(
-                ActionParameters.Key<Boolean>("SHOW_AI_INPUT") to true
-            )
-        )
+        // Opens the translucent input overlay, not the app: an app widget cannot host an
+        // editable field, so this is as close to "type on the home screen" as Android allows.
+        // The app (and its biometric lock) only comes up after Send has been processed.
+        val intentAction = actionStartActivity<QuickAddInputActivity>()
 
         // Outer container is transparent to show the wallpaper
         Box(

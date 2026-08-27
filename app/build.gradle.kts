@@ -16,8 +16,8 @@ android {
     applicationId = "com.alpha.spendtracker"
     minSdk = 24
     targetSdk = 37
-    versionCode = 16
-    versionName = "2.1.4"
+    versionCode = 17
+    versionName = "2.2.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -66,6 +66,13 @@ android {
   testOptions { unitTests { isIncludeAndroidResources = true } }
 }
 
+ksp {
+  // Room writes a JSON schema per version here. Without it there is no recorded schema to diff a
+  // migration against, so a hand-written migration that drifts from the entities is only caught at
+  // runtime, by Room's identity check throwing on the user's device.
+  arg("room.schemaLocation", "$projectDir/schemas")
+}
+
 hilt {
   enableAggregatingTask = true
 }
@@ -102,7 +109,6 @@ dependencies {
   implementation(libs.androidx.lifecycle.runtime.ktx)
   implementation(libs.androidx.lifecycle.viewmodel.compose)
   implementation(libs.androidx.navigation.compose)
-  implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.datastore.preferences)

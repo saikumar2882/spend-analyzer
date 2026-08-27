@@ -18,7 +18,6 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
-import androidx.compose.material.icons.automirrored.rounded.StickyNote2
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
@@ -42,6 +41,7 @@ import com.alpha.spendtracker.data.Note
 import com.alpha.spendtracker.data.NoteEntry
 import com.alpha.spendtracker.data.NoteField
 import com.alpha.spendtracker.ui.components.formatCurrency
+import com.alpha.spendtracker.ui.icons.AppIcons
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -285,7 +285,7 @@ private fun EmptyState(title: String, subtitle: String) {
     Box(modifier = Modifier.fillMaxSize(), contentAlignment = Alignment.Center) {
         Column(horizontalAlignment = Alignment.CenterHorizontally, modifier = Modifier.padding(32.dp)) {
             Icon(
-                Icons.AutoMirrored.Rounded.StickyNote2, null,
+                AppIcons.Notes, null,
                 modifier = Modifier.size(64.dp),
                 tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
             )
@@ -317,11 +317,13 @@ private fun NoteTile(
     var menuOpen by remember { mutableStateOf(false) }
 
     Card(
-        modifier = Modifier.fillMaxWidth().height(140.dp).clickable(onClick = onOpen),
+        // A floor, not a fixed height: the tile holds three lines of text, and at a large
+        // system font scale a hard 140.dp cropped the amount line off the bottom of every note.
+        modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp).clickable(onClick = onOpen),
         shape = RoundedCornerShape(18.dp),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
     ) {
-        Column(modifier = Modifier.fillMaxSize().padding(14.dp)) {
+        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
             // Title is the heading. A short color bar underneath keeps the note's color as a
             // subtle accent rather than the dominant element.
             Row(verticalAlignment = Alignment.Top) {

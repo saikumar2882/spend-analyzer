@@ -23,6 +23,8 @@ import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.data.SpendHistory
 import com.alpha.spendtracker.ui.components.*
+import com.alpha.spendtracker.ui.icons.AppIcons
+import com.alpha.spendtracker.ui.theme.Sizes
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.alpha.spendtracker.util.formatMonth
 import com.alpha.spendtracker.util.formatShortDate
@@ -99,7 +101,7 @@ fun LendBorrowScreen(
                 val intent = Intent(Intent.ACTION_SEND).apply {
                     type = "text/csv"
                     putExtra(Intent.EXTRA_STREAM, uri)
-                    putExtra(Intent.EXTRA_SUBJECT, "Lend & Borrow History")
+                    putExtra(Intent.EXTRA_SUBJECT, "Dues History")
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 context.startActivity(Intent.createChooser(intent, "Share CSV Report"))
@@ -149,7 +151,7 @@ fun LendBorrowScreen(
                 val intent = Intent(Intent.ACTION_SEND).apply {
                     type = "image/png"
                     putExtra(Intent.EXTRA_STREAM, uri)
-                    putExtra(Intent.EXTRA_SUBJECT, "Lend & Borrow Report")
+                    putExtra(Intent.EXTRA_SUBJECT, "Dues Report")
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
                 context.startActivity(Intent.createChooser(intent, "Share Image Report"))
@@ -174,6 +176,10 @@ fun LendBorrowScreen(
                     onShowNotification("Saved to Gallery", NotificationType.SUCCESS)
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // toImageBitmap() suspends, so leaving the screen mid-export cancels this. Reporting it
+            // as a failure showed the user an error for something they themselves interrupted.
+            throw e
         } catch (e: Exception) {
             onShowNotification("Failed to export image: ${e.message}", NotificationType.ERROR)
         }
@@ -229,7 +235,7 @@ fun LendBorrowScreen(
                                 showExportPreview = false
                             }
                         },
-                        modifier = Modifier.weight(1f).height(56.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
@@ -244,7 +250,7 @@ fun LendBorrowScreen(
                                 showExportPreview = false
                             }
                         },
-                        modifier = Modifier.weight(1f).height(56.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
@@ -318,24 +324,10 @@ fun LendBorrowScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            OutlinedTextField(
+            SearchField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search", fontSize = 14.sp) },
-                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Rounded.Clear, contentDescription = "Clear search", modifier = Modifier.size(16.dp))
-                        }
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                textStyle = MaterialTheme.typography.bodyMedium
+                modifier = Modifier.weight(1f)
             )
 
             Row(horizontalArrangement = Arrangement.spacedBy(6.dp)) {
@@ -346,7 +338,7 @@ fun LendBorrowScreen(
                         onClick = { showExportMenu = true },
                         shape = RoundedCornerShape(14.dp),
                         color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.size(44.dp)
+                        modifier = Modifier.size(Sizes.minTouchTarget)
                     ) {
                         Box(contentAlignment = Alignment.Center) {
                             Icon(
@@ -564,11 +556,11 @@ private fun HistoryIconButton(count: Int, onClick: () -> Unit) {
             onClick = onClick,
             shape = RoundedCornerShape(14.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.size(44.dp)
+            modifier = Modifier.size(Sizes.minTouchTarget)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
-                    Icons.Rounded.History,
+                    AppIcons.History,
                     contentDescription = "Show history",
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
                     modifier = Modifier.size(20.dp)
@@ -648,7 +640,7 @@ private fun SegmentedTabs(
                     modifier = Modifier.weight(1f)
                 ) {
                     Box(
-                        modifier = Modifier.padding(vertical = 10.dp),
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 10.dp),
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
@@ -656,7 +648,11 @@ private fun SegmentedTabs(
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                             color = if (isSelected) onSelectedColor
-                                    else MaterialTheme.colorScheme.onSurfaceVariant
+                                    else MaterialTheme.colorScheme.onSurfaceVariant,
+                            // Each tab is a fixed half of the row, so at a large font scale the
+                            // label has to truncate inside its cell rather than run past it.
+                            maxLines = 1,
+                            overflow = androidx.compose.ui.text.style.TextOverflow.Ellipsis
                         )
                     }
                 }
@@ -672,7 +668,7 @@ private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
         shape = RoundedCornerShape(14.dp),
         color = if (active) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.size(44.dp)
+        modifier = Modifier.size(Sizes.minTouchTarget)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -799,7 +795,7 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
             .padding(16.dp)
     ) {
         Text(
-            "Lend & Borrow Report",
+            "Dues Report",
             style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, color = Color.Black),
             modifier = Modifier.padding(bottom = 2.dp)
         )
@@ -824,7 +820,7 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
             ) {
                 Column {
                     Text("TOTAL AMOUNT", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Gray))
-                    Text("₹${formatCurrency(total)}", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Black, color = Color.Black))
+                    Text("₹${formatCurrency(total)}", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, color = Color.Black))
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("RECORDS", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Gray))

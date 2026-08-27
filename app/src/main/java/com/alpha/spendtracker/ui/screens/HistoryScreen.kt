@@ -18,6 +18,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -30,17 +31,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.DateRange
-import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Search
+import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
-import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -60,7 +59,10 @@ import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.CATEGORY_PRESETS
 import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.HistorySpendCard
+import androidx.compose.ui.text.style.TextOverflow
+import com.alpha.spendtracker.ui.components.SearchField
 import com.alpha.spendtracker.ui.components.formatCurrency
+import com.alpha.spendtracker.ui.theme.Sizes
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.alpha.spendtracker.util.formatMonth
 import com.alpha.spendtracker.util.formatShortDate
@@ -102,7 +104,6 @@ import androidx.compose.ui.layout.onGloballyPositioned
 import androidx.compose.ui.unit.toSize
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.aspectRatio
@@ -354,6 +355,10 @@ fun HistoryScreen(
                     onShowNotification("Saved to Gallery", NotificationType.SUCCESS)
                 }
             }
+        } catch (e: kotlinx.coroutines.CancellationException) {
+            // toImageBitmap() suspends, so leaving the screen mid-export cancels this. Reporting it
+            // as a failure showed the user an error for something they themselves interrupted.
+            throw e
         } catch (e: Exception) {
             onShowNotification("Failed to export image: ${e.message}", NotificationType.ERROR)
         }
@@ -412,7 +417,7 @@ fun HistoryScreen(
                                 showExportPreview = false
                             }
                         },
-                        modifier = Modifier.weight(1f).height(56.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
@@ -427,7 +432,7 @@ fun HistoryScreen(
                                 showExportPreview = false
                             }
                         },
-                        modifier = Modifier.weight(1f).height(56.dp),
+                        modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                         shape = RoundedCornerShape(16.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
@@ -469,24 +474,11 @@ fun HistoryScreen(
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            OutlinedTextField(
+            SearchField(
                 value = searchQuery,
                 onValueChange = { searchQuery = it },
-                placeholder = { Text("Search ...", fontSize = 14.sp) },
-                leadingIcon = { Icon(Icons.Rounded.Search, contentDescription = null, modifier = Modifier.size(20.dp)) },
-                trailingIcon = {
-                    if (searchQuery.isNotEmpty()) {
-                        IconButton(onClick = { searchQuery = "" }, modifier = Modifier.size(24.dp)) {
-                            Icon(Icons.Rounded.Clear, contentDescription = "Clear search", modifier = Modifier.size(16.dp))
-                        }
-                    }
-                },
-                singleLine = true,
-                modifier = Modifier
-                    .weight(1f)
-                    .height(50.dp),
-                shape = RoundedCornerShape(14.dp),
-                textStyle = MaterialTheme.typography.bodyMedium
+                placeholder = "Search ...",
+                modifier = Modifier.weight(1f)
             )
 
             FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
@@ -496,7 +488,7 @@ fun HistoryScreen(
                     onClick = { showExportMenu = true },
                     shape = RoundedCornerShape(14.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.size(44.dp)
+                    modifier = Modifier.size(Sizes.minTouchTarget)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
@@ -545,7 +537,7 @@ fun HistoryScreen(
                 onClick = onShowHistory,
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier.size(Sizes.minTouchTarget)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -570,7 +562,9 @@ fun HistoryScreen(
                 LazyRow(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(44.dp),
+                        // A floor, not a fixed height: a FilterChip's own height grows with the
+                        // system font scale, and a hard 44dp sliced the labels in half.
+                        .heightIn(min = 44.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
@@ -578,7 +572,7 @@ fun HistoryScreen(
                         FilterChip(
                             selected = selectedCategory == name,
                             onClick = { selectedCategory = name },
-                            label = { Text(name) },
+                            label = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
                             colors = FilterChipDefaults.filterChipColors(
                                 selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
                                 selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
@@ -775,7 +769,7 @@ private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
         shape = RoundedCornerShape(14.dp),
         color = if (active) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.size(44.dp)
+        modifier = Modifier.size(Sizes.minTouchTarget)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -966,7 +960,7 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
             ) {
                 Column {
                     Text("TOTAL SPEND", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Gray))
-                    Text("₹${formatCurrency(total)}", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Black, color = Color.Black))
+                    Text("₹${formatCurrency(total)}", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, color = Color.Black))
                 }
                 Column(horizontalAlignment = Alignment.End) {
                     Text("TRANSACTIONS", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Gray))

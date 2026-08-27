@@ -29,14 +29,17 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -44,12 +47,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
-import androidx.compose.material.icons.rounded.AutoAwesome
-import androidx.compose.material.icons.rounded.Dashboard
+import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Edit
-import androidx.compose.material.icons.rounded.Handshake
-import androidx.compose.material.icons.rounded.History
-import androidx.compose.material.icons.rounded.Settings
+import androidx.compose.material.icons.outlined.Handshake
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material3.*
@@ -58,6 +59,7 @@ import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.geometry.Offset
 import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
@@ -71,13 +73,17 @@ import androidx.biometric.BiometricPrompt
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
+import com.alpha.spendtracker.data.AiResultIntent
 import com.alpha.spendtracker.data.AiTransactionResponse
+import com.alpha.spendtracker.data.SyncStatus
+import com.alpha.spendtracker.data.userMessageOrGeneric
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.AiConfirmationScreen
 import com.alpha.spendtracker.ui.components.AiInputBottomSheet
 import com.alpha.spendtracker.ui.components.AppNotification
 import com.alpha.spendtracker.ui.components.BillTrackingBottomSheet
 import com.alpha.spendtracker.ui.components.NotificationType
+import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.screens.AddSpendScreen
 import com.alpha.spendtracker.ui.screens.DashboardScreen
 import com.alpha.spendtracker.ui.screens.HistoryScreen
@@ -91,6 +97,9 @@ import com.alpha.spendtracker.ui.screens.RegisterScreen
 import com.alpha.spendtracker.ui.screens.SettingsScreen
 import com.alpha.spendtracker.ui.screens.TransactionHistoryScreen
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
+import com.alpha.spendtracker.ui.theme.Radius
+import com.alpha.spendtracker.ui.theme.Sizes
+import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.alpha.spendtracker.ui.theme.isDark
 import com.alpha.spendtracker.ui.theme.next
@@ -312,7 +321,7 @@ fun LockedOverlay(onUnlock: () -> Unit) {
             
             Button(
                 onClick = onUnlock,
-                modifier = Modifier.fillMaxWidth(0.7f).height(56.dp),
+                modifier = Modifier.fillMaxWidth(0.7f).heightIn(min = 56.dp),
                 shape = RoundedCornerShape(16.dp),
                 contentPadding = PaddingValues(horizontal = 24.dp)
             ) {
@@ -343,6 +352,25 @@ fun MainContainer(
 
     fun showNotification(message: String, type: NotificationType = NotificationType.INFO) {
         currentNotification = message to type
+    }
+
+    /**
+     * Announces the outcome of a repository mutation. The confirmation is only shown when the write
+     * actually landed — these call sites used to print "logged successfully!" the instant the
+     * coroutine was launched, so a failed save looked identical to a successful one.
+     *
+     * A failure here means the *local* write failed and the action was lost. Cloud-sync trouble is
+     * not an error: it surfaces separately, through the [SyncStatus] banner.
+     */
+    fun notifyResult(
+        result: Result<Unit>,
+        success: String,
+        tone: NotificationType = NotificationType.SUCCESS
+    ) {
+        result.fold(
+            onSuccess = { showNotification(success, tone) },
+            onFailure = { showNotification(it.userMessageOrGeneric(), NotificationType.ERROR) }
+        )
     }
 
     LaunchedEffect(currentNotification) {
@@ -480,7 +508,7 @@ fun MainContainer(
     // auto-open that note, then clears it.
     var pendingNoteUuid by rememberSaveable { mutableStateOf<String?>(null) }
 
-    // Real back history across the major screens (Dashboard, Lend/Borrow, History,
+    // Real back history across the major screens (Dashboard, Dues, History,
     // Recurring Bills, Notes, Settings) so system back retraces actual visits instead of
     // always jumping to Dashboard. Detail screens (ADD_SPEND and the trash/history
     // sub-screens) are not pushed here — they each have exactly one valid parent already.
@@ -518,6 +546,7 @@ fun MainContainer(
     val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
     val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
     val historyStatus by viewModel.historyStatus.collectAsStateWithLifecycle()
+    val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val deletedHistory by viewModel.deletedHistory.collectAsStateWithLifecycle()
     val updatedHistory by viewModel.updatedHistory.collectAsStateWithLifecycle()
 
@@ -608,6 +637,11 @@ fun MainContainer(
             
             // Clear extras to avoid re-triggering on rotation/recomposition
             intent.removeExtra("BILL_UUID")
+        } else if (intent != null && AiResultIntent.isPresent(intent)) {
+            // Parsed by the widget's overlay before the app was opened — go straight to
+            // confirmation. The sheet stays gated behind the app lock below.
+            aiProcessingResult = AiResultIntent.read(intent)
+            AiResultIntent.clear(intent)
         } else if (intent?.getBooleanExtra("SHOW_AI_INPUT", false) == true) {
             android.util.Log.d("MainActivity", "Showing AI input via widget.")
             showAiInput = true
@@ -737,6 +771,13 @@ fun MainContainer(
 
     // Collapse the "Track Spend" FAB to an icon while scrolling down; expand on scroll up.
     var fabExpanded by remember { mutableStateOf(true) }
+    // Hoisted out of the FAB slot so system back and a tap outside can dismiss the speed dial —
+    // while it lived inside the slot there was no way to close it except tapping the FAB again.
+    var showFabMenu by remember { mutableStateOf(false) }
+
+    // Composed after the navigation handler, so it wins while the speed dial is open (BackHandlers
+    // resolve last-registered-first).
+    BackHandler(enabled = showFabMenu) { showFabMenu = false }
     val fabScrollConnection = remember {
         object : NestedScrollConnection {
             override fun onPreScroll(available: Offset, source: NestedScrollSource): Offset {
@@ -756,14 +797,14 @@ fun MainContainer(
                         NavigationBarItem(
                             selected = activeView == ActiveView.DASHBOARD,
                             onClick = { goToMajor(ActiveView.DASHBOARD) },
-                            icon = { Icon(Icons.Rounded.Dashboard, contentDescription = "Dashboard") },
-                            label = { Text("Dashboard") }
+                            icon = { Icon(AppIcons.Dashboard, contentDescription = "Dashboard") },
+                            label = { Text("Dashboard", maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
                         NavigationBarItem(
                             selected = activeView == ActiveView.LEND_BORROW,
                             onClick = { goToMajor(ActiveView.LEND_BORROW) },
-                            icon = { Icon(Icons.Rounded.Handshake, contentDescription = "Lend & Borrow") },
-                            label = { Text("Lend/Borrow") }
+                            icon = { Icon(Icons.Outlined.Handshake, contentDescription = "Dues — money lent and borrowed") },
+                            label = { Text("Dues", maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
                         NavigationBarItem(
                             selected = activeView == ActiveView.HISTORY,
@@ -773,21 +814,20 @@ fun MainContainer(
                                 historyTimeFilter = TimeFilter.ALL
                                 goToMajor(ActiveView.HISTORY)
                             },
-                            icon = { Icon(Icons.Rounded.History, contentDescription = "Spending History") },
-                            label = { Text("History") }
+                            icon = { Icon(AppIcons.History, contentDescription = "Spending History") },
+                            label = { Text("History", maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
                         NavigationBarItem(
                             selected = activeView == ActiveView.SETTINGS,
                             onClick = { goToMajor(ActiveView.SETTINGS) },
-                            icon = { Icon(Icons.Rounded.Settings, contentDescription = "Settings") },
-                            label = { Text("Settings") }
+                            icon = { Icon(Icons.Outlined.Settings, contentDescription = "Settings") },
+                            label = { Text("Settings", maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
                     }
                 }
             },
             floatingActionButton = {
                 if (activeView == ActiveView.DASHBOARD || activeView == ActiveView.HISTORY || activeView == ActiveView.LEND_BORROW || activeView == ActiveView.SETTINGS) {
-                    var showFabMenu by remember { mutableStateOf(false) }
                     Column(horizontalAlignment = Alignment.End) {
                         AnimatedVisibility(
                             visible = showFabMenu,
@@ -805,7 +845,7 @@ fun MainContainer(
                                         showAiInput = true
                                     },
                                     containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    icon = { Icon(Icons.Rounded.AutoAwesome, "Track with AI") },
+                                    icon = { Icon(AppIcons.Ai, "Track with AI") },
                                     text = { Text("AI Track") }
                                 )
                                 ExtendedFloatingActionButton(
@@ -866,7 +906,6 @@ fun MainContainer(
                             analytics = analyticsState,
                             recentSpends = recentSpends,
                             themePreference = themePreference,
-                            aiPreferences = aiPrefs,
                             onCycleTheme = onCycleTheme,
                             onFilterSelect = viewModel::setFilter,
                             onCustomRangeSelect = viewModel::setCustomRange,
@@ -892,23 +931,7 @@ fun MainContainer(
                                 historyTimeFilter = currentFilter
                                 goToMajor(ActiveView.HISTORY)
                             },
-                            onLogout = {
-                                FirebaseAuth.getInstance().signOut()
-                                showNotification("Logged out successfully", NotificationType.INFO)
-                            },
                             onAiAssistantClick = { showAiHistoryAssistant = true },
-                            onUpdateAiPreferences = viewModel::updateAiPreferences,
-                            onToggleBiometrics = viewModel::updateBiometricEnabled,
-                            onShareApp = {
-                                val sendIntent: Intent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, "Take control of your finances with Spendly! 🚀\n\nDownload the latest version here: https://github.com/saikumar2882/spend-analyzer/releases/latest")
-                                    type = "text/plain"
-                                }
-                                val shareIntent = Intent.createChooser(sendIntent, "Share Spendly via")
-                                context.startActivity(shareIntent)
-                            },
-                            onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
                             onNotesClick = { goToMajor(ActiveView.NOTES) }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
@@ -921,8 +944,9 @@ fun MainContainer(
                                 activeView = ActiveView.ADD_SPEND
                             },
                             onDeleteSpend = { spend ->
-                                viewModel.deleteSpend(spend)
-                                showNotification("Record moved to trash", NotificationType.INFO)
+                                viewModel.deleteSpend(spend) {
+                                    notifyResult(it, "Record moved to trash", NotificationType.INFO)
+                                }
                             },
                             onShowHistory = {
                                 activeView = ActiveView.LEND_BORROW_HISTORY
@@ -932,20 +956,22 @@ fun MainContainer(
                             deletedHistory = lendBorrowDeleted,
                             updatedHistory = lendBorrowUpdated,
                             onRestoreHistory = { history ->
-                                viewModel.restoreSpend(history)
-                                showNotification("Record restored", NotificationType.SUCCESS)
+                                viewModel.restoreSpend(history) { notifyResult(it, "Record restored") }
                             },
                             onPermanentlyDeleteHistory = { history ->
-                                viewModel.permanentlyDeleteHistory(history)
-                                showNotification("Record deleted permanently", NotificationType.INFO)
+                                viewModel.permanentlyDeleteHistory(history) {
+                                    notifyResult(it, "Record deleted permanently", NotificationType.INFO)
+                                }
                             },
                             onEmptyTrash = {
-                                viewModel.emptyTrash(lendBorrow = true)
-                                showNotification("Trash emptied", NotificationType.INFO)
+                                viewModel.emptyTrash(lendBorrow = true) {
+                                    notifyResult(it, "Trash emptied", NotificationType.INFO)
+                                }
                             },
                             onClearUpdateHistory = {
-                                viewModel.clearUpdateHistory(lendBorrow = true)
-                                showNotification("Update history cleared", NotificationType.INFO)
+                                viewModel.clearUpdateHistory(lendBorrow = true) {
+                                    notifyResult(it, "Update history cleared", NotificationType.INFO)
+                                }
                             },
                             onBack = {
                                 activeView = ActiveView.LEND_BORROW
@@ -956,20 +982,22 @@ fun MainContainer(
                             deletedHistory = regularDeleted,
                             updatedHistory = regularUpdated,
                             onRestoreHistory = { history ->
-                                viewModel.restoreSpend(history)
-                                showNotification("Record restored", NotificationType.SUCCESS)
+                                viewModel.restoreSpend(history) { notifyResult(it, "Record restored") }
                             },
                             onPermanentlyDeleteHistory = { history ->
-                                viewModel.permanentlyDeleteHistory(history)
-                                showNotification("Record deleted permanently", NotificationType.INFO)
+                                viewModel.permanentlyDeleteHistory(history) {
+                                    notifyResult(it, "Record deleted permanently", NotificationType.INFO)
+                                }
                             },
                             onEmptyTrash = {
-                                viewModel.emptyTrash(lendBorrow = false)
-                                showNotification("Trash emptied", NotificationType.INFO)
+                                viewModel.emptyTrash(lendBorrow = false) {
+                                    notifyResult(it, "Trash emptied", NotificationType.INFO)
+                                }
                             },
                             onClearUpdateHistory = {
-                                viewModel.clearUpdateHistory(lendBorrow = false)
-                                showNotification("Update history cleared", NotificationType.INFO)
+                                viewModel.clearUpdateHistory(lendBorrow = false) {
+                                    notifyResult(it, "Update history cleared", NotificationType.INFO)
+                                }
                             },
                             onBack = {
                                 activeView = ActiveView.HISTORY
@@ -998,14 +1026,19 @@ fun MainContainer(
                             onShowHistory = { activeView = ActiveView.NOTES_HISTORY },
                             onLogAsTransaction = { note ->
                                 viewModel.logNoteAsTransaction(note, aiPrefs.defaultApp) { result ->
-                                    when (result) {
-                                        SpendViewModel.LogNoteResult.EMPTY ->
-                                            showNotification("Add an entry with an amount first", NotificationType.INFO)
-                                        SpendViewModel.LogNoteResult.CREATED ->
-                                            showNotification("Logged '${note.title}' to transactions", NotificationType.SUCCESS)
-                                        SpendViewModel.LogNoteResult.UPDATED ->
-                                            showNotification("Updated '${note.title}' transaction", NotificationType.SUCCESS)
-                                    }
+                                    result.fold(
+                                        onSuccess = { outcome ->
+                                            when (outcome) {
+                                                SpendViewModel.LogNoteResult.EMPTY ->
+                                                    showNotification("Add an entry with an amount first", NotificationType.INFO)
+                                                SpendViewModel.LogNoteResult.CREATED ->
+                                                    showNotification("Logged '${note.title}' to transactions", NotificationType.SUCCESS)
+                                                SpendViewModel.LogNoteResult.UPDATED ->
+                                                    showNotification("Updated '${note.title}' transaction", NotificationType.SUCCESS)
+                                            }
+                                        },
+                                        onFailure = { showNotification(it.userMessageOrGeneric(), NotificationType.ERROR) }
+                                    )
                                 }
                             },
                             initialNoteUuid = pendingNoteUuid,
@@ -1016,20 +1049,20 @@ fun MainContainer(
                             updatedHistory = noteUpdatedHistory,
                             currencySymbol = aiPrefs.defaultCurrency.let { if (it.isBlank() || it.length > 2) "₹" else it },
                             onRestore = { h ->
-                                viewModel.restoreNoteHistory(h)
-                                showNotification("Restored", NotificationType.SUCCESS)
+                                viewModel.restoreNoteHistory(h) { notifyResult(it, "Restored") }
                             },
                             onPermanentlyDelete = { h ->
-                                viewModel.permanentlyDeleteNoteHistory(h)
-                                showNotification("Deleted permanently", NotificationType.INFO)
+                                viewModel.permanentlyDeleteNoteHistory(h) {
+                                    notifyResult(it, "Deleted permanently", NotificationType.INFO)
+                                }
                             },
                             onEmptyTrash = {
-                                viewModel.emptyNoteTrash()
-                                showNotification("Trash emptied", NotificationType.INFO)
+                                viewModel.emptyNoteTrash { notifyResult(it, "Trash emptied", NotificationType.INFO) }
                             },
                             onClearUpdateHistory = {
-                                viewModel.clearNoteUpdateHistory()
-                                showNotification("Update history cleared", NotificationType.INFO)
+                                viewModel.clearNoteUpdateHistory {
+                                    notifyResult(it, "Update history cleared", NotificationType.INFO)
+                                }
                             },
                             onBack = { activeView = ActiveView.NOTES }
                         )
@@ -1070,8 +1103,9 @@ fun MainContainer(
                                 activeView = ActiveView.ADD_SPEND
                             },
                             onDeleteSpend = { spend ->
-                                viewModel.deleteSpend(spend)
-                                showNotification("Spend deleted", NotificationType.INFO)
+                                viewModel.deleteSpend(spend) {
+                                    notifyResult(it, "Spend deleted", NotificationType.INFO)
+                                }
                             },
                             onShowHistory = { activeView = ActiveView.HISTORY_TRASH },
                             onOpenNote = { noteUuid ->
@@ -1103,8 +1137,7 @@ fun MainContainer(
                                             notes = newSpend.notes,
                                             timestamp = newSpend.timestamp
                                         )
-                                    )
-                                    showNotification("Spending updated successfully!", NotificationType.SUCCESS)
+                                    ) { notifyResult(it, "Spending updated successfully!") }
                                 } else {
                                     viewModel.addSpend(
                                         appName = appName,
@@ -1113,10 +1146,9 @@ fun MainContainer(
                                         category = newSpend.preset.category,
                                         notes = newSpend.notes,
                                         timestamp = newSpend.timestamp
-                                    )
+                                    ) { notifyResult(it, "Spending logged successfully!") }
                                     // No need to manually clear prefilledBillSpend here as it's done in onDismiss
                                     // and we also clear it below
-                                    showNotification("Spending logged successfully!", NotificationType.SUCCESS)
                                 }
                                 editingSpend = null
                                 prefilledBillSpend = null
@@ -1124,6 +1156,34 @@ fun MainContainer(
                             }
                         )
                     }
+                }
+
+                AnimatedVisibility(
+                    visible = showFabMenu,
+                    enter = fadeIn(),
+                    exit = fadeOut()
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .fillMaxSize()
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                            .clickable(
+                                interactionSource = remember { MutableInteractionSource() },
+                                indication = null
+                            ) { showFabMenu = false }
+                    )
+                }
+
+                // Cloud-sync trouble is a standing condition, not a moment, so it gets a
+                // persistent bar rather than a 3-second toast. Deliberately non-alarming: the
+                // user's data is safe locally, it just isn't mirrored yet.
+                AnimatedVisibility(
+                    visible = syncStatus.isDegraded,
+                    enter = expandVertically() + fadeIn(),
+                    exit = shrinkVertically() + fadeOut(),
+                    modifier = Modifier.align(Alignment.BottomCenter)
+                ) {
+                    SyncDegradedBar(syncStatus)
                 }
 
                 // Notification Banner Overlay
@@ -1151,7 +1211,9 @@ fun MainContainer(
         }
 
         val currentAiConfirmationResult = aiProcessingResult
-        if (currentAiConfirmationResult != null) {
+        // ModalBottomSheet renders in its own window, so it would float *above* LockedOverlay
+        // and leak the parsed amount to whoever picked the phone up. Hold it until unlocked.
+        if (currentAiConfirmationResult != null && (!needsBiometric || isBiometricAuthenticated)) {
             ModalBottomSheet(
                 onDismissRequest = dismissAiConfirmation,
                 sheetState = aiConfirmationSheetState,
@@ -1171,8 +1233,7 @@ fun MainContainer(
                             category = newSpend.preset.category,
                             notes = newSpend.notes,
                             timestamp = newSpend.timestamp
-                        )
-                        showNotification("Logged via AI!", NotificationType.SUCCESS)
+                        ) { notifyResult(it, "Logged via AI!") }
                         scope.launch {
                             runCatching {
                                 if (aiConfirmationSheetState.isVisible) aiConfirmationSheetState.hide()
@@ -1200,8 +1261,7 @@ fun MainContainer(
                         category = newSpend.preset.category,
                         notes = newSpend.notes,
                         timestamp = newSpend.timestamp
-                    )
-                    showNotification("Bill payment logged!", NotificationType.SUCCESS)
+                    ) { notifyResult(it, "Bill payment logged!") }
                     scope.launch {
                         runCatching {
                             if (billTrackingSheetState.isVisible) billTrackingSheetState.hide()
@@ -1288,6 +1348,42 @@ fun MainContainer(
                     viewModel.setBiometricAuthenticated(true)
                 }
             }
+        }
+    }
+}
+
+/**
+ * "Saved on this device" bar shown while the Firestore push is failing.
+ *
+ * Uses the tertiary container rather than the error colours on purpose: nothing has been lost, so
+ * treating it as an error would train people to ignore the real ones.
+ */
+@Composable
+private fun SyncDegradedBar(status: SyncStatus) {
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .padding(horizontal = Spacing.md, vertical = Spacing.sm),
+        shape = RoundedCornerShape(Radius.sm),
+        color = MaterialTheme.colorScheme.tertiaryContainer,
+        tonalElevation = 3.dp
+    ) {
+        Row(
+            modifier = Modifier.padding(horizontal = Spacing.lg, vertical = Spacing.md),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Icon(
+                imageVector = Icons.Rounded.CloudOff,
+                contentDescription = null,
+                tint = MaterialTheme.colorScheme.onTertiaryContainer,
+                modifier = Modifier.size(Sizes.iconInline)
+            )
+            Spacer(modifier = Modifier.width(Spacing.md))
+            Text(
+                text = status.cloudError?.userMessage ?: "Changes are saved on this device only.",
+                style = MaterialTheme.typography.bodySmall,
+                color = MaterialTheme.colorScheme.onTertiaryContainer
+            )
         }
     }
 }

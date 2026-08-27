@@ -10,9 +10,14 @@ import com.alpha.spendtracker.data.NotesDao
 import com.alpha.spendtracker.data.RecurringBillDao
 import com.alpha.spendtracker.data.SpendDao
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
+import kotlinx.coroutines.CancellationException
+import kotlinx.coroutines.async
+import kotlinx.coroutines.awaitAll
+import kotlinx.coroutines.coroutineScope
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
 
@@ -26,98 +31,91 @@ class SyncWorker @AssistedInject constructor(
     private val notesDao: NotesDao
 ) : CoroutineWorker(appContext, workerParams) {
 
+    private companion object {
+        const val TAG = "SyncWorker"
+
+        /**
+         * How many documents to read, and to upload, at a time.
+         *
+         * This worker used to issue a `get()` then a `set()` per row, awaiting each in turn — two
+         * sequential round trips per record, for seven collections. A user with a thousand spends
+         * meant thousands of serial calls inside a job WorkManager will kill at ten minutes, so
+         * large accounts simply never finished a sync. Reads now come from one query per collection
+         * and the uploads run in bounded parallel batches.
+         */
+        const val UPLOAD_CONCURRENCY = 25
+    }
+
     override suspend fun doWork(): Result {
         val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return Result.success()
         val firestore = FirebaseFirestore.getInstance()
         val userDoc = firestore.collection("users").document(userId)
 
         return try {
-            // 1. Sync Spends — last-write-wins: overwrite the cloud copy when the local row
-            // is at least as new as what is already in Firestore. We use >= (not strict >)
-            // and treat a missing remote updatedAt as "upload" so that legacy/partial cloud
-            // docs (written before fields like `notes`/`category` existed, or whose updatedAt
-            // collides with the local baseline) are re-uploaded with the complete local
-            // record — fixing fields such as the person's name dropping out of sync.
+            // Every collection uses the same last-write-wins gate: upload when the local row is at
+            // least as new as the remote copy. `>=` rather than a strict `>`, and a missing remote
+            // updatedAt counting as "upload", so legacy/partial cloud docs (written before fields
+            // like `notes`/`category` existed, or whose updatedAt collides with the local baseline)
+            // get re-uploaded with the complete local record.
+            //
             // Soft-delete tombstones (deleted=true) are included on purpose: they are how a
-            // deletion performed while this device was offline reaches other devices, and
-            // the LWW check below keeps this device from overwriting a newer tombstone
-            // with its stale live copy (which used to resurrect deleted records).
-            val localSpends = spendDao.getAllSpendsForSync(userId).first()
-            localSpends.forEach { spend ->
-                val docRef = userDoc.collection("spends").document(spend.uuid)
-                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
-                if (remoteUpdatedAt == null || spend.updatedAt >= remoteUpdatedAt) {
-                    docRef.set(spend).await()
-                }
-            }
+            // deletion performed while this device was offline reaches other devices, and the LWW
+            // check keeps this device from overwriting a newer tombstone with its stale live copy.
+            upload(userDoc.collection("spends"), spendDao.getAllSpendsForSync(userId).first(), { it.uuid }, { it.updatedAt })
+            upload(userDoc.collection("recurring_bills"), recurringBillDao.getAllRecurringBillsForSync(userId).first(), { it.uuid }, { it.updatedAt })
+            upload(userDoc.collection("chat_messages"), chatDao.getChatMessagesForSync(userId).first(), { it.uuid }, { it.updatedAt })
+            upload(userDoc.collection("history"), spendDao.getAllHistoryForSync(userId).first(), { it.historyUuid }, { it.updatedAt })
+            upload(userDoc.collection("notes"), notesDao.getAllNotesForSync(userId).first(), { it.uuid }, { it.updatedAt })
+            upload(userDoc.collection("note_entries"), notesDao.getAllNoteEntriesForSync(userId).first(), { it.uuid }, { it.updatedAt })
+            upload(userDoc.collection("note_history"), notesDao.getNoteHistoryForSync(userId).first(), { it.historyUuid }, { it.updatedAt })
 
-            // 2. Sync Recurring Bills — last-write-wins (>= for the same reasons as above),
-            // tombstones included so bill deletions propagate too.
-            val localBills = recurringBillDao.getAllRecurringBillsForSync(userId).first()
-            localBills.forEach { bill ->
-                val docRef = userDoc.collection("recurring_bills").document(bill.uuid)
-                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
-                if (remoteUpdatedAt == null || bill.updatedAt >= remoteUpdatedAt) {
-                    docRef.set(bill).await()
-                }
-            }
-
-            // 3. Sync Chat Messages — same LWW gate; a blind set() here used to overwrite
-            // remote tombstones with this device's stale live copy.
-            val localMessages = chatDao.getChatMessagesForSync(userId).first()
-            localMessages.forEach { msg ->
-                val docRef = userDoc.collection("chat_messages").document(msg.uuid)
-                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
-                if (remoteUpdatedAt == null || msg.updatedAt >= remoteUpdatedAt) {
-                    docRef.set(msg).await()
-                }
-            }
-
-            // 4. Sync History — same LWW gate, tombstones included.
-            val localHistory = spendDao.getAllHistoryForSync(userId).first()
-            localHistory.forEach { h ->
-                val docRef = userDoc.collection("history").document(h.historyUuid)
-                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
-                if (remoteUpdatedAt == null || h.updatedAt >= remoteUpdatedAt) {
-                    docRef.set(h).await()
-                }
-            }
-
-            // 5. Sync Notes — same LWW gate, tombstones included so deletions propagate.
-            val localNotes = notesDao.getAllNotesForSync(userId).first()
-            localNotes.forEach { note ->
-                val docRef = userDoc.collection("notes").document(note.uuid)
-                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
-                if (remoteUpdatedAt == null || note.updatedAt >= remoteUpdatedAt) {
-                    docRef.set(note).await()
-                }
-            }
-
-            // 6. Sync Note Entries — same LWW gate, tombstones included.
-            val localNoteEntries = notesDao.getAllNoteEntriesForSync(userId).first()
-            localNoteEntries.forEach { entry ->
-                val docRef = userDoc.collection("note_entries").document(entry.uuid)
-                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
-                if (remoteUpdatedAt == null || entry.updatedAt >= remoteUpdatedAt) {
-                    docRef.set(entry).await()
-                }
-            }
-
-            // 7. Sync Note History — same LWW gate, tombstones included.
-            val localNoteHistory = notesDao.getNoteHistoryForSync(userId).first()
-            localNoteHistory.forEach { h ->
-                val docRef = userDoc.collection("note_history").document(h.historyUuid)
-                val remoteUpdatedAt = docRef.get().await().getLong("updatedAt")
-                if (remoteUpdatedAt == null || h.updatedAt >= remoteUpdatedAt) {
-                    docRef.set(h).await()
-                }
-            }
-
-            Log.d("SyncWorker", "Background sync successful for all collections for user: $userId")
+            Log.d(TAG, "Background sync successful for all collections for user: $userId")
             Result.success()
+        } catch (e: CancellationException) {
+            // WorkManager stopping this worker arrives as cancellation. Rethrow rather than
+            // reporting it as a sync failure — a broad catch here reported "failed" and asked for
+            // a retry every time the system simply stopped the job.
+            throw e
         } catch (e: Exception) {
-            Log.e("SyncWorker", "Background sync failed: ${e.message}")
+            Log.e(TAG, "Background sync failed: ${e.message}", e)
             Result.retry()
         }
+    }
+
+    /**
+     * Uploads the rows of [local] that win last-write-wins against their remote copies.
+     *
+     * Remote `updatedAt` values come from one query for the whole collection rather than a `get()`
+     * per row. Firestore charges and bills a read either way, but a single query is one round trip
+     * instead of N.
+     */
+    private suspend fun <T : Any> upload(
+        collection: CollectionReference,
+        local: List<T>,
+        id: (T) -> String,
+        updatedAt: (T) -> Long
+    ) {
+        if (local.isEmpty()) return
+
+        val remoteUpdatedAt = collection.get().await()
+            .documents
+            .associate { it.id to it.getLong("updatedAt") }
+
+        val stale = local.filter { row ->
+            val remote = remoteUpdatedAt[id(row)]
+            remote == null || updatedAt(row) >= remote
+        }
+        if (stale.isEmpty()) return
+
+        // Bounded parallelism rather than one big awaitAll: a few thousand simultaneous writes
+        // would swamp the connection pool and time the job out just as surely as doing them serially.
+        stale.chunked(UPLOAD_CONCURRENCY).forEach { chunk ->
+            coroutineScope {
+                chunk.map { row ->
+                    async { collection.document(id(row)).set(row).await() }
+                }.awaitAll()
+            }
+        }
+        Log.d(TAG, "${collection.id}: uploaded ${stale.size}/${local.size}")
     }
 }

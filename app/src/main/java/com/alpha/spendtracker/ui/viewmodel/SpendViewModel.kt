@@ -14,6 +14,7 @@ import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.remoteConfigSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
@@ -25,7 +26,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
-import org.json.JSONObject
 import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
@@ -54,8 +54,8 @@ enum class AiErrorType {
 class SpendViewModel @Inject constructor(
     private val repository: SpendRepository,
     private val aiPrefsRepository: AiPreferencesRepository,
-    private val chatDao: ChatDao,
     private val groqApiService: GroqApiService,
+    private val aiTransactionProcessor: AiTransactionProcessor,
 ) : ViewModel() {
 
     private val auth = FirebaseAuth.getInstance()
@@ -64,6 +64,26 @@ class SpendViewModel @Inject constructor(
         private const val TAG = "SpendViewModel"
         // Single source of truth for the Gemini fallback model so the two call sites can't drift.
         private const val GEMINI_MODEL = "gemini-3.5-flash"
+
+        private const val DAY_MS = 24L * 60 * 60 * 1000
+
+        /**
+         * Day the trend chart's week buckets start on. Deliberately Monday rather than the locale's
+         * `firstDayOfWeek` (Sunday in en-IN): the buckets are read as "the working week", and a
+         * Sunday start splits every weekend across two bars.
+         */
+        private const val TREND_WEEK_START = Calendar.MONDAY
+
+        /**
+         * A custom range longer than this switches from one bar per day to one bar per week. Below
+         * it, weekly buckets would collapse a range into two or three bars and say nothing.
+         */
+        private const val CUSTOM_TREND_DAILY_MAX_DAYS = 14
+
+        private val MONTH_ABBREVIATIONS = listOf(
+            "Jan", "Feb", "Mar", "Apr", "May", "Jun",
+            "Jul", "Aug", "Sep", "Oct", "Nov", "Dec"
+        )
     }
 
     private val authListener = FirebaseAuth.AuthStateListener { firebaseAuth ->
@@ -83,6 +103,24 @@ class SpendViewModel @Inject constructor(
     private var historyJob: Job? = null
 
     private var currentSessionId: String = ""
+
+    /**
+     * Health of the background push to Firestore, straight from the repository. Surfaced so the UI
+     * can tell the user their changes are only on this device — cloud write failures used to go
+     * nowhere but Logcat.
+     */
+    val syncStatus: StateFlow<SyncStatus> = repository.syncStatus
+
+    /**
+     * Runs a repository mutation and hands the outcome back to the caller.
+     *
+     * Every mutation goes through here so no screen can report success for a write that failed —
+     * which is what happened while these methods returned Unit and the UI showed its confirmation
+     * unconditionally.
+     */
+    private fun mutate(onResult: (Result<Unit>) -> Unit, block: suspend () -> Result<Unit>) {
+        viewModelScope.launch { onResult(block()) }
+    }
 
     private val _isBiometricAuthenticated = MutableStateFlow(value = false)
     val isBiometricAuthenticated: StateFlow<Boolean> = _isBiometricAuthenticated
@@ -108,6 +146,7 @@ class SpendViewModel @Inject constructor(
         viewModelScope.launch {
             auth.currentUser?.uid?.let { uid ->
                 repository.cleanupOldChatMessages(uid, 12)
+                    .onFailure { Log.w(TAG, "Chat cleanup failed: ${it.message}") }
             }
         }
 
@@ -115,6 +154,7 @@ class SpendViewModel @Inject constructor(
         viewModelScope.launch {
             auth.currentUser?.uid?.let { uid ->
                 repository.cleanupOldHistory(uid, 30)
+                    .onFailure { Log.w(TAG, "History cleanup failed: ${it.message}") }
             }
         }
     }
@@ -129,14 +169,14 @@ class SpendViewModel @Inject constructor(
 
     private fun initializeChatSession(userId: String) {
         viewModelScope.launch {
-            val lastSessionId = chatDao.getLastSessionId(userId)
+            val lastSessionId = repository.getLastSessionId(userId).getOrNull()
             currentSessionId = lastSessionId ?: java.util.UUID.randomUUID().toString()
         }
     }
 
     @OptIn(ExperimentalCoroutinesApi::class)
     val chatHistory: StateFlow<List<ChatMessage>> = _userId.flatMapLatest { userId ->
-        chatDao.getChatMessages(userId)
+        repository.getChatMessages(userId)
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -152,8 +192,17 @@ class SpendViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    fun addRecurringBill(name: String, purpose: String, category: String, appName: String, amount: Double, dayOfMonth: Int, notes: String = "") {
-        viewModelScope.launch {
+    fun addRecurringBill(
+        name: String,
+        purpose: String,
+        category: String,
+        appName: String,
+        amount: Double,
+        dayOfMonth: Int,
+        notes: String = "",
+        onResult: (Result<Unit>) -> Unit = {}
+    ) {
+        mutate(onResult) {
             val bill = RecurringBill(
                 uuid = java.util.UUID.randomUUID().toString(),
                 userId = _userId.value,
@@ -170,17 +219,11 @@ class SpendViewModel @Inject constructor(
         }
     }
 
-    fun updateRecurringBill(bill: RecurringBill) {
-        viewModelScope.launch {
-            repository.updateRecurringBill(bill)
-        }
-    }
+    fun updateRecurringBill(bill: RecurringBill, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.updateRecurringBill(bill) }
 
-    fun deleteRecurringBill(bill: RecurringBill) {
-        viewModelScope.launch {
-            repository.deleteRecurringBill(bill)
-        }
-    }
+    fun deleteRecurringBill(bill: RecurringBill, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.deleteRecurringBill(bill) }
 
     // ---- Notes ----
     // Notes are custom collections; noteEntries holds every entry for the user and the UI
@@ -204,8 +247,8 @@ class SpendViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    fun addNote(title: String, colorIndex: Int) {
-        viewModelScope.launch {
+    fun addNote(title: String, colorIndex: Int, onResult: (Result<Unit>) -> Unit = {}) {
+        mutate(onResult) {
             val now = System.currentTimeMillis()
             val note = Note(
                 uuid = java.util.UUID.randomUUID().toString(),
@@ -219,11 +262,8 @@ class SpendViewModel @Inject constructor(
         }
     }
 
-    fun updateNote(note: Note) {
-        viewModelScope.launch {
-            repository.updateNote(note)
-        }
-    }
+    fun updateNote(note: Note, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.updateNote(note) }
 
     /** Outcome of [logNoteAsTransaction], surfaced so the UI can show the right message. */
     enum class LogNoteResult { EMPTY, CREATED, UPDATED }
@@ -235,14 +275,18 @@ class SpendViewModel @Inject constructor(
      * Upserts by [Note.uuid] — re-logging after adding entries updates the same transaction
      * instead of creating duplicates — so tapping it in History always maps back to one note.
      */
-    fun logNoteAsTransaction(note: Note, defaultApp: String, onComplete: (LogNoteResult) -> Unit = {}) {
+    fun logNoteAsTransaction(
+        note: Note,
+        defaultApp: String,
+        onComplete: (Result<LogNoteResult>) -> Unit = {}
+    ) {
         viewModelScope.launch {
             val userId = _userId.value
             val total = noteEntries.value
                 .filter { it.noteUuid == note.uuid }
                 .sumOf { it.amount }
             if (total <= 0.0) {
-                onComplete(LogNoteResult.EMPTY)
+                onComplete(Result.success(LogNoteResult.EMPTY))
                 return@launch
             }
             val app = defaultApp.ifBlank { "Google Pay" }
@@ -250,6 +294,7 @@ class SpendViewModel @Inject constructor(
                 .find { it.displayName == app }?.category ?: "Other"
             val now = System.currentTimeMillis()
             val existing = repository.getActiveSpendByNoteUuid(userId, note.uuid)
+                .getOrElse { onComplete(Result.failure(it)); return@launch }
             val spend = (existing ?: Spend(
                 uuid = java.util.UUID.randomUUID().toString(),
                 userId = userId,
@@ -263,19 +308,27 @@ class SpendViewModel @Inject constructor(
                 noteUuid = note.uuid,
                 updatedAt = now
             )
-            repository.insert(spend)
-            onComplete(if (existing != null) LogNoteResult.UPDATED else LogNoteResult.CREATED)
+            onComplete(
+                repository.insert(spend).map {
+                    if (existing != null) LogNoteResult.UPDATED else LogNoteResult.CREATED
+                }
+            )
         }
     }
 
-    fun deleteNote(note: Note) {
-        viewModelScope.launch {
-            repository.deleteNote(note)
-        }
-    }
+    fun deleteNote(note: Note, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.deleteNote(note) }
 
-    fun addNoteEntry(noteUuid: String, label: String, amount: Double, date: Long, detail: String?, customFields: List<NoteField>) {
-        viewModelScope.launch {
+    fun addNoteEntry(
+        noteUuid: String,
+        label: String,
+        amount: Double,
+        date: Long,
+        detail: String?,
+        customFields: List<NoteField>,
+        onResult: (Result<Unit>) -> Unit = {}
+    ) {
+        mutate(onResult) {
             val now = System.currentTimeMillis()
             val entry = NoteEntry(
                 uuid = java.util.UUID.randomUUID().toString(),
@@ -293,17 +346,11 @@ class SpendViewModel @Inject constructor(
         }
     }
 
-    fun updateNoteEntry(entry: NoteEntry) {
-        viewModelScope.launch {
-            repository.updateNoteEntry(entry)
-        }
-    }
+    fun updateNoteEntry(entry: NoteEntry, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.updateNoteEntry(entry) }
 
-    fun deleteNoteEntry(entry: NoteEntry) {
-        viewModelScope.launch {
-            repository.deleteNoteEntry(entry)
-        }
-    }
+    fun deleteNoteEntry(entry: NoteEntry, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.deleteNoteEntry(entry) }
 
     // ---- Notes history (Recycle Bin + Update History) ----
 
@@ -317,21 +364,17 @@ class SpendViewModel @Inject constructor(
         repository.getNoteHistory(userId, HistoryType.UPDATED)
     }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5000), emptyList())
 
-    fun restoreNoteHistory(history: NoteHistory) {
-        viewModelScope.launch { repository.restoreNoteFromHistory(history) }
-    }
+    fun restoreNoteHistory(history: NoteHistory, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.restoreNoteFromHistory(history) }
 
-    fun permanentlyDeleteNoteHistory(history: NoteHistory) {
-        viewModelScope.launch { repository.permanentlyDeleteNoteHistory(history) }
-    }
+    fun permanentlyDeleteNoteHistory(history: NoteHistory, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.permanentlyDeleteNoteHistory(history) }
 
-    fun emptyNoteTrash() {
-        viewModelScope.launch { repository.clearNoteHistory(_userId.value, HistoryType.DELETED) }
-    }
+    fun emptyNoteTrash(onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.clearNoteHistory(_userId.value, HistoryType.DELETED) }
 
-    fun clearNoteUpdateHistory() {
-        viewModelScope.launch { repository.clearNoteHistory(_userId.value, HistoryType.UPDATED) }
-    }
+    fun clearNoteUpdateHistory(onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.clearNoteHistory(_userId.value, HistoryType.UPDATED) }
 
     private val _historyStatus = MutableStateFlow<AiHistoryStatus>(AiHistoryStatus.Idle)
     val historyStatus: StateFlow<AiHistoryStatus> = _historyStatus
@@ -354,29 +397,17 @@ class SpendViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    fun restoreSpend(history: SpendHistory) {
-        viewModelScope.launch {
-            repository.restoreFromHistory(history)
-        }
-    }
+    fun restoreSpend(history: SpendHistory, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.restoreFromHistory(history) }
 
-    fun permanentlyDeleteHistory(history: SpendHistory) {
-        viewModelScope.launch {
-            repository.permanentlyDeleteHistory(history)
-        }
-    }
+    fun permanentlyDeleteHistory(history: SpendHistory, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.permanentlyDeleteHistory(history) }
 
-    fun emptyTrash(lendBorrow: Boolean) {
-        viewModelScope.launch {
-            repository.clearHistory(_userId.value, HistoryType.DELETED, lendBorrow)
-        }
-    }
+    fun emptyTrash(lendBorrow: Boolean, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.clearHistory(_userId.value, HistoryType.DELETED, lendBorrow) }
 
-    fun clearUpdateHistory(lendBorrow: Boolean) {
-        viewModelScope.launch {
-            repository.clearHistory(_userId.value, HistoryType.UPDATED, lendBorrow)
-        }
-    }
+    fun clearUpdateHistory(lendBorrow: Boolean, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.clearHistory(_userId.value, HistoryType.UPDATED, lendBorrow) }
 
     fun askAiAboutHistory(question: String) {
         if (question.isBlank()) return
@@ -396,8 +427,15 @@ class SpendViewModel @Inject constructor(
                 set(Calendar.MILLISECOND, 0)
             }.timeInMillis
 
-            val sessionCount = chatDao.getSessionCountSince(userId, todayStart)
-            val msgCountInSession = chatDao.getMessageCountInSession(userId, currentSessionId)
+            // A failed count would silently hand out unlimited AI sessions, so fail closed.
+            val sessionCount = repository.getSessionCountSince(userId, todayStart).getOrElse {
+                _historyStatus.value = AiHistoryStatus.Error(it.userMessageOrGeneric(), AiErrorType.GENERIC)
+                return@launch
+            }
+            val msgCountInSession = repository.getMessageCountInSession(userId, currentSessionId).getOrElse {
+                _historyStatus.value = AiHistoryStatus.Error(it.userMessageOrGeneric(), AiErrorType.GENERIC)
+                return@launch
+            }
 
             if (msgCountInSession >= 7) {
                 if (sessionCount >= 2) {
@@ -410,7 +448,8 @@ class SpendViewModel @Inject constructor(
                     currentSessionId = java.util.UUID.randomUUID().toString()
                 }
             } else {
-                val isCurrentSessionActiveToday = chatDao.isSessionActiveSince(userId, currentSessionId, todayStart)
+                val isCurrentSessionActiveToday =
+                    repository.isSessionActiveSince(userId, currentSessionId, todayStart).getOrDefault(false)
                 if (!isCurrentSessionActiveToday && sessionCount >= 2) {
                     _historyStatus.value = AiHistoryStatus.Error(
                         "You've reached your daily limit of 2 sessions.",
@@ -441,25 +480,39 @@ class SpendViewModel @Inject constructor(
                 if (groqKey.isNotBlank()) {
                     val classificationPrompt = """
                         Classify the following user question for a personal finance app.
-                        Respond with ONLY "FINANCIAL" if it's about spending, budgets, history, or lend/borrow.
-                        Respond with "OFF_TOPIC" for anything else (general knowledge, coding, chat, math not related to data, etc.).
-                        
+                        Respond with ONLY "FINANCIAL" if it is about the user's spending, transactions,
+                        budgets, categories, payment apps, history, analytics, or lend/borrow — including
+                        greetings and questions about what this assistant can do.
+                        Respond with ONLY "OFF_TOPIC" for anything else (general knowledge, coding, news,
+                        recipes, or maths unrelated to the user's own data).
+
                         QUESTION: "$question"
                     """.trimIndent()
-                    
+
                     val classifierRequest = GroqRequest(
-                        model = "llama-3.1-8b-instant",
+                        model = GroqModels.FAST,
                         messages = listOf(GroqMessage("user", classificationPrompt)),
-                        temperature = 0.0
+                        temperature = 0.0,
+                        reasoning_effort = "low",
+                        include_reasoning = false,
+                        max_completion_tokens = 16
                     )
                     val response = groqApiService.getCompletion("Bearer $groqKey", classifierRequest)
                     if (response.isSuccessful) {
-                        val result = response.body()?.choices?.firstOrNull()?.message?.content?.trim()?.uppercase()
-                        if (result == "OFF_TOPIC") {
-                            isOffTopic = true
-                        }
+                        // Fail OPEN: only a verdict that says OFF_TOPIC and not FINANCIAL blocks the
+                        // question. An exact-string check used to be the gate, so any decoration
+                        // ("OFF_TOPIC.") slipped through — and the reverse, a chatty verdict, must
+                        // never cost the user a real answer.
+                        val verdict = response.body()?.choices?.firstOrNull()?.message?.content
+                            ?.trim()?.uppercase().orEmpty()
+                        isOffTopic = verdict.contains("OFF_TOPIC") && !verdict.contains("FINANCIAL")
+                    } else {
+                        val errorBody = response.errorBody()?.string().orEmpty().take(300)
+                        Log.w(TAG, "Classification HTTP ${response.code()} - $errorBody")
                     }
                 }
+            } catch (e: CancellationException) {
+                throw e
             } catch (e: Exception) {
                 Log.w(TAG, "Classification failed, continuing with strict prompt: ${e.message}")
             }
@@ -483,22 +536,43 @@ class SpendViewModel @Inject constructor(
             // 4. Prepare Context (Only if on-topic)
             val allSpends = allSpendsFlow.value
             val filteredSpends = filterSpendsByQuery(allSpends, question)
+            // A filter that lands on zero rows used to end the conversation with a flat
+            // "No transactions found for this query." — the model has nothing to answer
+            // from, so the user gets no answer at all. Fall back to the recent log and
+            // tell the model that is what it is looking at.
+            val usedFallbackContext = filteredSpends.isEmpty() && allSpends.isNotEmpty()
+            val contextSpends = if (usedFallbackContext) {
+                allSpends.sortedByDescending { it.timestamp }.take(200)
+            } else {
+                filteredSpends
+            }
             val historyPrefs = aiPreferences.value
             val currency = historyPrefs.defaultCurrency.ifBlank { "₹" }
             val today = java.text.SimpleDateFormat("yyyy-MM-dd EEEE", Locale.getDefault()).format(System.currentTimeMillis())
             val dateFmt = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
 
             val contextText = buildString {
-                if (filteredSpends.isEmpty()) {
-                    appendLine("No transactions found for this query.")
+                if (contextSpends.isEmpty()) {
+                    appendLine("The user has no recorded transactions at all yet.")
                 } else {
-                    val total = filteredSpends.sumOf { it.amount }
-                    val oldest = dateFmt.format(filteredSpends.minOf { it.timestamp })
-                    val newest = dateFmt.format(filteredSpends.maxOf { it.timestamp })
-                    appendLine("=== SUMMARY: ${filteredSpends.size} transactions | Total: $currency${String.format(Locale.getDefault(), "%.2f", total)} | Range: $oldest → $newest ===")
+                    if (usedFallbackContext) {
+                        appendLine("NOTE: nothing matched the narrow filter for this question, so the list below is the user's most recent transactions. Answer from these, and say plainly if the period or category they asked about has none.")
+                        appendLine()
+                    }
+                    val total = contextSpends.sumOf { it.amount }
+                    val oldest = dateFmt.format(contextSpends.minOf { it.timestamp })
+                    val newest = dateFmt.format(contextSpends.maxOf { it.timestamp })
+                    appendLine("=== SUMMARY: ${contextSpends.size} transactions | Total: $currency${String.format(Locale.getDefault(), "%.2f", total)} | Range: $oldest → $newest ===")
+                    appendLine("ROW FORMAT: - date | amount | purpose | app [| note: text]. A row with no \"note:\" segment simply has no note.")
                     appendLine()
-                    filteredSpends.forEach { spend ->
-                        appendLine("- ${dateFmt.format(spend.timestamp)} | $currency${spend.amount} | ${spend.notes.ifBlank { "—" }} | ${spend.purpose} | ${spend.appName}")
+                    contextSpends.forEach { spend ->
+                        // A blank note used to be rendered as a bare "—" column. The model read that
+                        // as part of the answer template and echoed the literal word "note" back at
+                        // the user ("— note"). Omit the segment entirely instead, and format the
+                        // amount so it doesn't reach the model as a raw Double ("500.0").
+                        val amount = String.format(Locale.getDefault(), "%.2f", spend.amount)
+                        val noteSegment = if (spend.notes.isBlank()) "" else " | note: ${spend.notes}"
+                        appendLine("- ${dateFmt.format(spend.timestamp)} | $currency$amount | ${spend.purpose} | ${spend.appName}$noteSegment")
                     }
                 }
             }
@@ -530,37 +604,62 @@ class SpendViewModel @Inject constructor(
                         - Compute totals, averages, and comparisons using ONLY the transactions listed above.
                         - Identify top spending category/app and flag unusually large single transactions when relevant.
                         - For trend questions, derive day-over-day or week-over-week patterns from the data when available.
-                        - If data is insufficient to answer precisely, state it briefly and suggest what time range would help.
+                        - If data is insufficient to answer precisely, still give the closest useful answer you can from the data above, then say in one line what is missing.
                         - Never fabricate transactions or amounts not present in the data.
+                        - Never reply with only a refusal or only a clarifying question — always give the user something concrete from their data.
                         - If the question is outside the scope of personal finance/transactions, politely decline.
 
                         RESPONSE FORMAT:
                         - Use **bold** for amounts, category names, app names, and key numbers.
                         - Use bullet points for lists and breakdowns.
                         - For person-grouped data (lending/borrowing), use hierarchical lists:
-                          * **Name** (Total: **$currency amount**)
-                            - **date**: **$currency amount** — note
+                          * **<person>** (Total: **$currency<total>**)
+                            - **<date>**: **$currency<amount>** — <that row's note text>
+                        - Angle brackets mark placeholders. Never print the brackets and never print
+                          the word inside them — substitute the real value. If a transaction has no
+                          note, drop the "— <note>" part completely rather than writing "note".
                         - Indent nested items with 2 spaces.
+                        - Finish every list you start. If there are too many transactions to list in
+                          full, group or summarise them instead of stopping mid-line.
                         - End with a short actionable insight when relevant.
                         - Keep responses concise. Do not restate the user's question.
                     """.trimIndent()
 
                     if (groqKey.isNotBlank()) {
-                        Log.d(TAG, "History: Calling Groq (llama-3.3-70b)")
+                        Log.d(TAG, "History: Calling Groq (${GroqModels.SMART})")
                         val groqRequest = GroqRequest(
-                            model = "llama-3.3-70b-versatile",
+                            model = GroqModels.SMART,
                             messages = listOf(
                                 GroqMessage("system", systemPrompt),
                                 GroqMessage("user", "USER QUESTION: \"$question\"")
-                            )
+                            ),
+                            temperature = 0.5,
+                            // GPT-OSS is a reasoning model: without include_reasoning=false the
+                            // chain-of-thought is what lands in `content` and the user sees the
+                            // model thinking out loud instead of an answer.
+                            //
+                            // `reasoning_effort` and the token budget are coupled here. A
+                            // per-person breakdown over a few hundred transactions is a long
+                            // answer, and at "medium" effort a 1500-token budget ran out partway
+                            // through the list — the reply arrived cut off mid-date. Low effort
+                            // plus a much larger ceiling leaves room for the whole answer;
+                            // finish_reason below reports it if that is still not enough.
+                            reasoning_effort = "low",
+                            include_reasoning = false,
+                            max_completion_tokens = 4096
                         )
                         val response = groqApiService.getCompletion("Bearer $groqKey", groqRequest)
                         if (response.isSuccessful) {
-                            responseText = response.body()?.choices?.firstOrNull()?.message?.content
+                            val choice = response.body()?.choices?.firstOrNull()
+                            if (choice?.finish_reason == "length") {
+                                Log.w(TAG, "History: answer truncated (hit max_completion_tokens)")
+                            }
+                            responseText = choice?.message?.content
                         } else {
-                            val errorBody = response.errorBody()?.string()
+                            // The body is the only place a decommissioned model announces itself.
+                            val errorBody = response.errorBody()?.string().orEmpty().take(300)
                             Log.e(TAG, "Groq History Error: ${response.code()} - $errorBody")
-                            throw Exception("Groq API error: ${response.code()}")
+                            throw Exception("Groq API error: ${response.code()} $errorBody")
                         }
                     } else {
                         Log.d(TAG, "History: Groq key missing, falling back to Gemini")
@@ -576,6 +675,8 @@ class SpendViewModel @Inject constructor(
                             text("USER QUESTION: \"$question\"")
                         }).text
                     }
+                } catch (e: CancellationException) {
+                    throw e
                 } catch (e: Exception) {
                     lastError = e
                     val rawError = e.message ?: ""
@@ -687,235 +788,7 @@ class SpendViewModel @Inject constructor(
     fun processAiInput(text: String) {
         aiJob?.cancel()
         aiJob = viewModelScope.launch {
-            val prefs = aiPreferences.value
-
-            // 1. Check Rate Limit
-            if (prefs.dailyUsageCount >= 15) {
-                _aiResult.value = Result.failure(Exception("Daily limit reached (15/day). Please try again tomorrow."))
-                return@launch
-            }
-
-            // 2. Validate Input
-            if (text.isBlank()) {
-                _aiResult.value = Result.failure(Exception("Input cannot be empty."))
-                return@launch
-            }
-            if (text.length > 500) {
-                _aiResult.value = Result.failure(Exception("Input too long (max 500 characters)."))
-                return@launch
-            }
-
-            // 3. Run the local heuristic parser first — gives us a deterministic
-            // baseline (and a usable response even if the LLM is down).
-            val baseline = AiParser.parseToBaseline(text, prefs.defaultApp, prefs.defaultPurpose)
-            val localCurrency = AiParser.extractCurrency(text) ?: prefs.defaultCurrency.ifBlank { "INR" }
-
-            // 4. Try AI (Prefer Groq for speed and open-weights models) with Retry logic
-            var responseText: String? = null
-            var lastError: Exception? = null
-
-            for (attempt in 0..1) {
-                if (responseText != null) break
-                
-                try {
-                    remoteConfig.fetchAndActivate().await()
-                    val groqKey = remoteConfig.getString("groq_api_key")
-                    
-                    val appList = com.alpha.spendtracker.ui.components.APP_PRESETS
-                        .joinToString(", ") { it.displayName }
-                    val purposeList = com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
-                        .joinToString(", ")
-
-                    val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(System.currentTimeMillis())
-                    val systemPrompt = """
-                        You are a strict JSON extractor for an Indian expense tracker. Parse the user's sentence and return ONE JSON object. Output ONLY valid JSON — no markdown, no code fences, no commentary.
-
-                        USER DEFAULTS (apply when not explicitly stated):
-                        - Currency: $localCurrency
-                        - Platform: ${prefs.defaultApp}
-                        - Purpose: ${prefs.defaultPurpose}
-                        - Today: $todayStr
-
-                        PLATFORM MAPPING — resolve any fuzzy variant to a canonical name from [$appList]:
-                        "pp" / "phone pay" / "phonepay" → "PhonePe"
-                        "gpay" / "g pay" / "g-pay" / "tez" → "Google Pay"
-                        "amzn" / "amazon pay" → "Amazon"
-                        "cred pay" → "CRED"
-                        "paytm upi" → "Paytm"
-                        "upi" / unknown → use default platform above
-
-                        PURPOSE MAPPING — output EXACT string from [$purposeList]:
-                        Food/drinks: biryani, pizza, lunch, dinner, breakfast, coffee, chai, swiggy, zomato, blinkit, zepto, groceries → "Groceries & Food"
-                        Shopping: shirt, jeans, shoes, saree, amazon, flipkart, myntra, ajio, meesho → "Shopping & Apparels"
-                        Travel: uber, ola, rapido, auto, cab, petrol, diesel, metro, bus, flight, train, toll → "Travel & Commute"
-                        Entertainment: netflix, hotstar, prime, spotify, movie, concert, game, gym → "Subscription & Leisure"
-                        Health: medicine, tablet, doctor, hospital, clinic, pharmacy, dentist, lab test → "Healthcare & Medical"
-                        Bills: rent, electricity, wifi, internet, recharge, water bill, gas, dth → "Rent & Utilities"
-                        Finance: credit card bill, cc bill, emi, loan payment → "Credit Card Bill"
-                        Giving: "lent to", "gave to", "sent to [person]", "paid for [person]" → "Lending"
-                        Receiving: "borrowed from", "took from", "received from" → "Borrowing"
-                        Default (nothing clearly matches) → use the user's default purpose above: "${prefs.defaultPurpose}"
-
-                        FIELD RULES:
-                        - amount: largest monetary number found; null if absent.
-                        - appName: canonical platform name from the mapping above.
-                        - purpose: exact string from the purpose mapping above.
-                        - notes: 1-4 Title Case words describing WHAT. Exclude amount, app name, and verbs ("spent","paid","bought"). For lending/borrowing include the person name: "Lent to Rahul", "From Mom". Empty string if nothing identifiable.
-                        - date: YYYY-MM-DD relative to today ($todayStr). "yesterday" → today−1; "last friday" → most recent past Friday; partial date with no year → this year, shift back 1 year if result is in the future. No date → today.
-                        - needsAmount: true only when amount is null.
-
-                        OUTPUT (no extra keys):
-                        {"amount": number|null, "appName": string, "purpose": string, "notes": string, "date": string, "needsAmount": boolean}
-                    """.trimIndent()
-
-                    if (groqKey.isNotBlank()) {
-                        Log.d(TAG, "Input: Calling Groq (llama-3.1-8b)")
-                        val groqRequest = GroqRequest(
-                            model = "llama-3.1-8b-instant",
-                            messages = listOf(
-                                GroqMessage("system", systemPrompt),
-                                GroqMessage("user", "USER INPUT: \"$text\"")
-                            ),
-                            response_format = GroqResponseFormat()
-                        )
-                        val response = groqApiService.getCompletion("Bearer $groqKey", groqRequest)
-                        if (response.isSuccessful) {
-                            responseText = response.body()?.choices?.firstOrNull()?.message?.content
-                        } else {
-                            val errorBody = response.errorBody()?.string()
-                            Log.e(TAG, "Groq Input Error: ${response.code()} - $errorBody")
-                            throw Exception("Groq API error: ${response.code()}")
-                        }
-                    } else {
-                        Log.d(TAG, "Input: Groq key missing, falling back to Gemini")
-                        val geminiKey = remoteConfig.getString("gemini_api_key")
-                        if (geminiKey.isBlank()) {
-                            Log.w(TAG, "AI API Keys are missing in Remote Config")
-                            _aiResult.value = Result.success(baseline)
-                            return@launch
-                        }
-                        val generativeModel = GenerativeModel(modelName = GEMINI_MODEL, apiKey = geminiKey)
-                        responseText = generativeModel.generateContent(content {
-                            text(systemPrompt)
-                            text("USER INPUT: \"$text\"")
-                        }).text
-                    }
-                } catch (e: Exception) {
-                    lastError = e
-                    val msg = e.message ?: ""
-                    val isRetryable = msg.contains("503") || msg.contains("504") || msg.contains("high demand", ignoreCase = true)
-                    
-                    if (isRetryable && attempt == 0) {
-                        delay(2000)
-                        continue
-                    }
-                    break
-                }
-            }
-
-            if (com.alpha.spendtracker.BuildConfig.DEBUG) Log.d(TAG, "AI Raw Response: $responseText")
-
-            val merged = if (responseText.isNullOrBlank()) {
-                if (lastError != null) {
-                    Log.e(TAG, "AI Error after retries: ${lastError.message}", lastError)
-                }
-                baseline
-            } else {
-                aiPrefsRepository.incrementUsage()
-                parseAndMerge(responseText, baseline, text, prefs.defaultApp)
-            }
-
-            _aiResult.value = Result.success(merged)
-        }
-    }
-
-    /**
-     * Parse the LLM JSON and merge with the local-parser baseline. Per field:
-     * AI wins if it provided a non-blank, valid value; otherwise we keep baseline.
-     *
-     * [originalText] and [defaultApp] let us honor the user's configured default payment
-     * app: the small LLM tends to guess "Google Pay" whenever the input names no app, which
-     * would override the user's default. We only trust an LLM-detected app when it is actually
-     * grounded in the input; otherwise we fall back to the user's default, not the guess.
-     */
-    private fun parseAndMerge(
-        responseText: String,
-        baseline: AiTransactionResponse,
-        originalText: String,
-        defaultApp: String
-    ): AiTransactionResponse {
-        val jsonString = run {
-            val start = responseText.indexOf("{")
-            val end = responseText.lastIndexOf("}")
-            if (start in 0 until end) responseText.substring(start, end + 1) else responseText
-        }
-        val json = try {
-            JSONObject(jsonString)
-        } catch (e: Exception) {
-            // Don't log the raw payload (PII) in release; length is enough to diagnose.
-            Log.e(TAG, "JSON Parse Failed (len=${responseText?.length ?: 0})", e)
-            return baseline
-        }
-
-        val aiAmount = if (json.isNull("amount")) null else json.optDouble("amount", Double.NaN)
-            .takeIf { !it.isNaN() }
-        val aiAppRaw = json.optString("appName", "").ifBlank { null }
-        val aiPurposeRaw = json.optString("purpose", "").ifBlank { null }
-        val aiNotesRaw = json.optString("notes", "").trim()
-        val aiDate = json.optString("date", "").ifBlank { baseline.date }
-        val aiNeedsAmount = json.optBoolean("needsAmount", false)
-
-        val aiPreset = AiParser.normalizeAppToPreset(aiAppRaw)
-        // Resolve the payment app in priority order:
-        //  1. An app the user actually named in the input (local alias match is ground truth).
-        //  2. An app the LLM detected that ALSO literally appears in the input — catches apps
-        //     the local matcher doesn't know, while ignoring the LLM's ungrounded guesses.
-        //  3. Neither — the user named no app, so use their configured default, NOT the LLM guess.
-        val localApp = AiParser.findAppPreset(originalText)
-        val llmAppGrounded = aiPreset != null && run {
-            val hay = " ${originalText.lowercase()} "
-            hay.contains(" ${aiPreset.displayName.lowercase()} ") ||
-                (!aiAppRaw.isNullOrBlank() && hay.contains(aiAppRaw.lowercase()))
-        }
-        val finalPreset = localApp
-            ?: aiPreset?.takeIf { llmAppGrounded }
-            ?: AiParser.normalizeAppToPreset(defaultApp)
-            ?: aiPreset
-            ?: AiParser.normalizeAppToPreset(baseline.appName)
-        val finalPurpose = AiParser.normalizePurpose(aiPurposeRaw) ?: baseline.purpose
-        val finalNotes = aiNotesRaw.ifBlank { baseline.notes }
-        val finalAmount = aiAmount ?: baseline.amount
-        val finalTimestamp = parseIsoDate(aiDate) ?: baseline.timestamp
-
-        return AiTransactionResponse(
-            amount = finalAmount,
-            appName = finalPreset?.displayName ?: aiAppRaw ?: baseline.appName,
-            appPresetId = finalPreset?.id,
-            purpose = finalPurpose,
-            notes = finalNotes,
-            date = aiDate,
-            timestamp = finalTimestamp,
-            needsAmount = aiNeedsAmount || finalAmount == null
-        )
-    }
-
-    /** Parse "YYYY-MM-DD" emitted by the LLM into an epoch millis. */
-    private fun parseIsoDate(date: String?): Long? {
-        if (date.isNullOrBlank()) return null
-        return try {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            sdf.isLenient = false
-            sdf.parse(date)?.let { parsed ->
-                Calendar.getInstance().apply {
-                    time = parsed
-                    set(Calendar.HOUR_OF_DAY, 12)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }.timeInMillis
-            }
-        } catch (_: Exception) {
-            null
+            _aiResult.value = aiTransactionProcessor.parse(text, aiPreferences.value)
         }
     }
 
@@ -966,9 +839,10 @@ class SpendViewModel @Inject constructor(
         purpose: String,
         category: String,
         notes: String = "",
-        timestamp: Long = System.currentTimeMillis()
+        timestamp: Long = System.currentTimeMillis(),
+        onResult: (Result<Unit>) -> Unit = {}
     ) {
-        viewModelScope.launch {
+        mutate(onResult) {
             val spend = Spend(
                 uuid = java.util.UUID.randomUUID().toString(),
                 userId = _userId.value,
@@ -984,17 +858,11 @@ class SpendViewModel @Inject constructor(
         }
     }
 
-    fun updateSpend(spend: Spend) {
-        viewModelScope.launch {
-            repository.insert(spend)
-        }
-    }
+    fun updateSpend(spend: Spend, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.insert(spend) }
 
-    fun deleteSpend(spend: Spend) {
-        viewModelScope.launch {
-            repository.delete(spend)
-        }
-    }
+    fun deleteSpend(spend: Spend, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.delete(spend) }
 
     fun setFilter(filter: TimeFilter) {
         selectedFilter.value = filter
@@ -1066,7 +934,7 @@ class SpendViewModel @Inject constructor(
             .sortedByDescending { it.second }
 
         // Trend Breakdown for beautiful graph (bar/line charts based on day index or calendar buckets)
-        val trendPoints = calculateTrendPoints(spends, filter)
+        val trendPoints = calculateTrendPoints(spends, filter, range)
 
         val topCategory = categoryTotals.maxByOrNull { it.value }?.toPair()
         val (elapsedDays, totalPeriodDays) = periodDaysInfo(filter, range)
@@ -1202,9 +1070,13 @@ class SpendViewModel @Inject constructor(
         }
     }
 
-    private fun calculateTrendPoints(spends: List<Spend>, filter: TimeFilter): List<TrendPoint> {
+    private fun calculateTrendPoints(
+        spends: List<Spend>,
+        filter: TimeFilter,
+        range: Pair<Long, Long>? = null
+    ): List<TrendPoint> {
         val calendar = Calendar.getInstance()
-        
+
         return when (filter) {
             TimeFilter.DAY -> {
                 // Group by hour
@@ -1230,24 +1102,29 @@ class SpendViewModel @Inject constructor(
                 }.sortedBy { it.sortKey }
             }
             TimeFilter.MONTH -> {
-                // Group by day of month (1 to 31)
-                spends.groupBy {
-                    calendar.timeInMillis = it.timestamp
-                    calendar.get(Calendar.DAY_OF_MONTH)
-                }.map { (dayOfMonth, items) ->
-                    val total = items.sumOf { it.amount }
-                    TrendPoint(label = dayOfMonth.toString(), amount = total, sortKey = dayOfMonth)
-                }.sortedBy { it.sortKey }
+                // One bar per calendar *week* of the month rather than per day. 31 day-bars in
+                // ~330dp left ~10dp a slot, which is what forced the rotated micro-labels and made
+                // the month view unreadable; five or six week-bars each carry a legible range
+                // ("1–2", "3–9", …) and their own total.
+                val monthStart = calendar.let {
+                    it.timeInMillis = spends.firstOrNull()?.timestamp ?: System.currentTimeMillis()
+                    it.set(Calendar.DAY_OF_MONTH, 1)
+                    startOfDayOf(it.timeInMillis)
+                }
+                val monthEnd = Calendar.getInstance().apply {
+                    timeInMillis = monthStart
+                    set(Calendar.DAY_OF_MONTH, getActualMaximum(Calendar.DAY_OF_MONTH))
+                }.timeInMillis
+                weeklyTrendPoints(spends, monthStart, monthEnd)
             }
             TimeFilter.YEAR -> {
                 // Group by code of month (0 to 11)
-                val monthNames = listOf("Jan", "Feb", "Mar", "Apr", "May", "Jun", "Jul", "Aug", "Sep", "Oct", "Nov", "Dec")
                 spends.groupBy {
                     calendar.timeInMillis = it.timestamp
                     calendar.get(Calendar.MONTH)
                 }.map { (monthNum, items) ->
                     val total = items.sumOf { it.amount }
-                    val name = monthNames.getOrElse(monthNum) { "Month" }
+                    val name = MONTH_ABBREVIATIONS.getOrElse(monthNum) { "Month" }
                     TrendPoint(label = name, amount = total, sortKey = monthNum)
                 }.sortedBy { it.sortKey }
             }
@@ -1262,51 +1139,204 @@ class SpendViewModel @Inject constructor(
                 }.sortedBy { it.sortKey }
             }
             TimeFilter.CUSTOM -> {
-                // For custom range, show short date format like "22 May"
-                val sdf = java.text.SimpleDateFormat("dd MMM", Locale.getDefault())
-                spends.groupBy {
-                    calendar.timeInMillis = it.timestamp
-                    calendar.get(Calendar.DAY_OF_YEAR)
-                }.map { (dayOfYear, items) ->
-                    val total = items.sumOf { it.amount }
-                    val firstItem = items.first()
-                    TrendPoint(label = sdf.format(firstItem.timestamp), amount = total, sortKey = dayOfYear)
-                }.sortedBy { it.sortKey }
+                val start = startOfDayOf(range?.first ?: spends.minOfOrNull { it.timestamp } ?: return emptyList())
+                val end = startOfDayOf(range?.second ?: spends.maxOfOrNull { it.timestamp } ?: return emptyList())
+                val spanDays = ((end - start) / DAY_MS).toInt() + 1
+
+                if (spanDays > CUSTOM_TREND_DAILY_MAX_DAYS) {
+                    // Same week buckets as the month view, except the first one starts on the day
+                    // the user picked and only runs to the end of *that* week; every bucket after
+                    // it is a full week, and the last is clipped at the chosen end date.
+                    weeklyTrendPoints(spends, start, end)
+                } else {
+                    // Short ranges keep a bar per day — and every day in the range gets one, spend
+                    // or not, so the axis stays a real timeline instead of silently closing gaps.
+                    val sdf = java.text.SimpleDateFormat("dd MMM", Locale.getDefault())
+                    val byDay = spends.groupBy { startOfDayOf(it.timestamp) }
+                    (0 until spanDays).map { offset ->
+                        val day = Calendar.getInstance().apply {
+                            timeInMillis = start
+                            add(Calendar.DAY_OF_YEAR, offset)
+                        }.timeInMillis
+                        TrendPoint(
+                            label = sdf.format(day),
+                            amount = byDay[day]?.sumOf { it.amount } ?: 0.0,
+                            sortKey = offset
+                        )
+                    }
+                }
             }
         }
     }
 
     /**
+     * Buckets [spends] into calendar weeks covering `[startDay, endDay]` (both local midnights,
+     * inclusive), and labels each bucket with the days it spans.
+     *
+     * Weeks begin on [TREND_WEEK_START]. The first bucket is only the part of its week that falls
+     * inside the range — for August 2026 that makes the buckets 1–2, 3–9, 10–16, 17–23, 24–30, 31 —
+     * and the last is clipped at [endDay] the same way. Buckets with no spending are still emitted
+     * so the axis reads as a continuous timeline.
+     */
+    private fun weeklyTrendPoints(spends: List<Spend>, startDay: Long, endDay: Long): List<TrendPoint> {
+        if (endDay < startDay) return emptyList()
+
+        val cursor = Calendar.getInstance().apply { timeInMillis = startDay }
+        val edge = Calendar.getInstance()
+        val labelCal = Calendar.getInstance()
+        val points = mutableListOf<TrendPoint>()
+        var index = 0
+
+        // Day arithmetic goes through Calendar, not `+ n * DAY_MS`: a DST boundary inside the range
+        // would otherwise slide every bucket after it by an hour and misfile the days on the seam.
+        while (cursor.timeInMillis <= endDay) {
+            val bucketStart = cursor.timeInMillis
+            // Days left until this week rolls over — a full 7 for every bucket but the first, which
+            // is however much of its week the range actually starts inside.
+            val daysToWeekEnd = 6 - ((cursor.get(Calendar.DAY_OF_WEEK) - TREND_WEEK_START + 7) % 7)
+
+            edge.timeInMillis = bucketStart
+            edge.add(Calendar.DAY_OF_YEAR, daysToWeekEnd)
+            val bucketEnd = minOf(edge.timeInMillis, endDay)
+            // Exclusive upper edge — the *next* midnight, so the whole last day is included.
+            edge.timeInMillis = bucketEnd
+            edge.add(Calendar.DAY_OF_YEAR, 1)
+            val bucketEndExclusive = edge.timeInMillis
+
+            points += TrendPoint(
+                label = weekBucketLabel(bucketStart, bucketEnd, labelCal),
+                amount = spends.filter { it.timestamp in bucketStart until bucketEndExclusive }
+                    .sumOf { it.amount },
+                sortKey = index++
+            )
+            cursor.timeInMillis = bucketEndExclusive
+        }
+        return points
+    }
+
+    /**
+     * "3–9" inside one month, "31 Jul–6 Aug" when the bucket straddles two, and a bare "31" for a
+     * single-day bucket — the label sits under a bar, so every character it doesn't need costs
+     * legibility.
+     */
+    private fun weekBucketLabel(start: Long, endInclusive: Long, cal: Calendar): String {
+        cal.timeInMillis = start
+        val startDay = cal.get(Calendar.DAY_OF_MONTH)
+        val startMonth = cal.get(Calendar.MONTH)
+        cal.timeInMillis = endInclusive
+        val endDayOfMonth = cal.get(Calendar.DAY_OF_MONTH)
+        val endMonth = cal.get(Calendar.MONTH)
+
+        return when {
+            startDay == endDayOfMonth && startMonth == endMonth -> "$startDay"
+            startMonth == endMonth -> "$startDay–$endDayOfMonth"
+            else -> "$startDay ${MONTH_ABBREVIATIONS[startMonth]}–$endDayOfMonth ${MONTH_ABBREVIATIONS[endMonth]}"
+        }
+    }
+
+    /** Local midnight of the day [millis] falls in. */
+    private fun startOfDayOf(millis: Long): Long = Calendar.getInstance().apply {
+        timeInMillis = millis
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+    }.timeInMillis
+
+    /**
      * Filters transactions based on the user's question to optimize the AI prompt payload.
      */
-    private fun filterSpendsByQuery(spends: List<Spend>, query: String): List<Spend> {
-        val lower = query.lowercase()
-        
-        // 1. Determine Time Range
-        val calendar = Calendar.getInstance()
-        val startOfToday = calendar.apply {
-            set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0); set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
-        }.timeInMillis
+    /** Local-midnight epoch millis, [offsetDays] from today. */
+    private fun startOfDayOffset(offsetDays: Int): Long = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        add(Calendar.DAY_OF_YEAR, offsetDays)
+    }.timeInMillis
 
-        val timeFiltered = when {
-            lower.contains("today") -> spends.filter { it.timestamp >= startOfToday }
-            lower.contains("yesterday") -> {
-                val startOfYesterday = startOfToday - 24 * 60 * 60 * 1000
-                spends.filter { it.timestamp in startOfYesterday until startOfToday }
+    /** Local-midnight epoch millis of the first day of the week, [offsetWeeks] from this one. */
+    private fun startOfWeekOffset(offsetWeeks: Int): Long = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        // set(DAY_OF_WEEK, firstDayOfWeek) can jump FORWARD past today depending on where
+        // the locale's week starts; stepping back by the offset never can.
+        add(Calendar.DAY_OF_YEAR, -((get(Calendar.DAY_OF_WEEK) - firstDayOfWeek + 7) % 7))
+        add(Calendar.WEEK_OF_YEAR, offsetWeeks)
+    }.timeInMillis
+
+    private fun startOfMonthOffset(offsetMonths: Int): Long = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        set(Calendar.DAY_OF_MONTH, 1)
+        add(Calendar.MONTH, offsetMonths)
+    }.timeInMillis
+
+    private fun startOfYearOffset(offsetYears: Int): Long = Calendar.getInstance().apply {
+        set(Calendar.HOUR_OF_DAY, 0); set(Calendar.MINUTE, 0)
+        set(Calendar.SECOND, 0); set(Calendar.MILLISECOND, 0)
+        set(Calendar.DAY_OF_YEAR, 1)
+        add(Calendar.YEAR, offsetYears)
+    }.timeInMillis
+
+    /**
+     * The time window a question implies, as `[start, endExclusive)`, or null for "everything".
+     *
+     * ⚠️ "last"/"previous" used to be ignored completely: "how much did I spend **last month**?"
+     * fell into the bare `month` branch and returned **this** month, so the assistant confidently
+     * answered a different question — and early in a month it returned nothing at all, which read
+     * to the user as the assistant failing to answer.
+     */
+    private fun resolveQueryRange(lower: String): Pair<Long, Long>? {
+        val openEnd = Long.MAX_VALUE
+
+        // An explicit rolling window ("last 7 days", "past 3 months") wins over everything else.
+        Regex("""\b(?:last|past|previous|prev)\s+(\d{1,3})\s+(day|week|month|year)s?\b""")
+            .find(lower)?.let { match ->
+                val n = match.groupValues[1].toIntOrNull()?.coerceAtLeast(1) ?: 1
+                val days = when (match.groupValues[2]) {
+                    "day" -> n
+                    "week" -> n * 7
+                    "month" -> n * 30
+                    else -> n * 365
+                }
+                return startOfDayOffset(-days) to openEnd
             }
+
+        if (Regex("""\b(all time|alltime|overall|ever|lifetime)\b""").containsMatchIn(lower)) {
+            return null
+        }
+
+        val isPrevious = Regex("""\b(last|previous|prev|past)\b""").containsMatchIn(lower)
+
+        return when {
+            lower.contains("day before yesterday") ->
+                startOfDayOffset(-2) to startOfDayOffset(-1)
+            lower.contains("yesterday") ->
+                startOfDayOffset(-1) to startOfDayOffset(0)
+            lower.contains("today") ->
+                startOfDayOffset(0) to openEnd
             lower.contains("week") -> {
-                calendar.set(Calendar.DAY_OF_WEEK, calendar.firstDayOfWeek)
-                spends.filter { it.timestamp >= calendar.timeInMillis }
+                val thisWeek = startOfWeekOffset(0)
+                if (isPrevious) startOfWeekOffset(-1) to thisWeek else thisWeek to openEnd
             }
             lower.contains("month") -> {
-                calendar.set(Calendar.DAY_OF_MONTH, 1)
-                spends.filter { it.timestamp >= calendar.timeInMillis }
+                val thisMonth = startOfMonthOffset(0)
+                if (isPrevious) startOfMonthOffset(-1) to thisMonth else thisMonth to openEnd
             }
             lower.contains("year") -> {
-                calendar.set(Calendar.DAY_OF_YEAR, 1)
-                spends.filter { it.timestamp >= calendar.timeInMillis }
+                val thisYear = startOfYearOffset(0)
+                if (isPrevious) startOfYearOffset(-1) to thisYear else thisYear to openEnd
             }
-            else -> spends // Default to all if no time mentioned (AI will handle sorting)
+            else -> null
+        }
+    }
+
+    private fun filterSpendsByQuery(spends: List<Spend>, query: String): List<Spend> {
+        val lower = query.lowercase()
+
+        // 1. Determine Time Range
+        val range = resolveQueryRange(lower)
+        val timeFiltered = if (range == null) {
+            spends // No period mentioned — hand the AI everything and let it sort.
+        } else {
+            spends.filter { it.timestamp >= range.first && it.timestamp < range.second }
         }
 
         // 2. Filter by Category/Purpose or App name if specifically mentioned

@@ -13,7 +13,6 @@ import androidx.compose.material.icons.rounded.AutoDelete
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
 import androidx.compose.material.icons.rounded.DeleteSweep
-import androidx.compose.material.icons.rounded.History
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.TabRowDefaults.tabIndicatorOffset
@@ -31,6 +30,7 @@ import com.alpha.spendtracker.data.HistoryType
 import com.alpha.spendtracker.data.NoteHistory
 import com.alpha.spendtracker.data.NoteItemType
 import com.alpha.spendtracker.ui.components.formatCurrency
+import com.alpha.spendtracker.ui.icons.AppIcons
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -189,7 +189,7 @@ fun NotesHistoryScreen(
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        if (isDeletedView) Icons.Rounded.AutoDelete else Icons.Rounded.History,
+                        if (isDeletedView) Icons.Rounded.AutoDelete else AppIcons.History,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
@@ -352,7 +352,7 @@ private fun Badge(text: String, container: Color, content: Color) {
         Text(
             text = text,
             modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.ExtraBold),
+            style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp, fontWeight = FontWeight.Bold),
             color = content
         )
     }

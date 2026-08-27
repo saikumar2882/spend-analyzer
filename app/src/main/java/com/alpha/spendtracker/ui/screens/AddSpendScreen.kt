@@ -17,6 +17,7 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -65,6 +66,7 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alpha.spendtracker.ui.theme.scaledByFont
 import com.alpha.spendtracker.ui.components.APP_PRESETS
 import com.alpha.spendtracker.ui.components.AppPreset
 import com.alpha.spendtracker.ui.components.NotificationType
@@ -191,9 +193,11 @@ fun AddSpendScreen(
             item { SectionTitle("Select Payment App & Wallet") }
 
             item {
+                // Scales with the font scale so the preset grid keeps showing about the same
+                // number of rows instead of shrinking to one and a half as the tiles grow.
                 Box(modifier = Modifier
                     .fillMaxWidth()
-                    .height(260.dp)) {
+                    .height(260.dp.scaledByFont())) {
                     LazyVerticalGrid(
                         columns = GridCells.Fixed(3),
                         modifier = Modifier.fillMaxSize(),
@@ -307,7 +311,7 @@ fun AddSpendScreen(
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .height(56.dp),
+                        .heightIn(min = 56.dp),
                     shape = RoundedCornerShape(18.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
@@ -390,11 +394,11 @@ private fun AmountInputCard(
                         Text(
                             "0.00",
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Black)
+                            style = MaterialTheme.typography.displaySmall
                         )
                     },
                     textStyle = MaterialTheme.typography.displaySmall.copy(
-                        fontWeight = FontWeight.Black,
+                        fontWeight = FontWeight.Bold,
                         textAlign = TextAlign.Start,
                         color = MaterialTheme.colorScheme.onSurface
                     ),

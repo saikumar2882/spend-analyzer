@@ -11,10 +11,10 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Notes
 import androidx.compose.material.icons.rounded.*
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -25,12 +25,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.util.findActivity
 import java.text.SimpleDateFormat
 import java.util.Calendar
-
-import androidx.compose.runtime.saveable.rememberSaveable
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -169,7 +168,7 @@ fun BillTrackingBottomSheet(
                 value = notes,
                 onValueChange = { notes = it },
                 label = { Text("Description") },
-                leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Notes, null) },
+                leadingIcon = { Icon(Icons.Rounded.Description, null) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 singleLine = true
@@ -228,7 +227,7 @@ fun BillTrackingBottomSheet(
             ) {
                 OutlinedButton(
                     onClick = onCancel,
-                    modifier = Modifier.weight(1f).height(56.dp),
+                    modifier = Modifier.weight(1f).heightIn(min = 56.dp),
                     shape = RoundedCornerShape(16.dp)
                 ) { Text("Cancel") }
 
@@ -246,7 +245,7 @@ fun BillTrackingBottomSheet(
                             )
                         )
                     },
-                    modifier = Modifier.weight(1.3f).height(56.dp),
+                    modifier = Modifier.weight(1.3f).heightIn(min = 56.dp),
                     shape = RoundedCornerShape(16.dp),
                     enabled = amount.isNotBlank() && (amount.toDoubleOrNull() ?: 0.0) > 0
                 ) {

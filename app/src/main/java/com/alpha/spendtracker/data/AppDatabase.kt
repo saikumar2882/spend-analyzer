@@ -11,7 +11,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Spend::class, ChatMessage::class, SpendHistory::class, RecurringBill::class, Note::class, NoteEntry::class, NoteHistory::class], version = 21, exportSchema = false)
+@Database(entities = [Spend::class, ChatMessage::class, SpendHistory::class, RecurringBill::class, Note::class, NoteEntry::class, NoteHistory::class], version = 21, exportSchema = true)
 @TypeConverters(NoteConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun spendDao(): SpendDao

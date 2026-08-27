@@ -1,6 +1,6 @@
 /**
  * Shared modal date-range picker used by the time-based filters on the
- * History and Lend/Borrow screens.
+ * History and Dues screens.
  */
 package com.alpha.spendtracker.ui.components
 

@@ -46,7 +46,7 @@ fun AppAvatar(
         Text(
             text = initials,
             style = MaterialTheme.typography.titleMedium.copy(
-                fontWeight = FontWeight.ExtraBold,
+                fontWeight = FontWeight.Bold,
                 color = color,
                 fontSize = (size.value * 0.36f).sp
             )

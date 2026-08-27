@@ -55,9 +55,6 @@ interface SpendDao {
     @Query("DELETE FROM spend_history WHERE historyUuid = :historyUuid")
     suspend fun deleteHistoryByUuid(historyUuid: String)
 
-    @Query("UPDATE spend_history SET deleted = 1, updatedAt = :now WHERE userId = :userId AND historyType = :type AND deleted = 0")
-    suspend fun tombstoneHistoryByType(userId: String, type: String, now: Long)
-
     // Scoped clears so the main-history trash and the lend/borrow trash empty independently.
     @Query("UPDATE spend_history SET deleted = 1, updatedAt = :now WHERE userId = :userId AND historyType = :type AND deleted = 0 AND purpose IN ('Lending', 'Borrowing')")
     suspend fun tombstoneLendBorrowHistoryByType(userId: String, type: String, now: Long)
@@ -67,4 +64,15 @@ interface SpendDao {
 
     @Query("DELETE FROM spend_history WHERE recordedAt < :threshold")
     suspend fun deleteOldHistory(threshold: Long)
+
+    // Intentionally matches soft-deleted tombstones too: if the user deleted this
+    // month's auto-logged bill spend, the RecurringBillWorker must not re-create it.
+    @Query("SELECT * FROM spends WHERE userId = :userId AND appName = :appName AND purpose = :purpose AND timestamp >= :startTime AND timestamp <= :endTime LIMIT 1")
+    suspend fun findMatchingSpend(
+        userId: String,
+        appName: String,
+        purpose: String,
+        startTime: Long,
+        endTime: Long
+    ): Spend?
 }

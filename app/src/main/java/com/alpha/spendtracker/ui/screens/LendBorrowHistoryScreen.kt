@@ -21,6 +21,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.SpendHistory
 import com.alpha.spendtracker.ui.components.HistoryRecordCard
+import com.alpha.spendtracker.ui.icons.AppIcons
 
 /**
  * Reusable Recycle Bin + Update History screen for spend records. Used both for the
@@ -194,7 +195,7 @@ fun TransactionHistoryScreen(
             Box(modifier = Modifier.weight(1f).fillMaxWidth(), contentAlignment = Alignment.Center) {
                 Column(horizontalAlignment = Alignment.CenterHorizontally) {
                     Icon(
-                        if (isDeletedView) Icons.Rounded.AutoDelete else Icons.Rounded.History,
+                        if (isDeletedView) Icons.Rounded.AutoDelete else AppIcons.History,
                         contentDescription = null,
                         modifier = Modifier.size(64.dp),
                         tint = MaterialTheme.colorScheme.outline.copy(alpha = 0.3f)
@@ -238,7 +239,7 @@ fun LendBorrowHistoryScreen(
     onBack: () -> Unit
 ) {
     TransactionHistoryScreen(
-        title = "Lend & Borrow History",
+        title = "Dues History",
         deletedHistory = deletedHistory,
         updatedHistory = updatedHistory,
         onRestoreHistory = onRestoreHistory,

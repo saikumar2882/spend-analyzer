@@ -125,3 +125,39 @@ val CatDark_Ecommerce = Color(0xFFE86CA5)   // vivid rose
 val CatDark_Banking = Color(0xFF9D7CF0)     // vivid violet
 val CatDark_Lending = Color(0xFF2ED4A6)     // vivid teal-green
 val CatDark_Other = Color(0xFF8B909C)       // neutral grey
+
+// ----- Harmonized Purpose Colors (donut slices & legends on the "Purpose" tab) -----
+// Replaces the stock 2014 Material hexes that used to sit inline in SpendingCharts — those were
+// wired straight to the primary Material hues, so they read as a different design system than the
+// Cat* set next to them and their lightness jumped around (#FBC02D next to #5D4037).
+//
+// This set holds chroma and lightness roughly constant across all ten hues so no slice shouts, and
+// keeps the app's money semantics: Lending borrows the "money in" teal/mint, Borrowing the
+// "money out" rose. Ordered by hue so adjacent slices stay distinguishable.
+val PurposeLight_Food = Color(0xFF2F9E5E)          // green
+val PurposeLight_Shopping = Color(0xFFE08A2E)      // amber
+val PurposeLight_Lending = Color(0xFF0C8174)       // teal — "money in"
+val PurposeLight_Borrowing = Color(0xFFD14079)     // rose — "money out"
+val PurposeLight_CreditCard = Color(0xFF7A5AE0)    // violet
+val PurposeLight_Utilities = Color(0xFF3E6FD9)     // slate blue
+val PurposeLight_Travel = Color(0xFF0E8FA8)        // cyan
+val PurposeLight_Leisure = Color(0xFFA94BC4)       // magenta-purple
+val PurposeLight_Health = Color(0xFFD2453C)        // red
+val PurposeLight_Other = Color(0xFF7C8290)         // neutral grey
+
+val PurposeDark_Food = Color(0xFF4FD188)
+val PurposeDark_Shopping = Color(0xFFF2A44F)
+val PurposeDark_Lending = Color(0xFF3FE0C4)        // matches BrandAccentMint
+val PurposeDark_Borrowing = Color(0xFFFF93A6)      // matches DarkTertiary
+val PurposeDark_CreditCard = Color(0xFFA48BFF)
+val PurposeDark_Utilities = Color(0xFF6E9BFF)
+val PurposeDark_Travel = Color(0xFF45BDD6)
+val PurposeDark_Leisure = Color(0xFFD07FE8)
+val PurposeDark_Health = Color(0xFFFF7A72)
+val PurposeDark_Other = Color(0xFF939AA8)
+
+// ----- On-gradient accents -----
+// The hero card paints its own indigo->rose gradient, so colorScheme.error/secondary don't have
+// enough contrast against it. These two are the gradient-safe stand-ins for the same semantics.
+val OnGradientMoneyUp = Color(0xFFFFB4BC)     // soft coral — spending increased
+val OnGradientMoneyDown = BrandAccentMint     // mint — spending decreased

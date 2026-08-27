@@ -8,8 +8,8 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Bolt
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -23,6 +23,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.BrandGradientEnd
 import com.alpha.spendtracker.ui.theme.BrandGradientMid
 import com.alpha.spendtracker.ui.theme.BrandGradientStart
@@ -33,11 +34,17 @@ fun AiInputBottomSheet(
     onProcess: (String) -> Unit,
     onDismiss: () -> Unit,
     remainingRequests: Int,
-    sheetState: SheetState = rememberModalBottomSheetState()
+    sheetState: SheetState = rememberModalBottomSheetState(),
+    errorMessage: String? = null
 ) {
     var textInput by remember { mutableStateOf("") }
     var isProcessing by remember { mutableStateOf(false) }
     val focusRequester = remember { FocusRequester() }
+
+    // A failed parse leaves the spinner spinning otherwise, with no way back to the field.
+    LaunchedEffect(errorMessage) {
+        if (errorMessage != null) isProcessing = false
+    }
 
     LaunchedEffect(Unit) {
         // Delay slightly to ensure sheet is visible before requesting focus
@@ -77,7 +84,7 @@ fun AiInputBottomSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Rounded.AutoAwesome,
+                            AppIcons.Ai,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)
@@ -88,7 +95,7 @@ fun AiInputBottomSheet(
                         Text(
                             text = "Quick AI Log",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.ExtraBold,
+                                fontWeight = FontWeight.Bold,
                                 letterSpacing = (-0.3).sp
                             ),
                             color = MaterialTheme.colorScheme.onSurface
@@ -153,6 +160,32 @@ fun AiInputBottomSheet(
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = if (usageRatio > 0.8f) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
                 )
+            }
+
+            if (errorMessage != null && !isProcessing) {
+                Row(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .background(
+                            MaterialTheme.colorScheme.errorContainer,
+                            RoundedCornerShape(14.dp)
+                        )
+                        .padding(14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        Icons.Rounded.ErrorOutline,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onErrorContainer,
+                        modifier = Modifier.size(18.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Text(
+                        text = errorMessage,
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onErrorContainer
+                    )
+                }
             }
 
             if (isProcessing) {

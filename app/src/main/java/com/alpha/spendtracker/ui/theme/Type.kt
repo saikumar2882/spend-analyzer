@@ -43,14 +43,24 @@ val Grotesk = FontFamily(
 )
 
 /**
- * Currency / numeric style — Space Grotesk with tabular figures so digits keep a constant width
- * (totals don't jiggle when they animate or update). Use for ₹ amounts and counters.
+ * Turns any step of the type scale into a currency style: Space Grotesk, tabular figures so digits
+ * keep a constant width (totals don't jiggle as they count up).
+ *
+ * Deliberately a modifier on the existing scale rather than a parallel set of money sizes — amounts
+ * stay locked to the same steps as everything around them.
+ *
+ * Weight tops out at [FontWeight.Bold] (700) on purpose: that is the heaviest instance the bundled
+ * variable fonts actually carry, so the `ExtraBold`/`Black` this replaces was being faux-bolded by
+ * the rasterizer — visibly different from real Bold, and inconsistent across API levels.
  */
-val MoneyStyle = TextStyle(
+fun TextStyle.asMoney(): TextStyle = copy(
     fontFamily = Grotesk,
     fontWeight = FontWeight.Bold,
     fontFeatureSettings = "tnum",
-    letterSpacing = (-0.5).sp,
+    // Tracking is left at zero deliberately. Tabular figures already give every digit an identical
+    // advance, so tightening on top of that only crowds them — and Space Grotesk's ₹ has a long
+    // crossbar that ran straight into the first digit at the -0.5sp these call sites used to pass.
+    letterSpacing = 0.sp,
 )
 
 val Typography = Typography(

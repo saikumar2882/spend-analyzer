@@ -12,6 +12,9 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+
+import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.imePadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.statusBarsPadding
@@ -55,6 +58,7 @@ import androidx.credentials.CustomCredential
 import androidx.credentials.GetCredentialRequest
 import androidx.credentials.exceptions.GetCredentialException
 import androidx.credentials.exceptions.NoCredentialException
+import androidx.credentials.exceptions.GetCredentialCancellationException
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.ui.theme.BrandGradientEnd
 import com.alpha.spendtracker.ui.theme.BrandGradientMid
@@ -65,7 +69,8 @@ import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.GoogleAuthProvider
 import kotlinx.coroutines.launch
-import java.security.SecureRandom
+import kotlinx.coroutines.tasks.await
+import java.security.MessageDigest
 
 /**
  * Shared branded layout for the auth screens (Sign In / Register): gradient
@@ -91,8 +96,17 @@ fun AuthScaffold(
                     )
                 )
             )
+            // ⚠️ Must sit *outside* verticalScroll, and the app draws edge-to-edge with no
+            // windowSoftInputMode, so without it the IME simply overlaid the card: the password
+            // field ended up under the keyboard and the scroll container — sized to the full window,
+            // keyboard included — had nothing left to scroll, so there was no way to reach it.
+            // Applied here the viewport shrinks to the space above the keyboard and both fields
+            // stay reachable. It goes after `background` so the gradient still fills the window.
+            .imePadding()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 24.dp, vertical = 32.dp),
+            // Tighter than the 24dp this used to carry: between this and the card's own inset the
+            // fields were left ~170dp of text width, which is narrower than a typical email address.
+            .padding(horizontal = 16.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
         Spacer(modifier = Modifier.height(24.dp))
@@ -120,7 +134,7 @@ fun AuthScaffold(
 
         Text(
             text = stringResource(R.string.app_name),
-            style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.ExtraBold),
+            style = MaterialTheme.typography.displaySmall,
             color = MaterialTheme.colorScheme.onSurface
         )
         Spacer(modifier = Modifier.height(4.dp))
@@ -140,7 +154,7 @@ fun AuthScaffold(
             elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
         ) {
             Column(
-                modifier = Modifier.padding(24.dp),
+                modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
@@ -175,13 +189,13 @@ fun GoogleButton(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .height(54.dp),
+            .heightIn(min = 54.dp),
         shape = RoundedCornerShape(16.dp),
         border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
     ) {
         Text(
             text = "G",
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.ExtraBold),
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -191,12 +205,6 @@ fun GoogleButton(
             color = MaterialTheme.colorScheme.onSurface
         )
     }
-}
-
-private fun generateNonce(): String {
-    val bytes = ByteArray(32)
-    SecureRandom().nextBytes(bytes)
-    return Base64.encodeToString(bytes, Base64.NO_WRAP or Base64.URL_SAFE or Base64.NO_PADDING)
 }
 
 /**
@@ -211,9 +219,7 @@ fun rememberGoogleSignIn(
     onError: (String) -> Unit
 ): () -> Unit {
     val context = LocalContext.current
-    val activity = remember(context) { context.findActivity() }
     val googleServerClientId = stringResource(R.string.default_web_client_id)
-    android.util.Log.d("GoogleSignIn", "Client ID: $googleServerClientId")
     val auth = remember { FirebaseAuth.getInstance() }
     val scope = rememberCoroutineScope()
     val credentialManager = remember(context) { CredentialManager.create(context) }
@@ -222,40 +228,44 @@ fun rememberGoogleSignIn(
         scope.launch {
             try {
                 android.util.Log.d("GoogleSignIn", "Starting sign-in flow")
+                
+                android.util.Log.d("GoogleSignIn", "Client ID: $googleServerClientId")
+                
                 val googleIdOption = GetGoogleIdOption.Builder()
                     .setFilterByAuthorizedAccounts(false)
                     .setServerClientId(googleServerClientId)
-                    .setAutoSelectEnabled(true)
-                    .setNonce(generateNonce())
+                    .setAutoSelectEnabled(false)
                     .build()
 
                 val request = GetCredentialRequest.Builder()
                     .addCredentialOption(googleIdOption)
                     .build()
 
-                val result = activity?.let {
-                    credentialManager.getCredential(request = request, context = it)
-                } ?: throw Exception("Activity not found")
+                // Resolve activity again at the time of click to be safe
+                val currentActivity = context.findActivity()
+                if (currentActivity == null) {
+                    android.util.Log.e("GoogleSignIn", "Activity is null")
+                    onError("Internal error: Activity not found")
+                    return@launch
+                }
+
+                val result = credentialManager.getCredential(request = request, context = currentActivity)
 
                 val credential = result.credential
                 android.util.Log.d("GoogleSignIn", "Credential received: ${credential.type}")
+                
                 if (credential is CustomCredential &&
                     credential.type == GoogleIdTokenCredential.TYPE_GOOGLE_ID_TOKEN_CREDENTIAL
                 ) {
                     val googleIdTokenCredential = GoogleIdTokenCredential.createFrom(credential.data)
                     val idToken = googleIdTokenCredential.idToken
+                    
+                    // No nonce provided to GoogleIdOption, so we pass null here
                     val firebaseCredential = GoogleAuthProvider.getCredential(idToken, null)
 
-                    auth.signInWithCredential(firebaseCredential).addOnCompleteListener { authTask ->
-                        if (authTask.isSuccessful) {
-                            android.util.Log.d("GoogleSignIn", "Firebase sign-in success")
-                            onSuccess()
-                        } else {
-                            val error = authTask.exception?.message ?: "Unknown error"
-                            android.util.Log.e("GoogleSignIn", "Firebase sign-in failed: $error")
-                            onError("Google sign-in failed: $error")
-                        }
-                    }
+                    auth.signInWithCredential(firebaseCredential).await()
+                    android.util.Log.d("GoogleSignIn", "Firebase sign-in success")
+                    onSuccess()
                 } else {
                     android.util.Log.e("GoogleSignIn", "Unexpected credential type: ${credential.type}")
                     onError("Unexpected credential type: ${credential.type}")
@@ -263,12 +273,15 @@ fun rememberGoogleSignIn(
             } catch (e: NoCredentialException) {
                 android.util.Log.e("GoogleSignIn", "NoCredentialException: ${e.message}")
                 onError(
-                    "No Google account found on this device. Add a Google account in " +
-                        "Settings, or use a device/emulator that has Google Play."
+                    "No Google accounts found or sign-in is misconfigured. "
                 )
             } catch (e: GetCredentialException) {
-                android.util.Log.e("GoogleSignIn", "GetCredentialException: ${e.type} - ${e.message}")
-                onError("Google sign-in error: ${e.message}")
+                android.util.Log.e("GoogleSignIn", "GetCredentialException: ${e.message}")
+                if (e !is GetCredentialCancellationException) {
+                    onError("Google sign-in error: ${e.message}")
+                }
+            } catch (e: kotlinx.coroutines.CancellationException) {
+                throw e
             } catch (e: Exception) {
                 android.util.Log.e("GoogleSignIn", "Exception: ${e.message}")
                 onError("An error occurred: ${e.message}")

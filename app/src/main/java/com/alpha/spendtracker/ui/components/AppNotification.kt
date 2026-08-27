@@ -56,13 +56,18 @@ fun AppNotification(
             elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
         ) {
             Row(
-                modifier = Modifier.fillMaxWidth(),
+                // IntrinsicSize.Min so the accent strip below can fillMaxHeight: a fixed 44dp strip
+                // stopped short of the bottom of the card as soon as the message wrapped or the
+                // system font scale grew.
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(IntrinsicSize.Min),
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Box(
                     modifier = Modifier
                         .width(4.dp)
-                        .height(44.dp)
+                        .fillMaxHeight()
                         .background(
                             color = accent,
                             shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)

@@ -12,7 +12,10 @@ import androidx.compose.material3.dynamicDarkColorScheme
 import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.CompositionLocalProvider
+import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
+import androidx.compose.runtime.staticCompositionLocalOf
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -95,6 +98,17 @@ private val LightColorScheme = lightColorScheme(
     onErrorContainer = LightOnErrorContainer
 )
 
+private val LocalAppIsDark = staticCompositionLocalOf { false }
+
+/**
+ * Whether the *app* is currently rendering dark — i.e. the resolved [ThemePreference], not the
+ * device setting. `isSystemInDarkTheme()` answers a different question and gives the wrong answer
+ * whenever the user has overridden the system (Light preference on a dark device, or vice versa),
+ * which showed up as dark chart palettes on a light canvas.
+ */
+val isAppInDarkTheme: Boolean
+    @Composable @ReadOnlyComposable get() = LocalAppIsDark.current
+
 @Composable
 fun MyApplicationTheme(
     darkTheme: Boolean = isSystemInDarkTheme(),
@@ -120,5 +134,7 @@ fun MyApplicationTheme(
         }
     }
 
-    MaterialTheme(colorScheme = colorScheme, typography = Typography, shapes = AppShapes, content = content)
+    CompositionLocalProvider(LocalAppIsDark provides darkTheme) {
+        MaterialTheme(colorScheme = colorScheme, typography = Typography, shapes = AppShapes, content = content)
+    }
 }

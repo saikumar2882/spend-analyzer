@@ -4,12 +4,22 @@
 package com.alpha.spendtracker.data
 
 import android.util.Log
+import com.google.android.gms.tasks.Task
 import com.google.firebase.firestore.DocumentChange
+import com.google.firebase.firestore.DocumentReference
+import com.google.firebase.firestore.DocumentSnapshot
 import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.flow.Flow
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
+import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 
 class SpendRepository(
@@ -23,6 +33,24 @@ class SpendRepository(
     private val tag = "SpendRepository"
     private val syncListeners = mutableListOf<ListenerRegistration>()
 
+    private val _syncStatus = MutableStateFlow(SyncStatus())
+
+    /**
+     * Whether the push to Firestore is currently healthy. Every cloud write failure used to be
+     * swallowed into Logcat, so a user could be indefinitely un-synced with the UI reporting
+     * nothing. Observe this to tell them.
+     */
+    val syncStatus: StateFlow<SyncStatus> = _syncStatus.asStateFlow()
+
+    private companion object {
+        /**
+         * A Firestore batch rejects more than 500 writes. Every bulk path here builds its batch
+         * from an unbounded query, so they are chunked well under the cap — a heavy user's cleanup
+         * used to fail wholesale (and the failure was only logged, so nothing was ever purged).
+         */
+        const val BATCH_LIMIT = 450
+    }
+
     fun getAllSpends(userId: String): Flow<List<Spend>> = spendDao.getAllSpends(userId)
 
     fun getHistory(userId: String, type: String): Flow<List<SpendHistory>> = spendDao.getHistory(userId, type)
@@ -33,175 +61,124 @@ class SpendRepository(
      */
     fun startSync(userId: String, scope: CoroutineScope) {
         stopSync()
-        
+
         val userDoc = firestore.collection("users").document(userId)
 
-        // 1. Spends Listener
-        syncListeners.add(userDoc.collection("spends")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) { Log.w(tag, "Spends listen failed.", e); return@addSnapshotListener }
-                snapshot?.documentChanges?.forEach { change ->
-                    val spend = change.document.toObject(Spend::class.java)
-                    scope.launch {
-                        when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                // Last-write-wins: apply the cloud copy when it is at least as new
-                                // as the local row. We compare with >= (not strict >) so records
-                                // whose updatedAt collides on the same baseline — legacy docs with
-                                // no updatedAt that deserialize to 0, or migration-seeded rows —
-                                // still get every field populated (notably the person's name in
-                                // `notes` and the `category`) instead of being silently skipped.
-                                // A strictly-newer local edit (larger updatedAt) is still preserved.
-                                val localUpdatedAt = spendDao.getSpendUpdatedAt(spend.uuid)
-                                if (localUpdatedAt == null || spend.updatedAt >= localUpdatedAt) {
-                                    spendDao.insertSpend(spend)
-                                }
-                            }
-                            // Deletes arrive as MODIFIED with deleted=true (soft-delete
-                            // tombstones). REMOVED now only fires for tombstone purges and
-                            // legacy hard deletes — mirror the purge locally.
-                            DocumentChange.Type.REMOVED -> spendDao.deleteSpend(spend)
-                        }
-                    }
-                }
-            })
+        startCollectionSync(
+            userDoc, "spends", Spend::class.java, scope,
+            remoteUpdatedAt = { it.updatedAt },
+            localUpdatedAt = { spendDao.getSpendUpdatedAt(it.uuid) },
+            upsert = { spendDao.insertSpend(it) },
+            // Deletes arrive as MODIFIED with deleted=true (soft-delete tombstones). REMOVED now
+            // only fires for tombstone purges and legacy hard deletes — mirror the purge locally.
+            purge = { spendDao.deleteSpend(it) }
+        )
 
-        // 2. Recurring Bills Listener
-        syncListeners.add(userDoc.collection("recurring_bills")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) { Log.w(tag, "Bills listen failed.", e); return@addSnapshotListener }
-                snapshot?.documentChanges?.forEach { change ->
-                    val bill = change.document.toObject(RecurringBill::class.java)
-                    scope.launch {
-                        when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                // Last-write-wins: apply the cloud copy when it is at least as new
-                                // as the local row (>= so colliding/legacy baselines still fully
-                                // populate every field, e.g. name and notes). A strictly-newer
-                                // local edit is preserved.
-                                val localUpdatedAt = recurringBillDao.getRecurringBillUpdatedAt(bill.uuid)
-                                if (localUpdatedAt == null || bill.updatedAt >= localUpdatedAt) {
-                                    recurringBillDao.insertRecurringBill(bill)
-                                }
-                            }
-                            // Deletes arrive as MODIFIED with deleted=true; REMOVED only
-                            // fires for tombstone purges and legacy hard deletes.
-                            DocumentChange.Type.REMOVED -> recurringBillDao.deleteRecurringBill(bill)
-                        }
-                    }
-                }
-            })
+        startCollectionSync(
+            userDoc, "recurring_bills", RecurringBill::class.java, scope,
+            remoteUpdatedAt = { it.updatedAt },
+            localUpdatedAt = { recurringBillDao.getRecurringBillUpdatedAt(it.uuid) },
+            upsert = { recurringBillDao.insertRecurringBill(it) },
+            purge = { recurringBillDao.deleteRecurringBill(it) }
+        )
 
-        // 3. History Listener
-        syncListeners.add(userDoc.collection("history")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) { Log.w(tag, "History listen failed.", e); return@addSnapshotListener }
-                snapshot?.documentChanges?.forEach { change ->
-                    val history = change.document.toObject(SpendHistory::class.java)
-                    scope.launch {
-                        when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                // Same last-write-wins gate as spends — keeps a stale cloud
-                                // copy from overwriting a newer local tombstone.
-                                val localUpdatedAt = spendDao.getHistoryUpdatedAt(history.historyUuid)
-                                if (localUpdatedAt == null || history.updatedAt >= localUpdatedAt) {
-                                    spendDao.insertHistory(history)
-                                }
-                            }
-                            // REMOVED only fires when the 30-day cleanup purges docs.
-                            DocumentChange.Type.REMOVED -> spendDao.deleteHistoryByUuid(history.historyUuid)
-                        }
-                    }
-                }
-            })
+        startCollectionSync(
+            userDoc, "history", SpendHistory::class.java, scope,
+            remoteUpdatedAt = { it.updatedAt },
+            localUpdatedAt = { spendDao.getHistoryUpdatedAt(it.historyUuid) },
+            upsert = { spendDao.insertHistory(it) },
+            // REMOVED only fires when the 30-day cleanup purges docs.
+            purge = { spendDao.deleteHistoryByUuid(it.historyUuid) }
+        )
 
-        // 4. Chat Messages Listener
-        syncListeners.add(userDoc.collection("chat_messages")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) { Log.w(tag, "Chat listen failed.", e); return@addSnapshotListener }
-                snapshot?.documentChanges?.forEach { change ->
-                    val message = change.document.toObject(ChatMessage::class.java)
-                    scope.launch {
-                        when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                // Same last-write-wins gate as spends — keeps a stale cloud
-                                // copy from overwriting a newer local tombstone.
-                                val localUpdatedAt = chatDao.getMessageUpdatedAt(message.uuid)
-                                if (localUpdatedAt == null || message.updatedAt >= localUpdatedAt) {
-                                    chatDao.insertMessage(message)
-                                }
-                            }
-                            // REMOVED only fires when the 12-hour TTL cleanup purges docs.
-                            DocumentChange.Type.REMOVED -> chatDao.deleteMessageByUuid(message.uuid)
-                        }
-                    }
-                }
-            })
+        startCollectionSync(
+            userDoc, "chat_messages", ChatMessage::class.java, scope,
+            remoteUpdatedAt = { it.updatedAt },
+            localUpdatedAt = { chatDao.getMessageUpdatedAt(it.uuid) },
+            upsert = { chatDao.insertMessage(it) },
+            // REMOVED only fires when the 12-hour TTL cleanup purges docs.
+            purge = { chatDao.deleteMessageByUuid(it.uuid) }
+        )
 
-        // 5. Notes Listener
-        syncListeners.add(userDoc.collection("notes")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) { Log.w(tag, "Notes listen failed.", e); return@addSnapshotListener }
-                snapshot?.documentChanges?.forEach { change ->
-                    val note = change.document.toObject(Note::class.java)
-                    scope.launch {
-                        when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                // Same last-write-wins gate as spends — keeps a stale cloud
-                                // copy from overwriting a newer local tombstone/edit.
-                                val localUpdatedAt = notesDao.getNoteUpdatedAt(note.uuid)
-                                if (localUpdatedAt == null || note.updatedAt >= localUpdatedAt) {
-                                    notesDao.insertNote(note)
-                                }
-                            }
-                            // Deletes arrive as MODIFIED with deleted=true; REMOVED only
-                            // fires for tombstone purges and legacy hard deletes.
-                            DocumentChange.Type.REMOVED -> notesDao.deleteNote(note)
-                        }
-                    }
-                }
-            })
+        startCollectionSync(
+            userDoc, "notes", Note::class.java, scope,
+            remoteUpdatedAt = { it.updatedAt },
+            localUpdatedAt = { notesDao.getNoteUpdatedAt(it.uuid) },
+            upsert = { notesDao.insertNote(it) },
+            purge = { notesDao.deleteNote(it) }
+        )
 
-        // 6. Note Entries Listener
-        syncListeners.add(userDoc.collection("note_entries")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) { Log.w(tag, "Note entries listen failed.", e); return@addSnapshotListener }
-                snapshot?.documentChanges?.forEach { change ->
-                    val entry = change.document.toObject(NoteEntry::class.java)
-                    scope.launch {
-                        when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                val localUpdatedAt = notesDao.getNoteEntryUpdatedAt(entry.uuid)
-                                if (localUpdatedAt == null || entry.updatedAt >= localUpdatedAt) {
-                                    notesDao.insertNoteEntry(entry)
-                                }
-                            }
-                            DocumentChange.Type.REMOVED -> notesDao.deleteNoteEntry(entry)
-                        }
-                    }
-                }
-            })
+        startCollectionSync(
+            userDoc, "note_entries", NoteEntry::class.java, scope,
+            remoteUpdatedAt = { it.updatedAt },
+            localUpdatedAt = { notesDao.getNoteEntryUpdatedAt(it.uuid) },
+            upsert = { notesDao.insertNoteEntry(it) },
+            purge = { notesDao.deleteNoteEntry(it) }
+        )
 
-        // 7. Note History Listener
-        syncListeners.add(userDoc.collection("note_history")
-            .addSnapshotListener { snapshot, e ->
-                if (e != null) { Log.w(tag, "Note history listen failed.", e); return@addSnapshotListener }
-                snapshot?.documentChanges?.forEach { change ->
-                    val history = change.document.toObject(NoteHistory::class.java)
-                    scope.launch {
-                        when (change.type) {
-                            DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
-                                val localUpdatedAt = notesDao.getNoteHistoryUpdatedAt(history.historyUuid)
-                                if (localUpdatedAt == null || history.updatedAt >= localUpdatedAt) {
-                                    notesDao.insertNoteHistory(history)
-                                }
+        startCollectionSync(
+            userDoc, "note_history", NoteHistory::class.java, scope,
+            remoteUpdatedAt = { it.updatedAt },
+            localUpdatedAt = { notesDao.getNoteHistoryUpdatedAt(it.historyUuid) },
+            upsert = { notesDao.insertNoteHistory(it) },
+            purge = { notesDao.deleteNoteHistoryByUuid(it.historyUuid) }
+        )
+    }
+
+    /**
+     * Mirrors one owner-scoped Firestore collection into Room, newest write winning.
+     *
+     * Last-write-wins compares with `>=` rather than a strict `>` so records whose updatedAt
+     * collides on the same baseline — legacy docs with no updatedAt that deserialize to 0, or
+     * migration-seeded rows — still get every field populated (notably the person's name in
+     * `notes` and the `category`) instead of being silently skipped. A strictly-newer local edit
+     * (larger updatedAt) is still preserved.
+     *
+     * The whole snapshot is applied in one coroutine under a per-collection [Mutex]. Launching a
+     * coroutine per document change, as this used to, let two changes to the same document run
+     * concurrently and interleave between the read of the local updatedAt and the write that
+     * depends on it — so the older change could win, and a delete could be undone by the live copy
+     * arriving in the same batch.
+     */
+    private fun <T : Any> startCollectionSync(
+        userDoc: DocumentReference,
+        collection: String,
+        type: Class<T>,
+        scope: CoroutineScope,
+        remoteUpdatedAt: (T) -> Long,
+        localUpdatedAt: suspend (T) -> Long?,
+        upsert: suspend (T) -> Unit,
+        purge: suspend (T) -> Unit
+    ) {
+        val mutex = Mutex()
+        syncListeners.add(
+            userDoc.collection(collection).addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.w(tag, "$collection listen failed.", e)
+                    return@addSnapshotListener
+                }
+                val changes = snapshot?.documentChanges ?: return@addSnapshotListener
+                scope.launch {
+                    mutex.withLock {
+                        for (change in changes) {
+                            val item = try {
+                                change.document.toObject(type)
+                            } catch (e: RuntimeException) {
+                                Log.w(tag, "Skipping malformed $collection doc ${change.document.id}", e)
+                                continue
                             }
-                            // REMOVED only fires when the 30-day cleanup purges docs.
-                            DocumentChange.Type.REMOVED -> notesDao.deleteNoteHistoryByUuid(history.historyUuid)
+                            when (change.type) {
+                                DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
+                                    val local = localUpdatedAt(item)
+                                    if (local == null || remoteUpdatedAt(item) >= local) upsert(item)
+                                }
+                                DocumentChange.Type.REMOVED -> purge(item)
+                            }
                         }
                     }
                 }
-            })
+            }
+        )
     }
 
     /**
@@ -212,12 +189,109 @@ class SpendRepository(
         syncListeners.clear()
     }
 
-    suspend fun insert(spend: Spend) {
+    /**
+     * The error boundary for on-device work: runs [block] and converts any platform exception to a
+     * [DataError] failure. Nothing above this layer sees `SQLiteException`.
+     *
+     * A failure here is the serious kind — the write did not land, so the user's action is lost and
+     * the caller must say so instead of reporting success.
+     */
+    private suspend fun <T> localWrite(what: String, block: suspend () -> T): Result<T> =
+        try {
+            Result.success(block())
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(tag, "Local $what failed: ${e.message}", e)
+            Result.failure(e.toDataError())
+        }
+
+    /**
+     * Pushes one document to Firestore **without waiting for the server**, recording real failures
+     * in [syncStatus].
+     *
+     * Not awaited, on purpose. Firestore queues writes in a local mutation queue while offline and
+     * only completes the Task on server ack — so awaiting one suspends until connectivity returns.
+     * These calls sit inside [localWrite], so an awaited push meant the enclosing `Result` never
+     * came back and the UI never reported the save at all while offline, even though Room had
+     * already committed it. Verified against a real offline device: Firestore logs `UNAVAILABLE`
+     * internally and simply never settles the Task.
+     *
+     * A queued write is not a failed one, so plain "no connection" correctly raises nothing here.
+     * The listener fires for genuine rejections — permission denied, quota, malformed data.
+     */
+    private fun firestorePush(what: String, task: Task<Void>) {
+        task
+            .addOnSuccessListener {
+                // A server ack means the connection is healthy; clear any standing degradation.
+                if (_syncStatus.value.isDegraded) _syncStatus.value = SyncStatus()
+            }
+            .addOnFailureListener { e ->
+                Log.e(tag, "Firestore $what failed: ${e.message}", e)
+                val error = e.toDataError()
+                _syncStatus.update {
+                    it.copy(
+                        cloudError = error,
+                        degradedSince = it.degradedSince ?: System.currentTimeMillis()
+                    )
+                }
+            }
+    }
+
+    /**
+     * Runs a Firestore write. Failures are recorded in [syncStatus] rather than propagated: the
+     * Room write has already landed and [SyncWorker] re-uploads on its next pass, so a transient
+     * network error must not fail the user's action — but it must not vanish either, which is what
+     * logging alone did.
+     *
+     * [CancellationException] is rethrown instead of being recorded as a failure. The broad
+     * `catch (e: Exception)` this replaces swallowed it, so when the ViewModel scope was cancelled
+     * mid-`await()` the coroutine carried on doing work in a scope that no longer existed.
+     */
+    private suspend fun firestoreWrite(what: String, block: suspend () -> Unit) {
+        try {
+            block()
+            // Any successful write means the connection is back; clear the degraded flag.
+            if (_syncStatus.value.isDegraded) _syncStatus.value = SyncStatus()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.e(tag, "Firestore $what failed: ${e.message}", e)
+            val error = e.toDataError()
+            _syncStatus.update {
+                it.copy(
+                    cloudError = error,
+                    degradedSince = it.degradedSince ?: System.currentTimeMillis()
+                )
+            }
+        }
+    }
+
+    /** Deletes [docs] in batches that stay under Firestore's 500-write commit cap. */
+    private suspend fun batchDelete(docs: List<DocumentSnapshot>) {
+        docs.chunked(BATCH_LIMIT).forEach { chunk ->
+            val batch = firestore.batch()
+            chunk.forEach { batch.delete(it.reference) }
+            batch.commit().await()
+        }
+    }
+
+    /** Marks [docs] deleted in batches that stay under Firestore's 500-write commit cap. */
+    private suspend fun batchTombstone(docs: List<DocumentSnapshot>, now: Long) {
+        val fields = mapOf("deleted" to true, "updatedAt" to now)
+        docs.chunked(BATCH_LIMIT).forEach { chunk ->
+            val batch = firestore.batch()
+            chunk.forEach { batch.update(it.reference, fields) }
+            batch.commit().await()
+        }
+    }
+
+    suspend fun insert(spend: Spend): Result<Unit> = localWrite("spend insert") {
         // Stamp the local mutation time so last-write-wins sync can resolve conflicts.
-        val spend = spend.copy(updatedAt = System.currentTimeMillis())
+        val stamped = spend.copy(updatedAt = System.currentTimeMillis())
         // For updates, we log the previous state
-        val existing = spendDao.getSpendByUuid(spend.uuid)
-        if (existing != null && (existing.amount != spend.amount || existing.notes != spend.notes || existing.purpose != spend.purpose)) {
+        val existing = spendDao.getSpendByUuid(stamped.uuid)
+        if (existing != null && (existing.amount != stamped.amount || existing.notes != stamped.notes || existing.purpose != stamped.purpose)) {
             val history = SpendHistory(
                 historyUuid = java.util.UUID.randomUUID().toString(),
                 spendUuid = existing.uuid,
@@ -237,16 +311,16 @@ class SpendRepository(
             syncHistoryToFirestore(history)
         }
 
-        spendDao.insertSpend(spend)
-        syncToFirestore(spend)
+        spendDao.insertSpend(stamped)
+        syncToFirestore(stamped)
     }
 
     // The active spend previously logged from [noteUuid], if any — used by
     // logNoteAsTransaction to upsert (update-in-place) instead of creating duplicates.
-    suspend fun getActiveSpendByNoteUuid(userId: String, noteUuid: String): Spend? =
-        spendDao.getActiveSpendByNoteUuid(userId, noteUuid)
+    suspend fun getActiveSpendByNoteUuid(userId: String, noteUuid: String): Result<Spend?> =
+        localWrite("note-linked spend lookup") { spendDao.getActiveSpendByNoteUuid(userId, noteUuid) }
 
-    suspend fun delete(spend: Spend) {
+    suspend fun delete(spend: Spend): Result<Unit> = localWrite("spend delete") {
         // Move to history
         val history = SpendHistory(
             historyUuid = java.util.UUID.randomUUID().toString(),
@@ -278,7 +352,7 @@ class SpendRepository(
         syncToFirestore(tombstone)
     }
 
-    suspend fun restoreFromHistory(history: SpendHistory) {
+    suspend fun restoreFromHistory(history: SpendHistory): Result<Unit> = localWrite("spend restore") {
         val spend = Spend(
             uuid = history.spendUuid,
             userId = history.userId,
@@ -301,9 +375,8 @@ class SpendRepository(
         tombstoneHistory(history)
     }
 
-    suspend fun permanentlyDeleteHistory(history: SpendHistory) {
-        tombstoneHistory(history)
-    }
+    suspend fun permanentlyDeleteHistory(history: SpendHistory): Result<Unit> =
+        localWrite("history delete") { tombstoneHistory(history) }
 
     // Removing a history entry is also a soft delete, for the same resurrection reason
     // as spends. The tombstone keeps recordedAt, so the regular 30-day cleanup purges it.
@@ -318,11 +391,11 @@ class SpendRepository(
      * regular ones so the two trash views empty independently. Tombstones in place instead of
      * deleting — a hard delete would be undone by another device's SyncWorker re-upload.
      */
-    suspend fun clearHistory(userId: String, type: String, lendBorrow: Boolean) {
+    suspend fun clearHistory(userId: String, type: String, lendBorrow: Boolean): Result<Unit> = localWrite("clear history") {
         val now = System.currentTimeMillis()
         if (lendBorrow) spendDao.tombstoneLendBorrowHistoryByType(userId, type, now)
         else spendDao.tombstoneRegularHistoryByType(userId, type, now)
-        try {
+        firestoreWrite("clear $type history") {
             val snapshot = firestore.collection("users")
                 .document(userId)
                 .collection("history")
@@ -332,52 +405,30 @@ class SpendRepository(
 
             // Firestore can't range/IN filter without a composite index here, so scope by
             // purpose client-side to match the local query above.
-            val batch = firestore.batch()
-            snapshot.documents
-                .filter { doc ->
-                    val purpose = doc.getString("purpose")
-                    val isLendBorrow = purpose == "Lending" || purpose == "Borrowing"
-                    if (lendBorrow) isLendBorrow else !isLendBorrow
-                }
-                .forEach { batch.update(it.reference, mapOf("deleted" to true, "updatedAt" to now)) }
-            batch.commit().await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error clearing history from Firestore: ${e.message}")
+            val scoped = snapshot.documents.filter { doc ->
+                val purpose = doc.getString("purpose")
+                val isLendBorrow = purpose == "Lending" || purpose == "Borrowing"
+                if (lendBorrow) isLendBorrow else !isLendBorrow
+            }
+            batchTombstone(scoped, now)
         }
     }
 
-    suspend fun cleanupOldHistory(userId: String, days: Int = 30) {
+    suspend fun cleanupOldHistory(userId: String, days: Int = 30): Result<Unit> = localWrite("history cleanup") {
         val threshold = System.currentTimeMillis() - (days.toLong() * 24 * 60 * 60 * 1000)
         spendDao.deleteOldHistory(threshold)
         notesDao.deleteOldNoteHistory(threshold)
-        try {
-            val snapshot = firestore.collection("users")
-                .document(userId)
-                .collection("history")
-                .whereLessThan("recordedAt", threshold)
-                .get()
-                .await()
-
-            val batch = firestore.batch()
-            snapshot.documents.forEach { batch.delete(it.reference) }
-            batch.commit().await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error cleaning up old history from Firestore: ${e.message}")
-        }
-        // Same recordedAt-based purge for the notes history collection.
-        try {
-            val snapshot = firestore.collection("users")
-                .document(userId)
-                .collection("note_history")
-                .whereLessThan("recordedAt", threshold)
-                .get()
-                .await()
-
-            val batch = firestore.batch()
-            snapshot.documents.forEach { batch.delete(it.reference) }
-            batch.commit().await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error cleaning up old note history from Firestore: ${e.message}")
+        // Same recordedAt-based purge for both history collections.
+        for (collection in listOf("history", "note_history")) {
+            firestoreWrite("cleanup old $collection") {
+                val snapshot = firestore.collection("users")
+                    .document(userId)
+                    .collection(collection)
+                    .whereLessThan("recordedAt", threshold)
+                    .get()
+                    .await()
+                batchDelete(snapshot.documents)
+            }
         }
         cleanupOldTombstones(userId, threshold)
     }
@@ -395,7 +446,7 @@ class SpendRepository(
         notesDao.deleteOldNoteTombstones(threshold)
         notesDao.deleteOldNoteEntryTombstones(threshold)
         for (collection in listOf("spends", "recurring_bills", "notes", "note_entries")) {
-            try {
+            firestoreWrite("cleanup $collection tombstones") {
                 // Equality-only query, filtered client-side on updatedAt: combining it with
                 // a range clause would require a Firestore composite index.
                 val snapshot = firestore.collection("users")
@@ -404,41 +455,30 @@ class SpendRepository(
                     .whereEqualTo("deleted", true)
                     .get()
                     .await()
-
-                val batch = firestore.batch()
-                snapshot.documents
-                    .filter { (it.getLong("updatedAt") ?: 0L) < threshold }
-                    .forEach { batch.delete(it.reference) }
-                batch.commit().await()
-            } catch (e: Exception) {
-                Log.e(tag, "Error cleaning up old $collection tombstones from Firestore: ${e.message}")
+                batchDelete(snapshot.documents.filter { (it.getLong("updatedAt") ?: 0L) < threshold })
             }
         }
     }
 
-    suspend fun cleanupOldChatMessages(userId: String, hours: Int = 12) {
+    suspend fun cleanupOldChatMessages(userId: String, hours: Int = 12): Result<Unit> = localWrite("chat cleanup") {
         val threshold = System.currentTimeMillis() - (hours.toLong() * 60 * 60 * 1000)
         chatDao.deleteOldMessages(threshold)
-        try {
+        firestoreWrite("cleanup old chat messages") {
             val snapshot = firestore.collection("users")
                 .document(userId)
                 .collection("chat_messages")
                 .whereLessThan("timestamp", threshold)
                 .get()
                 .await()
-            
-            val batch = firestore.batch()
-            snapshot.documents.forEach { batch.delete(it.reference) }
-            batch.commit().await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error cleaning up old chat messages from Firestore: ${e.message}")
+            batchDelete(snapshot.documents)
         }
     }
 
-    suspend fun deleteByUuid(uuid: String, userId: String) {
+    suspend fun deleteByUuid(uuid: String, userId: String): Result<Unit> = localWrite("spend delete by uuid") {
         val existing = spendDao.getSpendByUuid(uuid)
         if (existing != null) {
-            delete(existing)
+            // Already inside the boundary, so unwrap rather than nesting a Result in a Result.
+            delete(existing).getOrThrow()
         } else {
             // No local row to build a tombstone from — fall back to a hard delete.
             spendDao.deleteSpendByUuid(uuid)
@@ -448,43 +488,44 @@ class SpendRepository(
 
     fun getAllRecurringBills(userId: String): Flow<List<RecurringBill>> = recurringBillDao.getAllRecurringBills(userId)
 
-    suspend fun insertRecurringBill(bill: RecurringBill) {
+    suspend fun insertRecurringBill(bill: RecurringBill): Result<Unit> = localWrite("bill insert") {
         // Stamp the local mutation time so last-write-wins sync can resolve conflicts.
-        val bill = bill.copy(updatedAt = System.currentTimeMillis())
-        recurringBillDao.insertRecurringBill(bill)
-        syncRecurringBillToFirestore(bill)
+        val stamped = bill.copy(updatedAt = System.currentTimeMillis())
+        recurringBillDao.insertRecurringBill(stamped)
+        syncRecurringBillToFirestore(stamped)
     }
 
-    suspend fun deleteRecurringBill(bill: RecurringBill) {
+    suspend fun deleteRecurringBill(bill: RecurringBill): Result<Unit> = localWrite("bill delete") {
         // Soft delete, same as spends — see delete() for the resurrection rationale.
         val tombstone = bill.copy(deleted = true, updatedAt = System.currentTimeMillis())
         recurringBillDao.insertRecurringBill(tombstone)
         syncRecurringBillToFirestore(tombstone)
     }
 
-    suspend fun getBillsDueOn(day: Int): List<RecurringBill> = recurringBillDao.getBillsDueOn(day)
+    suspend fun getBillsDueOn(userId: String, day: Int): Result<List<RecurringBill>> =
+        localWrite("due bills lookup") { recurringBillDao.getBillsDueOn(userId, day) }
 
-    suspend fun findMatchingSpend(userId: String, appName: String, purpose: String, startTime: Long, endTime: Long): Spend? =
-        recurringBillDao.findMatchingSpend(userId, appName, purpose, startTime, endTime)
+    suspend fun findMatchingSpend(userId: String, appName: String, purpose: String, startTime: Long, endTime: Long): Result<Spend?> =
+        localWrite("matching spend lookup") {
+            spendDao.findMatchingSpend(userId, appName, purpose, startTime, endTime)
+        }
 
-    private suspend fun syncRecurringBillToFirestore(bill: RecurringBill) {
-        try {
+    private fun syncRecurringBillToFirestore(bill: RecurringBill) {
+        firestorePush(
+            "recurring bill write",
             firestore.collection("users")
                 .document(bill.userId)
                 .collection("recurring_bills")
                 .document(bill.uuid)
                 .set(bill)
-                .await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error syncing recurring bill to Firestore: ${e.message}")
-        }
+        )
     }
 
-    suspend fun updateRecurringBill(bill: RecurringBill) {
+    suspend fun updateRecurringBill(bill: RecurringBill): Result<Unit> = localWrite("bill update") {
         // Stamp the local mutation time so last-write-wins sync can resolve conflicts.
-        val bill = bill.copy(updatedAt = System.currentTimeMillis())
-        recurringBillDao.insertRecurringBill(bill)
-        syncRecurringBillToFirestore(bill)
+        val stamped = bill.copy(updatedAt = System.currentTimeMillis())
+        recurringBillDao.insertRecurringBill(stamped)
+        syncRecurringBillToFirestore(stamped)
     }
 
     // ---- Notes ----
@@ -496,13 +537,13 @@ class SpendRepository(
 
     fun getAllNoteEntries(userId: String): Flow<List<NoteEntry>> = notesDao.getAllNoteEntries(userId)
 
-    suspend fun insertNote(note: Note) {
-        val note = note.copy(updatedAt = System.currentTimeMillis())
-        notesDao.insertNote(note)
-        syncNoteToFirestore(note)
+    suspend fun insertNote(note: Note): Result<Unit> = localWrite("note insert") {
+        val stamped = note.copy(updatedAt = System.currentTimeMillis())
+        notesDao.insertNote(stamped)
+        syncNoteToFirestore(stamped)
     }
 
-    suspend fun updateNote(note: Note) {
+    suspend fun updateNote(note: Note): Result<Unit> = localWrite("note update") {
         val now = System.currentTimeMillis()
         // Snapshot the previous version for the Update History, but only when it actually changed.
         val existing = notesDao.getNoteByUuid(note.uuid)
@@ -514,7 +555,7 @@ class SpendRepository(
         syncNoteToFirestore(updated)
     }
 
-    suspend fun deleteNote(note: Note) {
+    suspend fun deleteNote(note: Note): Result<Unit> = localWrite("note delete") {
         // Soft delete, same as spends — see delete() for the resurrection rationale.
         // Cascade the tombstone to the note's entries so they don't linger as orphans
         // that keep re-syncing after their parent note is gone. A single NOTE history record
@@ -531,13 +572,13 @@ class SpendRepository(
         syncNoteToFirestore(tombstone)
     }
 
-    suspend fun insertNoteEntry(entry: NoteEntry) {
-        val entry = entry.copy(updatedAt = System.currentTimeMillis())
-        notesDao.insertNoteEntry(entry)
-        syncNoteEntryToFirestore(entry)
+    suspend fun insertNoteEntry(entry: NoteEntry): Result<Unit> = localWrite("note entry insert") {
+        val stamped = entry.copy(updatedAt = System.currentTimeMillis())
+        notesDao.insertNoteEntry(stamped)
+        syncNoteEntryToFirestore(stamped)
     }
 
-    suspend fun updateNoteEntry(entry: NoteEntry) {
+    suspend fun updateNoteEntry(entry: NoteEntry): Result<Unit> = localWrite("note entry update") {
         val now = System.currentTimeMillis()
         val existing = notesDao.getNoteEntryByUuid(entry.uuid)
         if (existing != null && (
@@ -552,7 +593,7 @@ class SpendRepository(
         syncNoteEntryToFirestore(updated)
     }
 
-    suspend fun deleteNoteEntry(entry: NoteEntry) {
+    suspend fun deleteNoteEntry(entry: NoteEntry): Result<Unit> = localWrite("note entry delete") {
         val now = System.currentTimeMillis()
         recordEntryHistory(entry, HistoryType.DELETED, now)
         val tombstone = entry.copy(deleted = true, updatedAt = now)
@@ -560,30 +601,26 @@ class SpendRepository(
         syncNoteEntryToFirestore(tombstone)
     }
 
-    private suspend fun syncNoteToFirestore(note: Note) {
-        try {
+    private fun syncNoteToFirestore(note: Note) {
+        firestorePush(
+            "note write",
             firestore.collection("users")
                 .document(note.userId)
                 .collection("notes")
                 .document(note.uuid)
                 .set(note)
-                .await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error syncing note to Firestore: ${e.message}")
-        }
+        )
     }
 
-    private suspend fun syncNoteEntryToFirestore(entry: NoteEntry) {
-        try {
+    private fun syncNoteEntryToFirestore(entry: NoteEntry) {
+        firestorePush(
+            "note entry write",
             firestore.collection("users")
                 .document(entry.userId)
                 .collection("note_entries")
                 .document(entry.uuid)
                 .set(entry)
-                .await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error syncing note entry to Firestore: ${e.message}")
-        }
+        )
     }
 
     // ---- Note history (Recycle Bin + Update History) ----
@@ -628,7 +665,7 @@ class SpendRepository(
         syncNoteHistoryToFirestore(history)
     }
 
-    suspend fun restoreNoteFromHistory(history: NoteHistory) {
+    suspend fun restoreNoteFromHistory(history: NoteHistory): Result<Unit> = localWrite("note restore") {
         val now = System.currentTimeMillis()
         if (history.itemType == NoteItemType.NOTE) {
             val note = Note(
@@ -671,9 +708,8 @@ class SpendRepository(
         tombstoneNoteHistory(history, now)
     }
 
-    suspend fun permanentlyDeleteNoteHistory(history: NoteHistory) {
-        tombstoneNoteHistory(history, System.currentTimeMillis())
-    }
+    suspend fun permanentlyDeleteNoteHistory(history: NoteHistory): Result<Unit> =
+        localWrite("note history delete") { tombstoneNoteHistory(history, System.currentTimeMillis()) }
 
     private suspend fun tombstoneNoteHistory(history: NoteHistory, now: Long) {
         val tombstone = history.copy(deleted = true, updatedAt = now)
@@ -681,108 +717,105 @@ class SpendRepository(
         syncNoteHistoryToFirestore(tombstone)
     }
 
-    suspend fun clearNoteHistory(userId: String, type: String) {
+    suspend fun clearNoteHistory(userId: String, type: String): Result<Unit> = localWrite("clear note history") {
         val now = System.currentTimeMillis()
         notesDao.tombstoneNoteHistoryByType(userId, type, now)
-        try {
+        firestoreWrite("clear $type note history") {
             val snapshot = firestore.collection("users")
                 .document(userId)
                 .collection("note_history")
                 .whereEqualTo("historyType", type)
                 .get()
                 .await()
-            val batch = firestore.batch()
-            snapshot.documents.forEach {
-                batch.update(it.reference, mapOf("deleted" to true, "updatedAt" to now))
-            }
-            batch.commit().await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error clearing note history from Firestore: ${e.message}")
+            batchTombstone(snapshot.documents, now)
         }
     }
 
-    private suspend fun syncNoteHistoryToFirestore(history: NoteHistory) {
-        try {
+    private fun syncNoteHistoryToFirestore(history: NoteHistory) {
+        firestorePush(
+            "note history write",
             firestore.collection("users")
                 .document(history.userId)
                 .collection("note_history")
                 .document(history.historyUuid)
                 .set(history)
-                .await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error syncing note history to Firestore: ${e.message}")
-        }
+        )
     }
 
-    private suspend fun syncToFirestore(spend: Spend) {
-        try {
+    private fun syncToFirestore(spend: Spend) {
+        firestorePush(
+            "spend write",
             firestore.collection("users")
                 .document(spend.userId)
                 .collection("spends")
                 .document(spend.uuid)
                 .set(spend)
-                .await()
-            Log.d(tag, "Successfully synced spend to Firestore: ${spend.uuid}")
-        } catch (e: Exception) {
-            Log.e(tag, "Error syncing to Firestore: ${e.message}", e)
-        }
+        )
     }
 
-    private suspend fun removeFromFirestore(spend: Spend) {
-        removeFromFirestoreByUuid(spend.uuid, spend.userId)
-    }
-
-    private suspend fun removeFromFirestoreByUuid(uuid: String, userId: String) {
-        try {
+    private fun removeFromFirestoreByUuid(uuid: String, userId: String) {
+        firestorePush(
+            "spend hard delete",
             firestore.collection("users")
                 .document(userId)
                 .collection("spends")
                 .document(uuid)
                 .delete()
-                .await()
-            Log.d(tag, "Successfully removed spend from Firestore: $uuid")
-        } catch (e: Exception) {
-            Log.e(tag, "Error removing from Firestore: ${e.message}", e)
-        }
+        )
     }
 
-    private suspend fun syncHistoryToFirestore(history: SpendHistory) {
-        try {
+    private fun syncHistoryToFirestore(history: SpendHistory) {
+        firestorePush(
+            "history write",
             firestore.collection("users")
                 .document(history.userId)
                 .collection("history")
                 .document(history.historyUuid)
                 .set(history)
-                .await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error syncing history to Firestore: ${e.message}")
-        }
+        )
     }
 
-    suspend fun insertChatMessage(message: ChatMessage) {
+    suspend fun insertChatMessage(message: ChatMessage): Result<Unit> = localWrite("chat insert") {
         // Stamp the local mutation time so last-write-wins sync can resolve conflicts.
-        val message = message.copy(updatedAt = System.currentTimeMillis())
-        chatDao.insertMessage(message)
-        syncChatMessageToFirestore(message)
+        val stamped = message.copy(updatedAt = System.currentTimeMillis())
+        chatDao.insertMessage(stamped)
+        syncChatMessageToFirestore(stamped)
     }
 
-    private suspend fun syncChatMessageToFirestore(message: ChatMessage) {
-        try {
+    private fun syncChatMessageToFirestore(message: ChatMessage) {
+        firestorePush(
+            "chat message write",
             firestore.collection("users")
                 .document(message.userId)
                 .collection("chat_messages")
                 .document(message.uuid)
                 .set(message)
-                .await()
-        } catch (e: Exception) {
-            Log.e(tag, "Error syncing chat message to Firestore: ${e.message}")
-        }
+        )
     }
 
-    suspend fun deleteChatMessage(message: ChatMessage) {
+    suspend fun deleteChatMessage(message: ChatMessage): Result<Unit> = localWrite("chat delete") {
         // Soft delete, same as spends — see delete() for the resurrection rationale.
         val tombstone = message.copy(deleted = true, updatedAt = System.currentTimeMillis())
         chatDao.insertMessage(tombstone)
         syncChatMessageToFirestore(tombstone)
     }
+
+    // ---- Chat reads ----
+    // The AI history assistant's rate limiting is backed by these counts. They live here rather
+    // than being read from an injected ChatDao in the ViewModel: a DAO is a data-layer internal,
+    // and reaching past the repository for it also routed around the error boundary above.
+
+    fun getChatMessages(userId: String): Flow<List<ChatMessage>> = chatDao.getChatMessages(userId)
+
+    suspend fun getSessionCountSince(userId: String, since: Long): Result<Int> =
+        localWrite("session count") { chatDao.getSessionCountSince(userId, since) }
+
+    suspend fun getMessageCountInSession(userId: String, sessionId: String): Result<Int> =
+        localWrite("session message count") { chatDao.getMessageCountInSession(userId, sessionId) }
+
+    suspend fun isSessionActiveSince(userId: String, sessionId: String, since: Long): Result<Boolean> =
+        localWrite("session activity check") { chatDao.isSessionActiveSince(userId, sessionId, since) }
+
+    suspend fun getLastSessionId(userId: String): Result<String?> =
+        localWrite("last session lookup") { chatDao.getLastSessionId(userId) }
 }

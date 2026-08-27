@@ -15,6 +15,7 @@ import com.alpha.spendtracker.MainActivity
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.RecurringBill
 import com.alpha.spendtracker.data.SpendRepository
+import com.google.firebase.auth.FirebaseAuth
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import java.text.SimpleDateFormat
@@ -35,6 +36,7 @@ class RecurringBillWorker @AssistedInject constructor(
     }
 
     override suspend fun doWork(): Result {
+        val userId = FirebaseAuth.getInstance().currentUser?.uid ?: return Result.success()
         val calendar = Calendar.getInstance()
         val todayDay = calendar.get(Calendar.DAY_OF_MONTH)
         val currentHour = calendar.get(Calendar.HOUR_OF_DAY)
@@ -43,7 +45,12 @@ class RecurringBillWorker @AssistedInject constructor(
 
         Log.d(TAG, "Checking for due bills on $todayStr (Day: $todayDay, Time: $currentHour:$currentMinute)")
 
-        val dueBills = repository.getBillsDueOn(todayDay)
+        // A local read failure means the database is unreadable right now, not that there are no
+        // bills — ask WorkManager to come back rather than silently skipping today's reminders.
+        val dueBills = repository.getBillsDueOn(userId, todayDay).getOrElse { error ->
+            Log.e(TAG, "Could not read due bills: ${error.message}")
+            return Result.retry()
+        }
         if (dueBills.isEmpty()) return Result.success()
 
         for (bill in dueBills) {
@@ -72,7 +79,12 @@ class RecurringBillWorker @AssistedInject constructor(
                 bill.purpose,
                 startOfDay,
                 endOfDay
-            )
+            ).getOrElse { error ->
+                // Can't tell whether this bill was already logged. Skip it this pass rather than
+                // risk a duplicate reminder for a bill the user has already paid.
+                Log.e(TAG, "Could not check bill ${bill.name}: ${error.message}")
+                continue
+            }
 
             if (matchingSpend != null) {
                 Log.d(TAG, "Bill ${bill.name} already tracked for today. Skipping notification.")

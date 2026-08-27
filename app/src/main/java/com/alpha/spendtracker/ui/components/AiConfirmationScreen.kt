@@ -9,12 +9,12 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.automirrored.rounded.Notes
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material3.*
@@ -27,9 +27,9 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
-import androidx.compose.foundation.text.KeyboardOptions
 import com.alpha.spendtracker.data.AiTransactionResponse
 import com.alpha.spendtracker.ui.components.NotificationType
+import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.util.findActivity
 import java.text.SimpleDateFormat
@@ -94,7 +94,7 @@ fun AiConfirmationScreen(
     ) {
         Row(verticalAlignment = Alignment.CenterVertically) {
             Icon(
-                Icons.Rounded.AutoAwesome,
+                AppIcons.Ai,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.primary
             )
@@ -167,7 +167,7 @@ fun AiConfirmationScreen(
             value = notes,
             onValueChange = { notes = it },
             label = { Text("Description") },
-            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.Notes, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
             placeholder = { Text("e.g., Biryani") },
             modifier = Modifier.fillMaxWidth(),
             shape = RoundedCornerShape(14.dp)
@@ -187,7 +187,7 @@ fun AiConfirmationScreen(
         ) {
             OutlinedButton(
                 onClick = onCancel,
-                modifier = Modifier.weight(1f).height(52.dp),
+                modifier = Modifier.weight(1f).heightIn(min = 52.dp),
                 shape = RoundedCornerShape(14.dp)
             ) { Text("Cancel") }
 
@@ -205,7 +205,7 @@ fun AiConfirmationScreen(
                         )
                     )
                 },
-                modifier = Modifier.weight(1f).height(52.dp),
+                modifier = Modifier.weight(1f).heightIn(min = 52.dp),
                 shape = RoundedCornerShape(14.dp),
                 enabled = amount.toDoubleOrNull()?.let { it > 0 } == true &&
                           (selectedPreset.id != "other" || customAppName.isNotBlank())
@@ -236,7 +236,7 @@ private fun ExtractedSummaryCard(
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "$currencySymbol${amount.ifBlank { "0" }}",
-                    style = MaterialTheme.typography.displaySmall.copy(fontWeight = FontWeight.Bold),
+                    style = MaterialTheme.typography.displaySmall,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.weight(1f))

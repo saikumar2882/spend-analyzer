@@ -42,6 +42,17 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
         </activity>
+        <!-- Own task + excluded from recents: this is a transient overlay launched from the
+             home screen, not a screen the user should be able to swipe back to. -->
+        <activity
+            android:name=".widget.QuickAddInputActivity"
+            android:exported="false"
+            android:theme="@style/Theme.App.QuickAdd"
+            android:excludeFromRecents="true"
+            android:launchMode="singleTop"
+            android:taskAffinity=".QuickAdd"
+            android:windowSoftInputMode="adjustResize" />
+
         <receiver
             android:name=".widget.QuickAddWidgetReceiver"
             android:exported="true">

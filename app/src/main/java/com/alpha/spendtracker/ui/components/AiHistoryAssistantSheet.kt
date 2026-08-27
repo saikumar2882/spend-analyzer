@@ -8,7 +8,6 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
-import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.ErrorOutline
@@ -23,6 +22,7 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.BrandGradientEnd
 import com.alpha.spendtracker.ui.theme.BrandGradientMid
 import com.alpha.spendtracker.ui.theme.BrandGradientStart
@@ -107,7 +107,7 @@ fun AiHistoryAssistantSheet(
                         contentAlignment = Alignment.Center
                     ) {
                         Icon(
-                            Icons.Rounded.AutoAwesome,
+                            AppIcons.Ai,
                             contentDescription = null,
                             tint = Color.White,
                             modifier = Modifier.size(20.dp)
@@ -118,7 +118,7 @@ fun AiHistoryAssistantSheet(
                         Text(
                             text = "Spend Assistant",
                             style = MaterialTheme.typography.titleLarge.copy(
-                                fontWeight = FontWeight.ExtraBold,
+                                fontWeight = FontWeight.Bold,
                                 letterSpacing = (-0.3).sp
                             ),
                             color = MaterialTheme.colorScheme.onSurface
@@ -452,7 +452,7 @@ private fun AiAvatar() {
         contentAlignment = Alignment.Center
     ) {
         Icon(
-            imageVector = Icons.Rounded.AutoAwesome,
+            imageVector = AppIcons.Ai,
             contentDescription = null,
             tint = Color.White,
             modifier = Modifier.size(16.dp)
@@ -501,7 +501,7 @@ fun EmptyChatState(
             contentAlignment = Alignment.Center
         ) {
             Icon(
-                imageVector = Icons.Rounded.AutoAwesome,
+                imageVector = AppIcons.Ai,
                 contentDescription = null,
                 tint = Color.White,
                 modifier = Modifier.size(28.dp)
