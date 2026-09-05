@@ -27,17 +27,23 @@ import com.alpha.spendtracker.ui.theme.BrandGradientEnd
 import com.alpha.spendtracker.ui.theme.BrandGradientMid
 import com.alpha.spendtracker.ui.theme.BrandGradientStart
 import android.content.ClipData
+import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import kotlinx.coroutines.launch
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
 import com.alpha.spendtracker.data.ChatMessage
 import com.alpha.spendtracker.ui.viewmodel.AiErrorType
 import com.alpha.spendtracker.ui.viewmodel.AiHistoryStatus
+import com.google.firebase.auth.FirebaseAuth
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @Composable
@@ -80,6 +86,7 @@ fun AiHistoryAssistantSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         Column(
@@ -136,7 +143,6 @@ fun AiHistoryAssistantSheet(
                 Surface(
                     color = chipColor.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, chipColor.copy(alpha = 0.35f))
                 ) {
                     Text(
                         text = "$remainingMessages/7 left",
@@ -176,8 +182,8 @@ fun AiHistoryAssistantSheet(
 
             Spacer(modifier = Modifier.height(12.dp))
 
-            // Persistent example chips (only when there's already a conversation)
-            if (messages.isNotEmpty()) {
+            // Persistent example chips (hidden when user is typing text)
+            if (messages.isNotEmpty() && textInput.isBlank()) {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -307,7 +313,6 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
                     .padding(8.dp),
                 color = color.copy(alpha = 0.1f),
                 shape = RoundedCornerShape(12.dp),
-                border = BorderStroke(1.dp, color.copy(alpha = 0.2f))
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Row(
@@ -461,12 +466,38 @@ private fun AiAvatar() {
 }
 
 @Composable
-private fun UserAvatar() {
+private fun UserAvatar(
+    photoUrl: String? = remember { FirebaseAuth.getInstance().currentUser?.photoUrl?.toString() }
+) {
+    if (!photoUrl.isNullOrBlank()) {
+        val context = LocalContext.current
+        SubcomposeAsyncImage(
+            model = remember(photoUrl) {
+                ImageRequest.Builder(context)
+                    .data(photoUrl)
+                    .crossfade(true)
+                    .build()
+            },
+            contentDescription = "User photo",
+            modifier = Modifier
+                .size(32.dp)
+                .clip(CircleShape),
+            contentScale = ContentScale.Crop,
+            loading = { DefaultUserAvatar() },
+            error = { DefaultUserAvatar() }
+        )
+    } else {
+        DefaultUserAvatar()
+    }
+}
+
+@Composable
+private fun DefaultUserAvatar() {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = CircleShape,
         modifier = Modifier.size(32.dp),
-        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outline.copy(alpha = 0.3f))
+        border = null
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -487,13 +518,13 @@ fun EmptyChatState(
     Column(
         modifier = Modifier
             .fillMaxSize()
-            .padding(horizontal = 8.dp),
+            .padding(horizontal = 8.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
-        verticalArrangement = Arrangement.Center
+        verticalArrangement = Arrangement.Top
     ) {
         Box(
             modifier = Modifier
-                .size(56.dp)
+                .size(48.dp)
                 .background(
                     Brush.linearGradient(listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)),
                     CircleShape
@@ -504,11 +535,11 @@ fun EmptyChatState(
                 imageVector = AppIcons.Ai,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(28.dp)
+                modifier = Modifier.size(24.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
         Text(
             text = "Ask me anything",
@@ -522,25 +553,38 @@ fun EmptyChatState(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        FlowRow(
+        Column(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(8.dp, Alignment.CenterHorizontally),
             verticalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             examples.forEach { example ->
                 Surface(
                     onClick = { onExampleClick(example) },
                     shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    modifier = Modifier.fillMaxWidth()
                 ) {
-                    Text(
-                        text = example,
-                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 8.dp),
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
+                    Row(
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Icon(
+                            imageVector = AppIcons.Ai,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = example,
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 2,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
         }

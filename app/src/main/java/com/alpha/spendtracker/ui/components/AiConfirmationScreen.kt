@@ -151,7 +151,17 @@ fun AiConfirmationScreen(
                 value = customAppName,
                 onValueChange = { customAppName = it },
                 label = { Text("Custom App / Platform name") },
-                leadingIcon = { Icon(Icons.Rounded.CreditCard, contentDescription = null) },
+                leadingIcon = if (customAppName.isNotBlank()) {
+                    {
+                        AppIconImage(
+                            appName = customAppName,
+                            fallbackColor = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(24.dp)
+                        )
+                    }
+                } else {
+                    { Icon(Icons.Rounded.CreditCard, contentDescription = null) }
+                },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 shape = RoundedCornerShape(14.dp)
@@ -246,11 +256,21 @@ private fun ExtractedSummaryCard(
                         .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
                         .padding(horizontal = 12.dp, vertical = 6.dp)
                 ) {
-                    Text(
-                        text = appName,
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.primary
-                    )
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        AppIconImage(
+                            appName = appName,
+                            fallbackColor = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Text(
+                            text = appName,
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
                 }
             }
             Spacer(Modifier.height(8.dp))

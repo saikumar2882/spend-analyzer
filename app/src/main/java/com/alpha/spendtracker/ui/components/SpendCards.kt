@@ -1,21 +1,24 @@
 /**
- * Reusable card components for displaying transaction details in lists.
+ * Standardized reusable card components for displaying transaction items across
+ * Dashboard, History, and Dues screens.
+ * Features uniform icon containers, crisp typography hierarchy, high-contrast subtext,
+ * and semantic currency styling.
  */
 package com.alpha.spendtracker.ui.components
 
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
-import androidx.compose.foundation.layout.IntrinsicSize
 import androidx.compose.foundation.layout.fillMaxHeight
+import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
@@ -28,105 +31,211 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DeleteForever
+import androidx.compose.material.icons.rounded.KeyboardArrowRight
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.IconButtonDefaults
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
+import androidx.compose.material3.SwipeToDismissBox
+import androidx.compose.material3.SwipeToDismissBoxValue
 import androidx.compose.material3.Text
+import androidx.compose.material3.rememberSwipeToDismissBoxState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
+import com.alpha.spendtracker.data.HistoryType
 import com.alpha.spendtracker.data.Spend
+import com.alpha.spendtracker.data.SpendHistory
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.Sizes
 import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.asMoney
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 
+fun parseLendBorrowNotes(rawNotes: String, appName: String): Pair<String, String> {
+    val trimmed = rawNotes.trim()
+    if (trimmed.contains(" - ")) {
+        val parts = trimmed.split(" - ", limit = 2)
+        return parts[0].trim() to parts[1].trim()
+    }
+    if (trimmed.isNotBlank()) {
+        val appNameLower = appName.trim().lowercase()
+        val isPaymentApp = appNameLower in setOf(
+            "google pay", "google_pay", "gpay", "phonepe", "phone_pe", "paytm",
+            "swiggy", "zomato", "zepto", "blinkit", "cash", "other platform", "other", "banking & cards"
+        ) || appNameLower.contains("pay") || appNameLower.contains("cash")
+        
+        if (isPaymentApp || appName.isBlank()) {
+            return trimmed to ""
+        }
+    }
+    if (appName.isNotBlank()) {
+        return appName.trim() to trimmed
+    }
+    return trimmed to ""
+}
+
+fun resolveTitleAndSubtitle(spend: Spend): Pair<String, String> {
+    val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
+    if (isLendBorrow) {
+        val (personName, notes) = parseLendBorrowNotes(spend.notes, spend.appName)
+        val title = personName.ifBlank { "Unknown Person" }
+        val subtitle = notes.ifBlank {
+            if (spend.appName.isNotBlank() && spend.appName != "Other" && spend.appName != "Cash") spend.appName else ""
+        }
+        return title to subtitle
+    }
+
+    return spend.appName to spend.notes.ifBlank { spend.purpose }
+}
+
+/**
+ * Category/Purpose accent color resolver.
+ */
+@Composable
+fun getCategoryAccentColor(purpose: String, category: String): Color {
+    val purposeMap = getPurposeColors()
+    val categoryMap = getCategoryColors()
+    return purposeMap[purpose] ?: categoryMap[category] ?: MaterialTheme.colorScheme.primary
+}
+
+/**
+ * Standardized Recent Activity Transaction Item Row.
+ * Uniform 40.dp circular category icon container, crisp title, high contrast subtext,
+ * and right-aligned tabular currency figures with semantic color indicators.
+ */
 @Composable
 fun RecentSpendRow(
     spend: Spend,
     onClick: () -> Unit = {}
 ) {
-    val accent = APP_COLOR_BY_NAME[spend.appName] ?: MaterialTheme.colorScheme.primary
-    val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
-    val subtitle = if (isLendBorrow) spend.notes else spend.notes.ifBlank { spend.purpose }
+    val (title, subtitle) = resolveTitleAndSubtitle(spend)
+    val categoryAccent = getCategoryAccentColor(spend.purpose, spend.category)
+    val appAccent = APP_COLOR_BY_NAME[spend.appName]
+        ?: APP_PRESETS.find { it.displayName.equals(spend.appName, ignoreCase = true) }?.color
+        ?: categoryAccent
 
     val interactionSource = remember { MutableInteractionSource() }
     val pressed by interactionSource.collectIsPressedAsState()
     val scale by animateFloatAsState(if (pressed) 0.98f else 1f, label = "recentRowScale")
 
-    Card(
+    val isLending = spend.purpose.equals("Lending", ignoreCase = true)
+    val isBorrowing = spend.purpose.equals("Borrowing", ignoreCase = true)
+
+    val amountColor = when {
+        isLending -> MaterialTheme.colorScheme.onSurface
+        isBorrowing -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
+    Surface(
         onClick = onClick,
         interactionSource = interactionSource,
         modifier = Modifier
             .fillMaxWidth()
             .scale(scale),
         shape = RoundedCornerShape(Radius.md),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainer
-        ),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        color = Color.Transparent,
+        border = null
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = Spacing.md, vertical = Spacing.md)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // Accent strip
-            Box(
-                modifier = Modifier
-                    .width(Spacing.xs)
-                    .fillMaxHeight()
-                    .background(accent)
-            )
+            // 1. Left-Side Date Badge Block
+            DateBadge(timestamp = spend.timestamp, size = 44.dp)
+
+            Spacer(modifier = Modifier.width(Spacing.md))
+
+            // 2. Middle Content Column
             Row(
-                modifier = Modifier
-                    .padding(Spacing.md)
-                    .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    DateBadge(timestamp = spend.timestamp, color = accent)
-                    Spacer(modifier = Modifier.width(Spacing.md))
-                    Column {
-                        SpendCardHeader(appName = spend.appName, category = spend.category, accent = accent)
-                        Spacer(modifier = Modifier.height(Spacing.xs))
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        if (isLending || isBorrowing) {
+                            PersonInitialAvatar(
+                                personName = title,
+                                backgroundColor = amountColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            AppIconImage(
+                                appName = spend.appName,
+                                fallbackColor = appAccent,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = subtitle,
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
                     }
+
+                    if (subtitle.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 28.dp) // Align under text, past icon
+                        )
+                    }
                 }
+            }
 
-                Spacer(modifier = Modifier.width(Spacing.sm))
+            Spacer(modifier = Modifier.width(Spacing.sm))
 
+            // 3. Right-Side Financial & Navigation Column
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
                 Text(
                     text = "₹${formatCurrency(spend.amount)}",
-                    style = MaterialTheme.typography.titleLarge.asMoney(),
-                    color = MaterialTheme.colorScheme.onSurface,
+                    style = MaterialTheme.typography.titleMedium.asMoney(),
+                    color = amountColor,
                     maxLines = 1
+                )
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.size(20.dp)
                 )
             }
         }
@@ -134,125 +243,139 @@ fun RecentSpendRow(
 }
 
 @Composable
+fun DateBadgeCompactText(timestamp: Long) {
+    val locale = LocalConfiguration.current.locales[0]
+    val sdf = remember(timestamp, locale) { SimpleDateFormat("d MMM", locale) }
+    Text(
+        text = sdf.format(timestamp),
+        style = MaterialTheme.typography.labelSmall,
+        color = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+}
+
+/**
+ * Standardized History Transaction Item Card.
+ */
+@Composable
 fun HistorySpendCard(
     spend: Spend,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
-    // When non-null (a note-linked spend), tapping the card opens the source note.
     onClick: (() -> Unit)? = null
 ) {
-    val accent = APP_COLOR_BY_NAME[spend.appName] ?: MaterialTheme.colorScheme.primary
-    val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
+    val (title, subtitle) = resolveTitleAndSubtitle(spend)
     val isNoteLinked = spend.noteUuid.isNotBlank()
+    val categoryAccent = getCategoryAccentColor(spend.purpose, spend.category)
+    val appAccent = APP_COLOR_BY_NAME[spend.appName]
+        ?: APP_PRESETS.find { it.displayName.equals(spend.appName, ignoreCase = true) }?.color
+        ?: categoryAccent
 
-    Card(
-        modifier = modifier
-            .fillMaxWidth()
-            .then(if (onClick != null) Modifier.clickable(onClick = onClick) else Modifier),
+    val isLending = spend.purpose.equals("Lending", ignoreCase = true)
+    val isBorrowing = spend.purpose.equals("Borrowing", ignoreCase = true)
+
+    val amountColor = when {
+        isLending -> MaterialTheme.colorScheme.onSurface
+        isBorrowing -> MaterialTheme.colorScheme.error
+        else -> MaterialTheme.colorScheme.onSurface
+    }
+
+    Surface(
+        onClick = onClick ?: onEdit,
+        modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radius.md),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+        color = Color.Transparent,
+        border = null
     ) {
         Row(
             modifier = Modifier
-                .fillMaxWidth()
-                .height(IntrinsicSize.Min),
-            verticalAlignment = Alignment.CenterVertically
+                .padding(horizontal = Spacing.md, vertical = Spacing.md)
+                .fillMaxWidth(),
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.SpaceBetween
         ) {
-            // fillMaxHeight only resolves because the Row above is measured at IntrinsicSize.Min:
-            // in an unbounded-height Row (a plain list item) it collapses to zero and the strip
-            // never draws.
-            Box(
-                modifier = Modifier
-                    .width(Spacing.xs)
-                    .fillMaxHeight()
-                    .background(accent)
-            )
+            // 1. Left-Side Date Badge Block
+            DateBadge(timestamp = spend.timestamp, size = 44.dp)
+
+            Spacer(modifier = Modifier.width(Spacing.md))
+
+            // 2. Middle Content Column
             Row(
-                modifier = Modifier
-                    .padding(horizontal = Spacing.md, vertical = Spacing.md)
-                    .fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.SpaceBetween
+                modifier = Modifier.weight(1f)
             ) {
-                Row(
-                    verticalAlignment = Alignment.CenterVertically,
-                    modifier = Modifier.weight(1f)
-                ) {
-                    DateBadge(timestamp = spend.timestamp, color = accent, size = Sizes.dateBadgeCompact)
-                    Spacer(modifier = Modifier.width(Spacing.md))
-                    Column {
-                        SpendCardHeader(appName = spend.appName, category = spend.category, accent = accent, showNoteIcon = isNoteLinked)
-                        if (!isLendBorrow) {
-                            Spacer(modifier = Modifier.height(Spacing.xs))
-                            Text(
-                                text = spend.purpose,
-                                style = MaterialTheme.typography.titleSmall,
-                                color = MaterialTheme.colorScheme.primary,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
+                Column(modifier = Modifier.weight(1f)) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        if (isLending || isBorrowing) {
+                            PersonInitialAvatar(
+                                personName = title,
+                                backgroundColor = amountColor,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        } else {
+                            AppIconImage(
+                                appName = spend.appName,
+                                fallbackColor = appAccent,
+                                modifier = Modifier.size(20.dp)
                             )
                         }
-                        if (spend.notes.isNotBlank()) {
-                            Text(
-                                text = spend.notes,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            text = title,
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        if (isNoteLinked) {
+                            Icon(imageVector = AppIcons.Notes, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                         }
                     }
-                }
-
-                Spacer(modifier = Modifier.width(Spacing.sm))
-
-                Column(
-                    horizontalAlignment = Alignment.End,
-                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
-                ) {
-                    Text(
-                        text = "₹${formatCurrency(spend.amount)}",
-                        style = MaterialTheme.typography.titleLarge.asMoney(),
-                        color = when (spend.purpose) {
-                            "Lending" -> MaterialTheme.colorScheme.secondary
-                            "Borrowing" -> MaterialTheme.colorScheme.error
-                            else -> MaterialTheme.colorScheme.onSurface
-                        },
-                        maxLines = 1
-                    )
-                    Row(horizontalArrangement = Arrangement.spacedBy(Spacing.sm)) {
-                        CardActionButton(
-                            icon = Icons.Rounded.Edit,
-                            contentDescription = "Edit transaction",
-                            tint = MaterialTheme.colorScheme.primary,
-                            onClick = onEdit
-                        )
-                        CardActionButton(
-                            icon = Icons.Rounded.Delete,
-                            contentDescription = "Delete transaction",
-                            tint = MaterialTheme.colorScheme.error,
-                            onClick = onDelete
+                    if (subtitle.isNotBlank()) {
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = subtitle,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(start = 28.dp)
                         )
                     }
                 }
+            }
+
+            Spacer(modifier = Modifier.width(Spacing.sm))
+
+            // 3. Right-Side Financial Column
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.End
+            ) {
+                Text(
+                    text = "₹${formatCurrency(spend.amount)}",
+                    style = MaterialTheme.typography.titleMedium.asMoney(),
+                    color = amountColor,
+                    maxLines = 1
+                )
+                Spacer(modifier = Modifier.width(Spacing.xs))
+                Icon(
+                    imageVector = Icons.Rounded.KeyboardArrowRight,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.outlineVariant,
+                    modifier = Modifier.size(20.dp)
+                )
             }
         }
     }
 }
 
-/**
- * Tinted icon button for the in-card row actions.
- *
- * Deliberately does not set an explicit size: `IconButton` paints a 40dp container but reserves a
- * 48dp touch target, and the `Modifier.size(34.dp)` these call sites used to pass overrode that
- * reservation — shrinking every edit/delete/restore target on the transaction and history lists
- * well below the accessible minimum.
- */
 @Composable
-private fun CardActionButton(
-    icon: androidx.compose.ui.graphics.vector.ImageVector,
+fun CardActionButton(
+    icon: ImageVector,
     contentDescription: String,
     tint: Color,
     onClick: () -> Unit
@@ -270,13 +393,13 @@ private fun CardActionButton(
 
 @Composable
 fun HistoryRecordCard(
-    history: com.alpha.spendtracker.data.SpendHistory,
+    history: SpendHistory,
     onRestore: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier
 ) {
-    val accent = APP_COLOR_BY_NAME[history.appName] ?: MaterialTheme.colorScheme.primary
-    val isDeleted = history.historyType == com.alpha.spendtracker.data.HistoryType.DELETED
+    val categoryAccent = getCategoryAccentColor(history.purpose, history.category)
+    val isDeleted = history.historyType == HistoryType.DELETED
     
     val daysLeft = if (isDeleted) {
         val millisInDay = 24L * 60 * 60 * 1000
@@ -289,6 +412,7 @@ fun HistoryRecordCard(
         modifier = modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radius.md),
         colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = null,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
@@ -297,14 +421,11 @@ fun HistoryRecordCard(
                 .height(IntrinsicSize.Min),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // fillMaxHeight only resolves because the Row above is measured at IntrinsicSize.Min:
-            // in an unbounded-height Row (a plain list item) it collapses to zero and the strip
-            // never draws.
             Box(
                 modifier = Modifier
-                    .width(Spacing.xs)
+                    .width(4.dp)
                     .fillMaxHeight()
-                    .background(accent)
+                    .background(categoryAccent)
             )
             Row(
                 modifier = Modifier
@@ -317,13 +438,13 @@ fun HistoryRecordCard(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.weight(1f)
                 ) {
-                    DateBadge(timestamp = history.recordedAt, color = accent, size = Sizes.dateBadgeCompact)
+                    DateBadge(timestamp = history.recordedAt, size = Sizes.dateBadgeCompact)
                     Spacer(modifier = Modifier.width(Spacing.md))
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
                                 text = history.appName,
-                                style = MaterialTheme.typography.titleSmall,
+                                style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
                                 overflow = TextOverflow.Ellipsis
@@ -349,20 +470,11 @@ fun HistoryRecordCard(
 
                         Text(
                             text = "₹${formatCurrency(history.amount)} · ${history.purpose}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.primary,
+                            style = MaterialTheme.typography.bodyMedium.asMoney(),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
-                        if (history.notes.isNotBlank()) {
-                            Text(
-                                text = history.notes,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
                     }
                 }
 
@@ -392,55 +504,43 @@ fun HistoryRecordCard(
 @Composable
 fun DateBadge(
     timestamp: Long,
-    color: Color,
     size: Dp = Sizes.dateBadge
 ) {
     val calendar = remember(timestamp) {
-        java.util.Calendar.getInstance().apply { timeInMillis = timestamp }
+        Calendar.getInstance().apply { timeInMillis = timestamp }
     }
-    val day = calendar.get(java.util.Calendar.DAY_OF_MONTH).toString()
+    val day = calendar.get(Calendar.DAY_OF_MONTH).toString()
     val month = remember(timestamp) {
-        java.text.SimpleDateFormat("MMM", java.util.Locale.getDefault()).format(timestamp)
+        SimpleDateFormat("MMM", Locale.getDefault()).format(timestamp)
     }
 
-    // `size` is a *floor*, not a fixed square: at a large system font scale the day and month lines
-    // together are taller than 44/48dp, and a hard `Modifier.size` cropped the month clean off the
-    // bottom of the badge ("26" over a half-drawn "aug"). sizeIn lets the badge grow to whatever the
-    // two lines need while staying square at the default scale.
     Surface(
         modifier = Modifier.sizeIn(minWidth = size, minHeight = size),
-        shape = RoundedCornerShape(Radius.sm),
-        color = color.copy(alpha = 0.12f),
-        border = BorderStroke(1.dp, color.copy(alpha = 0.25f))
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerHighest,
+        border = null
     ) {
         Column(
             modifier = Modifier.padding(horizontal = Spacing.xs, vertical = 2.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Fixed scale steps rather than fractions of `size`: the old `size.value * 0.35f`
-            // produced a different, off-scale font size for every call site that passed a
-            // different badge size.
             Text(
                 text = day,
-                style = MaterialTheme.typography.titleMedium,
-                color = color,
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1
             )
             Text(
-                text = month.lowercase(),
+                text = month,
                 style = MaterialTheme.typography.labelSmall,
-                color = color.copy(alpha = 0.8f),
+                color = MaterialTheme.colorScheme.onSurfaceVariant,
                 maxLines = 1
             )
         }
     }
 }
 
-/**
- * Small tinted label — a category tag, a DELETED/UPDATED marker. One implementation so these stop
- * drifting apart (they previously sat at 8sp/ExtraBold and 9sp/Bold with different corner radii).
- */
 @Composable
 internal fun Pill(
     text: String,
@@ -454,45 +554,9 @@ internal fun Pill(
             style = MaterialTheme.typography.labelSmall,
             color = content,
             maxLines = 1,
-            // Ellipsis, not the default Clip: a long category at a large font scale otherwise ran
-            // off the pill mid-glyph. "Quick Commerce" becomes "Quick Com…", which still reads.
             overflow = TextOverflow.Ellipsis
         )
     }
-}
-
-@Composable
-private fun SpendCardHeader(appName: String, category: String, accent: Color, showNoteIcon: Boolean = false) {
-    Row(
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
-    ) {
-        // `fill = false` so the name takes only what it needs at the default font scale, but is the
-        // first thing to give way when a larger scale makes the row wider than the card.
-        Text(
-            text = appName,
-            modifier = Modifier.weight(1f, fill = false),
-            style = MaterialTheme.typography.titleSmall,
-            color = MaterialTheme.colorScheme.onSurface,
-            maxLines = 1,
-            overflow = TextOverflow.Ellipsis
-        )
-        CategoryBadge(category = category, accent = accent)
-        // Marks a spend logged from a Note — tapping the card opens that note.
-        if (showNoteIcon) {
-            Icon(
-                imageVector = AppIcons.Notes,
-                contentDescription = "Logged from a note. Tap to open.",
-                tint = accent,
-                modifier = Modifier.size(14.dp)
-            )
-        }
-    }
-}
-
-@Composable
-private fun CategoryBadge(category: String, accent: Color) {
-    Pill(text = category, container = accent.copy(alpha = 0.15f), content = accent)
 }
 
 @Composable
@@ -502,7 +566,7 @@ fun PresetGridCard(
     onClick: () -> Unit
 ) {
     val surfaceColor = if (isSelected) {
-        preset.color.copy(alpha = 0.18f)
+        MaterialTheme.colorScheme.primaryContainer
     } else {
         MaterialTheme.colorScheme.surfaceContainer
     }
@@ -515,44 +579,126 @@ fun PresetGridCard(
         onClick = onClick,
         interactionSource = interactionSource,
         color = surfaceColor,
-        shape = RoundedCornerShape(Radius.md),
-        border = if (isSelected) BorderStroke(2.dp, preset.color)
-        else BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
+        shape = RoundedCornerShape(14.dp),
+        // The one outline kept in the app: picking from a grid needs an unambiguous affordance.
+        border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
         modifier = Modifier
             .fillMaxWidth()
-            // A floor, not a fixed height: at a large system font scale the two label lines exceed
-            // 76dp and a hard height cropped the category line off the bottom of every tile.
-            .heightIn(min = 76.dp)
+            // heightIn, never height: the label has to survive a large system font scale.
+            .heightIn(min = 86.dp)
             .scale(scale)
     ) {
         Column(
-            modifier = Modifier.padding(Spacing.sm),
+            modifier = Modifier.padding(horizontal = 8.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.Center,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Box(
-                modifier = Modifier
-                    .size(Sizes.iconInline)
-                    .background(preset.color, CircleShape)
+            AppIconImage(
+                appName = preset.displayName,
+                fallbackColor = preset.color,
+                modifier = Modifier.size(32.dp)
             )
-            Spacer(modifier = Modifier.height(Spacing.sm))
+            Spacer(modifier = Modifier.height(8.dp))
             Text(
                 text = preset.displayName,
-                style = MaterialTheme.typography.labelMedium,
-                color = if (isSelected) MaterialTheme.colorScheme.onSurface
-                else MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f),
-                textAlign = TextAlign.Center,
-                maxLines = 1,
-                overflow = TextOverflow.Ellipsis
-            )
-            Text(
-                text = preset.category,
-                style = MaterialTheme.typography.labelSmall,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                style = MaterialTheme.typography.labelMedium.copy(
+                    fontWeight = FontWeight.SemiBold,
+                    fontSize = 12.sp
+                ),
+                color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onSurface,
                 textAlign = TextAlign.Center,
                 maxLines = 1,
                 overflow = TextOverflow.Ellipsis
             )
         }
     }
+}
+
+/**
+ * Reusable swipeable wrapper for log cards.
+ */
+@OptIn(ExperimentalMaterial3Api::class)
+@Composable
+fun SwipeableLogCard(
+    onEdit: () -> Unit,
+    onDelete: () -> Unit,
+    modifier: Modifier = Modifier,
+    enabled: Boolean = true,
+    content: @Composable () -> Unit
+) {
+    val coroutineScope = rememberCoroutineScope()
+    val dismissState = rememberSwipeToDismissBoxState()
+
+    SwipeToDismissBox(
+        state = dismissState,
+        modifier = modifier,
+        enableDismissFromStartToEnd = enabled,
+        enableDismissFromEndToStart = enabled,
+        onDismiss = { dismissValue ->
+            when (dismissValue) {
+                SwipeToDismissBoxValue.StartToEnd -> onEdit()
+                SwipeToDismissBoxValue.EndToStart -> onDelete()
+                SwipeToDismissBoxValue.Settled -> {}
+            }
+            coroutineScope.launch {
+                dismissState.snapTo(SwipeToDismissBoxValue.Settled)
+            }
+        },
+        backgroundContent = {
+            val isSwipingRight = dismissState.targetValue == SwipeToDismissBoxValue.StartToEnd || dismissState.dismissDirection == SwipeToDismissBoxValue.StartToEnd
+            val isSwipingLeft = dismissState.targetValue == SwipeToDismissBoxValue.EndToStart || dismissState.dismissDirection == SwipeToDismissBoxValue.EndToStart
+
+            val color = when {
+                isSwipingRight -> MaterialTheme.colorScheme.primaryContainer
+                isSwipingLeft -> MaterialTheme.colorScheme.errorContainer
+                else -> Color.Transparent
+            }
+            val alignment = when {
+                isSwipingRight -> Alignment.CenterStart
+                isSwipingLeft -> Alignment.CenterEnd
+                else -> Alignment.Center
+            }
+            val icon = when {
+                isSwipingRight -> Icons.Rounded.Edit
+                isSwipingLeft -> Icons.Rounded.Delete
+                else -> null
+            }
+            val tint = when {
+                isSwipingRight -> MaterialTheme.colorScheme.onPrimaryContainer
+                isSwipingLeft -> MaterialTheme.colorScheme.onErrorContainer
+                else -> Color.Unspecified
+            }
+            val text = when {
+                isSwipingRight -> "Edit"
+                isSwipingLeft -> "Delete"
+                else -> ""
+            }
+
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .background(color, shape = RoundedCornerShape(Radius.md))
+                    .padding(horizontal = Spacing.md),
+                contentAlignment = alignment
+            ) {
+                if (icon != null) {
+                    Row(
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
+                    ) {
+                        if (isSwipingRight) {
+                            Icon(icon, contentDescription = text, tint = tint, modifier = Modifier.size(20.dp))
+                            Text(text, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = tint)
+                        } else {
+                            Text(text, style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold), color = tint)
+                            Icon(icon, contentDescription = text, tint = tint, modifier = Modifier.size(20.dp))
+                        }
+                    }
+                }
+            }
+        },
+        content = {
+            content()
+        }
+    )
 }

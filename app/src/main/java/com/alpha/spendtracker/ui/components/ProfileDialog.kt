@@ -4,9 +4,10 @@
 package com.alpha.spendtracker.ui.components
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.PaddingValues
+import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
@@ -15,9 +16,11 @@ import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
@@ -28,79 +31,159 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
-import com.alpha.spendtracker.ui.theme.BrandGradientEnd
-import com.alpha.spendtracker.ui.theme.BrandGradientMid
-import com.alpha.spendtracker.ui.theme.BrandGradientStart
-import com.alpha.spendtracker.ui.theme.Radius
+import coil.compose.SubcomposeAsyncImage
+import coil.request.ImageRequest
 import com.alpha.spendtracker.ui.theme.Spacing
 
 @Composable
 fun ProfileDialog(
     currentName: String,
     email: String,
+    photoUrl: String? = null,
     onDismiss: () -> Unit,
     onSave: (String) -> Unit
 ) {
     var nameInput by remember { mutableStateOf(currentName) }
     var isSaving by remember { mutableStateOf(false) }
-    val initial = currentName.trim().firstOrNull()?.uppercase()
+
+    val fallbackFromEmail = remember(email) {
+        if (email.isNotBlank()) {
+            val handle = email.substringBefore('@').trim()
+            handle.split('.', '_', '-')
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { word ->
+                    word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                }
+        } else {
+            ""
+        }
+    }
+    val effectiveName = currentName.ifBlank { fallbackFromEmail }
+    val initial = effectiveName.trim().firstOrNull()?.uppercase()
         ?: email.firstOrNull()?.uppercase() ?: "?"
 
     AlertDialog(
-        onDismissRequest = { if (!isSaving) onDismiss() },
-        title = { Text("Your Profile", style = MaterialTheme.typography.titleLarge) },
+        onDismissRequest = onDismiss,
+        shape = RoundedCornerShape(28.dp),
+        containerColor = MaterialTheme.colorScheme.surfaceContainer,
+        title = {
+            Text(
+                text = "Your Profile",
+                style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+        },
         text = {
-            Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                Box(
-                    modifier = Modifier
-                        .size(80.dp)
-                        .background(
-                            Brush.linearGradient(
-                                listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)
-                            ),
-                            CircleShape
-                        ),
-                    contentAlignment = Alignment.Center
-                ) {
-                    Text(
-                        text = initial,
-                        style = MaterialTheme.typography.displaySmall,
-                        color = Color.White
-                    )
+            Column(
+                horizontalAlignment = Alignment.CenterHorizontally,
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Spacer(modifier = Modifier.height(Spacing.sm))
+                // Large Round Avatar
+                val initialBadge: @Composable () -> Unit = {
+                    Box(
+                        modifier = Modifier
+                            .size(88.dp)
+                            .background(MaterialTheme.colorScheme.primary, CircleShape),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = initial,
+                            style = MaterialTheme.typography.displayMedium.copy(fontWeight = FontWeight.Medium),
+                            color = Color.White
+                        )
+                    }
                 }
+
+                if (!photoUrl.isNullOrBlank()) {
+                    val context = LocalContext.current
+                    SubcomposeAsyncImage(
+                        model = remember(photoUrl) {
+                            ImageRequest.Builder(context)
+                                .data(photoUrl)
+                                .crossfade(true)
+                                .build()
+                        },
+                        contentDescription = currentName,
+                        modifier = Modifier
+                            .size(88.dp)
+                            .clip(CircleShape),
+                        contentScale = ContentScale.Crop,
+                        loading = { initialBadge() },
+                        error = { initialBadge() }
+                    )
+                } else {
+                    initialBadge()
+                }
+
                 Spacer(modifier = Modifier.height(Spacing.lg))
+
+                // Email badge container (no outline, faded minimal tone)
                 Surface(
-                    color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.55f),
-                    shape = RoundedCornerShape(Radius.xs)
+                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                    shape = RoundedCornerShape(10.dp)
                 ) {
                     Text(
                         text = email.ifBlank { "—" },
-                        modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.sm),
-                        style = MaterialTheme.typography.labelMedium,
+                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
+                        style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                 }
-                Spacer(modifier = Modifier.height(Spacing.ml))
-                OutlinedTextField(
-                    value = nameInput,
-                    onValueChange = { if (it.length <= 60) nameInput = it },
-                    label = { Text("Full name") },
-                    placeholder = { Text("e.g., Tsai Kumar") },
-                    singleLine = true,
-                    enabled = !isSaving,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(Radius.md),
-                    supportingText = { Text("Used for greetings across the app") }
-                )
-                Spacer(modifier = Modifier.height(Spacing.sm))
-                Text(
-                    text = "Profile photos aren't available on the free plan.",
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                )
+
+                Spacer(modifier = Modifier.height(Spacing.lg))
+
+                // Full name input (faded seamless container, NO outlines/borders)
+                Column(modifier = Modifier.fillMaxWidth()) {
+                    OutlinedTextField(
+                        value = nameInput,
+                        onValueChange = { if (it.length <= 60) nameInput = it },
+                        label = { Text("Full name") },
+                        placeholder = { Text(fallbackFromEmail.ifBlank { "e.g., Tsai Kumar" }) },
+                        singleLine = true,
+                        enabled = !isSaving,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+                            disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.015f),
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            disabledBorderColor = Color.Transparent,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    )
+
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+
+                    Text(
+                        text = "Used for greetings across the app",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                    )
+
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+
+                    Text(
+                        text = if (!photoUrl.isNullOrBlank()) {
+                            "Profile photo loaded from your Google account."
+                        } else {
+                            "Sign in with Google to use your Google profile photo."
+                        },
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                        modifier = Modifier.padding(start = 4.dp, top = 2.dp)
+                    )
+                }
             }
         },
         confirmButton = {
@@ -114,17 +197,42 @@ fun ProfileDialog(
                     isSaving = true
                     onSave(trimmed)
                 },
-                enabled = !isSaving
+                enabled = !isSaving,
+                shape = CircleShape,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = Color.White
+                ),
+                contentPadding = PaddingValues(
+                    horizontal = 24.dp,
+                    vertical = 10.dp
+                )
             ) {
                 if (isSaving) {
-                    CircularProgressIndicator(modifier = Modifier.size(Spacing.ml), strokeWidth = 2.dp)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(20.dp),
+                        strokeWidth = 2.dp,
+                        color = Color.White
+                    )
                 } else {
-                    Text("Save")
+                    Text(
+                        text = "Save",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
+                    )
                 }
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss, enabled = !isSaving) { Text("Close") }
+            TextButton(
+                onClick = onDismiss,
+                shape = CircleShape
+            ) {
+                Text(
+                    text = "Close",
+                    style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
         }
     )
 }

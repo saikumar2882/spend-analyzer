@@ -71,7 +71,7 @@ fun RecurringBillsScreen(
         } else {
             LazyColumn(
                 modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(16.dp),
+                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
                 verticalArrangement = Arrangement.spacedBy(12.dp)
             ) {
                 items(bills) { bill ->
@@ -231,19 +231,41 @@ fun BillEditDialog(
     var day by remember { mutableStateOf(bill?.dayOfMonth?.toString() ?: "1") }
     var notes by remember { mutableStateOf(bill?.notes ?: "") }
 
+    val cleanTextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+        unfocusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.015f),
+        focusedBorderColor = Color.Transparent,
+        unfocusedBorderColor = Color.Transparent,
+        disabledBorderColor = Color.Transparent,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
+
     AlertDialog(
         onDismissRequest = onDismiss,
         title = { Text(if (bill == null) "Add Recurring Bill" else "Edit Bill") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(value = name, onValueChange = { name = it }, label = { Text("Bill Name") }, singleLine = true)
+                OutlinedTextField(
+                    value = name,
+                    onValueChange = { name = it },
+                    label = { Text("Bill Name") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = cleanTextFieldColors
+                )
                 
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) amount = it },
                     label = { Text("Amount (Optional)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = cleanTextFieldColors
                 )
 
                 var appExpanded by remember { mutableStateOf(false) }
@@ -254,7 +276,9 @@ fun BillEditDialog(
                         readOnly = true,
                         label = { Text("Default App") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = appExpanded) },
-                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
                     )
                     ExposedDropdownMenu(expanded = appExpanded, onDismissRequest = { appExpanded = false }) {
                         APP_PRESETS.forEach { preset ->
@@ -277,7 +301,9 @@ fun BillEditDialog(
                         readOnly = true,
                         label = { Text("Purpose") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = purposeExpanded) },
-                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable)
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
                     )
                     ExposedDropdownMenu(expanded = purposeExpanded, onDismissRequest = { purposeExpanded = false }) {
                         PURPOSE_PRESETS.forEach { p ->
@@ -292,8 +318,25 @@ fun BillEditDialog(
                     }
                 }
 
-                OutlinedTextField(value = day, onValueChange = { if (it.isEmpty() || (it.toIntOrNull() in 1..31)) day = it }, label = { Text("Day of Month (1-31)") }, keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number), singleLine = true)
-                OutlinedTextField(value = notes, onValueChange = { notes = it }, label = { Text("Notes (Optional)") }, singleLine = true)
+                OutlinedTextField(
+                    value = day,
+                    onValueChange = { if (it.isEmpty() || (it.toIntOrNull() in 1..31)) day = it },
+                    label = { Text("Day of Month (1-31)") },
+                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = cleanTextFieldColors
+                )
+                OutlinedTextField(
+                    value = notes,
+                    onValueChange = { notes = it },
+                    label = { Text("Notes (Optional)") },
+                    singleLine = true,
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = cleanTextFieldColors
+                )
             }
         },
         confirmButton = {

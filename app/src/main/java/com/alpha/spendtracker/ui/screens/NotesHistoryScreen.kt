@@ -206,7 +206,7 @@ fun NotesHistoryScreen(
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(10.dp),
-                contentPadding = PaddingValues(bottom = 24.dp)
+                contentPadding = PaddingValues(bottom = 120.dp)
             ) {
                 items(currentItems, key = { it.historyUuid }) { item ->
                     NoteHistoryCard(

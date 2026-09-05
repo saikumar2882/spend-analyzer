@@ -191,7 +191,7 @@ fun NotesScreen(
                 } else {
                     LazyColumn(
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(16.dp),
+                        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
                         verticalArrangement = Arrangement.spacedBy(12.dp)
                     ) {
                         items(noteEntries, key = { it.uuid }) { entry ->
@@ -287,7 +287,7 @@ private fun EmptyState(title: String, subtitle: String) {
             Icon(
                 AppIcons.Notes, null,
                 modifier = Modifier.size(64.dp),
-                tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
             )
             Spacer(modifier = Modifier.height(16.dp))
             Text(title, style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
@@ -509,6 +509,16 @@ private fun NoteEditDialog(
 ) {
     var title by remember { mutableStateOf(note?.title ?: "") }
     var colorIndex by remember { mutableStateOf(note?.colorIndex ?: 0) }
+    val cleanTextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+        unfocusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.015f),
+        focusedBorderColor = Color.Transparent,
+        unfocusedBorderColor = Color.Transparent,
+        disabledBorderColor = Color.Transparent,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -520,7 +530,9 @@ private fun NoteEditDialog(
                     onValueChange = { title = it },
                     label = { Text("Title") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = cleanTextFieldColors
                 )
                 Text("Color", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 ColorPicker(selectedIndex = colorIndex, onSelect = { colorIndex = it })
@@ -559,6 +571,16 @@ private fun EntryEditDialog(
             entry?.customFields?.forEach { list.add(FieldDraft(it.name, it.value)) }
         }
     }
+    val cleanTextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+        unfocusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.015f),
+        focusedBorderColor = Color.Transparent,
+        unfocusedBorderColor = Color.Transparent,
+        disabledBorderColor = Color.Transparent,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
 
     AlertDialog(
         onDismissRequest = onDismiss,
@@ -573,7 +595,9 @@ private fun EntryEditDialog(
                     onValueChange = { label = it },
                     label = { Text("Name") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = cleanTextFieldColors
                 )
                 // Read-only date field; a transparent overlay opens the date picker on tap
                 // (a plain TextField would otherwise swallow the click).
@@ -584,7 +608,9 @@ private fun EntryEditDialog(
                         readOnly = true,
                         label = { Text("Date") },
                         trailingIcon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null) },
-                        modifier = Modifier.fillMaxWidth()
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
                     )
                     Box(modifier = Modifier.matchParentSize().clickable { showDatePicker = true })
                 }
@@ -594,14 +620,18 @@ private fun EntryEditDialog(
                     label = { Text("Amount (Optional)") },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = cleanTextFieldColors
                 )
                 OutlinedTextField(
                     value = detail,
                     onValueChange = { detail = it },
                     label = { Text("Note (Optional)") },
                     singleLine = true,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = cleanTextFieldColors
                 )
 
                 // User-defined extra fields: each is a title + input, added via "Add field".
@@ -612,14 +642,18 @@ private fun EntryEditDialog(
                             onValueChange = { draft.name = it },
                             label = { Text("Title") },
                             singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = cleanTextFieldColors
                         )
                         OutlinedTextField(
                             value = draft.value,
                             onValueChange = { draft.value = it },
                             label = { Text("Value") },
                             singleLine = true,
-                            modifier = Modifier.weight(1f)
+                            modifier = Modifier.weight(1f),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = cleanTextFieldColors
                         )
                         IconButton(onClick = { fieldDrafts.removeAt(index) }) {
                             Icon(Icons.Rounded.Close, contentDescription = "Remove field", modifier = Modifier.size(20.dp))

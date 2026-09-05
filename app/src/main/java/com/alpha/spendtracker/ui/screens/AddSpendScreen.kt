@@ -1,5 +1,6 @@
 /**
- * Screen for logging new spending transactions with details like amount, purpose, and date.
+ * Clean "Log a Transaction" form layout for logging new spending or editing existing transactions.
+ * Designed with refined form controls, soft tonal fills, tabular numeric typography, and clear focus.
  */
 package com.alpha.spendtracker.ui.screens
 
@@ -9,6 +10,7 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
+import androidx.compose.foundation.layout.BoxWithConstraints
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -17,19 +19,19 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.grid.GridCells
-import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
-import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.foundation.lazy.LazyRow
+import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.ui.draw.clip
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
+import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -38,6 +40,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
@@ -59,19 +62,25 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.alpha.spendtracker.ui.theme.scaledByFont
+import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.APP_PRESETS
+import com.alpha.spendtracker.ui.components.AppIconImage
 import com.alpha.spendtracker.ui.components.AppPreset
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 import com.alpha.spendtracker.ui.components.PresetGridCard
+import com.alpha.spendtracker.ui.components.parseLendBorrowNotes
+import com.alpha.spendtracker.ui.theme.MyApplicationTheme
+import com.alpha.spendtracker.ui.theme.asMoney
 import com.alpha.spendtracker.util.findActivity
 import com.alpha.spendtracker.util.formatShortDate
 import com.alpha.spendtracker.util.isSameDay
@@ -91,7 +100,7 @@ data class NewSpend(
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AddSpendScreen(
-    editingSpend: com.alpha.spendtracker.data.Spend? = null,
+    editingSpend: Spend? = null,
     prefilledSpend: NewSpend? = null,
     onDismiss: () -> Unit,
     onShowNotification: (String, NotificationType) -> Unit,
@@ -99,7 +108,8 @@ fun AddSpendScreen(
 ) {
     var amountInput by rememberSaveable { 
         mutableStateOf(
-            editingSpend?.amount?.toString() ?: (if (prefilledSpend != null && prefilledSpend.amount > 0) prefilledSpend.amount.toString() else "")
+            editingSpend?.amount?.let { if (it > 0) formatPlainAmount(it) else "" } 
+                ?: (if (prefilledSpend != null && prefilledSpend.amount > 0) formatPlainAmount(prefilledSpend.amount) else "")
         ) 
     }
     var selectedPreset by remember { 
@@ -116,8 +126,18 @@ fun AddSpendScreen(
             editingSpend?.purpose ?: prefilledSpend?.purpose ?: PURPOSE_PRESETS.first()
         ) 
     }
+
+    val initialLendBorrowParsed = remember(editingSpend) {
+        if (editingSpend != null && (editingSpend.purpose == "Lending" || editingSpend.purpose == "Borrowing")) {
+            parseLendBorrowNotes(editingSpend.notes, editingSpend.appName)
+        } else null
+    }
+
+    var personNameInput by rememberSaveable { 
+        mutableStateOf(initialLendBorrowParsed?.first ?: "") 
+    }
     var notesInput by rememberSaveable { 
-        mutableStateOf(editingSpend?.notes ?: prefilledSpend?.notes ?: "") 
+        mutableStateOf(initialLendBorrowParsed?.second ?: editingSpend?.notes ?: prefilledSpend?.notes ?: "") 
     }
     var customAppNameInput by rememberSaveable { 
         mutableStateOf(
@@ -132,9 +152,11 @@ fun AddSpendScreen(
         ) 
     }
 
+    val isLendBorrow = purposeInput.equals("Lending", ignoreCase = true) || purposeInput.equals("Borrowing", ignoreCase = true)
+
     LaunchedEffect(prefilledSpend) {
         if (prefilledSpend != null && editingSpend == null) {
-            amountInput = if (prefilledSpend.amount > 0) prefilledSpend.amount.toString() else ""
+            amountInput = if (prefilledSpend.amount > 0) formatPlainAmount(prefilledSpend.amount) else ""
             selectedPreset = prefilledSpend.preset
             purposeInput = prefilledSpend.purpose
             notesInput = prefilledSpend.notes
@@ -158,7 +180,12 @@ fun AddSpendScreen(
         snackbarHost = { SnackbarHost(snackbarHostState) },
         topBar = {
             TopAppBar(
-                title = { Text("Log a Transaction", fontWeight = FontWeight.Bold) },
+                title = { 
+                    Text(
+                        if (editingSpend != null) "Edit Transaction" else "Log a Transaction",
+                        fontWeight = FontWeight.Bold
+                    ) 
+                },
                 navigationIcon = {
                     IconButton(onClick = onDismiss) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Cancel")
@@ -176,7 +203,7 @@ fun AddSpendScreen(
                 .padding(innerPadding)
                 .padding(horizontal = 16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp),
-            contentPadding = PaddingValues(bottom = 32.dp)
+            contentPadding = PaddingValues(top = 8.dp, bottom = 24.dp)
         ) {
             item {
                 AmountInputCard(
@@ -185,31 +212,31 @@ fun AddSpendScreen(
                         amountInput = it
                         amountError = null
                     },
+                    onClear = {
+                        amountInput = ""
+                        amountError = null
+                    },
                     isError = amountError != null,
                     errorMessage = amountError
                 )
             }
 
-            item { SectionTitle("Select Payment App & Wallet") }
-
             item {
-                // Scales with the font scale so the preset grid keeps showing about the same
-                // number of rows instead of shrinking to one and a half as the tiles grow.
-                Box(modifier = Modifier
-                    .fillMaxWidth()
-                    .height(260.dp.scaledByFont())) {
-                    LazyVerticalGrid(
-                        columns = GridCells.Fixed(3),
-                        modifier = Modifier.fillMaxSize(),
-                        horizontalArrangement = Arrangement.spacedBy(10.dp),
-                        verticalArrangement = Arrangement.spacedBy(10.dp)
-                    ) {
-                        items(APP_PRESETS, key = { it.id }) { preset ->
-                            PresetGridCard(
-                                preset = preset,
-                                isSelected = selectedPreset.id == preset.id,
-                                onClick = { selectedPreset = preset }
-                            )
+                Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
+                    SectionTitle("Payment app / Wallet")
+                    BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
+                        val gap = 12.dp
+                        val cardWidth = (maxWidth - gap * 3) / 4
+                        LazyRow(horizontalArrangement = Arrangement.spacedBy(gap)) {
+                            items(APP_PRESETS, key = { it.id }) { preset ->
+                                Box(modifier = Modifier.width(cardWidth)) {
+                                    PresetGridCard(
+                                        preset = preset,
+                                        isSelected = selectedPreset.id == preset.id,
+                                        onClick = { selectedPreset = preset }
+                                    )
+                                }
+                            }
                         }
                     }
                 }
@@ -223,61 +250,91 @@ fun AddSpendScreen(
                             customAppNameInput = it
                             customAppError = null
                         },
-                        label = { Text("Enter App Name") },
-                        placeholder = { Text("E.g., Cred, Jupiter, Dunzo…") },
+                        label = { Text("Enter App / Platform Name") },
+                        placeholder = { Text("E.g. Cred, Jupiter, Cash, Bank Transfer...") },
+                        leadingIcon = if (customAppNameInput.isNotBlank()) {
+                            {
+                                AppIconImage(
+                                    appName = customAppNameInput,
+                                    fallbackColor = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(24.dp)
+                                )
+                            }
+                        } else null,
                         singleLine = true,
                         isError = customAppError != null,
                         supportingText = customAppError?.let { msg -> { Text(msg) } },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
                     )
                 }
             }
 
-            item { SectionTitle("Date of Transaction") }
-
             item {
-                DateSelectorRow(
-                    timestamp = transactionTimestamp,
-                    onTimestampChange = { transactionTimestamp = it },
-                    onShowNotification = onShowNotification
-                )
-            }
-
-            item { SectionTitle("Transaction Purpose (Categorization)") }
-
-            item {
-                OutlinedTextField(
-                    value = purposeInput,
-                    onValueChange = { purposeInput = it },
-                    label = { Text("Purpose Details / Custom Category") },
-                    placeholder = { Text("E.g. Dinner with friends, Groceries, Clothes…") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SectionTitle("Date & Time")
+                    DateSelectorRow(
+                        timestamp = transactionTimestamp,
+                        onTimestampChange = { transactionTimestamp = it },
+                        onShowNotification = onShowNotification
+                    )
+                }
             }
 
             item {
-                PurposePresetGrid(
-                    selected = purposeInput,
-                    onSelect = { purposeInput = it }
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                    SectionTitle("Category")
+                    PurposePresetGrid(
+                        selected = purposeInput,
+                        onSelect = { purposeInput = it }
+                    )
+                }
+            }
+
+            if (isLendBorrow) {
+                item {
+                    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                        SectionTitle("Name of Person")
+                        OutlinedTextField(
+                            value = personNameInput,
+                            onValueChange = { personNameInput = it },
+                            placeholder = { Text("E.g. Alex, Ram, Rahul...") },
+                            singleLine = true,
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+                        )
+                    }
+                }
             }
 
             item {
-                OutlinedTextField(
-                    value = notesInput,
-                    onValueChange = { notesInput = it },
-                    label = { Text("Optional description / short note") },
-                    placeholder = { Text("E.g. Sent to Alice for lunch…") },
-                    maxLines = 2,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp)
-                )
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
+                    SectionTitle("Notes (Optional)")
+                    OutlinedTextField(
+                        value = notesInput,
+                        onValueChange = { notesInput = it },
+                        placeholder = { Text("E.g. Groceries, Lunch, Movie tickets...") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedBorderColor = MaterialTheme.colorScheme.primary,
+                            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                        )
+                    )
+                }
             }
 
             item {
+                Spacer(modifier = Modifier.height(8.dp))
                 Button(
                     onClick = {
                         val parsedAmount = amountInput.toDoubleOrNull()
@@ -286,16 +343,20 @@ fun AddSpendScreen(
                             parsedAmount <= 0.0 -> "Amount must be greater than ₹0"
                             else -> null
                         }
-                        val appIssue = if (selectedPreset.id == "other" && customAppNameInput.isBlank())
-                            "Please enter the app name" else null
 
                         amountError = amtIssue
-                        customAppError = appIssue
+                        customAppError = null
 
-                        val firstIssue = amtIssue ?: appIssue
-                        if (firstIssue != null) {
-                            coroutineScope.launch { snackbarHostState.showSnackbar(firstIssue) }
+                        if (amtIssue != null) {
+                            coroutineScope.launch { snackbarHostState.showSnackbar(amtIssue) }
                             return@Button
+                        }
+
+                        val finalNotes = if (isLendBorrow && personNameInput.isNotBlank()) {
+                            if (notesInput.isNotBlank()) "${personNameInput.trim()} - ${notesInput.trim()}"
+                            else personNameInput.trim()
+                        } else {
+                            notesInput
                         }
 
                         onSave(
@@ -303,27 +364,27 @@ fun AddSpendScreen(
                                 preset = selectedPreset,
                                 amount = parsedAmount!!,
                                 purpose = purposeInput.ifBlank { "Others" },
-                                notes = notesInput,
-                                customAppName = customAppNameInput,
+                                notes = finalNotes,
+                                customAppName = if (selectedPreset.id == "other" && customAppNameInput.isBlank()) "Other" else customAppNameInput,
                                 timestamp = transactionTimestamp
                             )
                         )
                     },
                     modifier = Modifier
                         .fillMaxWidth()
-                        .heightIn(min = 56.dp),
-                    shape = RoundedCornerShape(18.dp),
+                        .height(56.dp),
+                    shape = RoundedCornerShape(16.dp),
                     colors = ButtonDefaults.buttonColors(
                         containerColor = MaterialTheme.colorScheme.primary,
                         contentColor = MaterialTheme.colorScheme.onPrimary
                     ),
                     elevation = ButtonDefaults.buttonElevation(
-                        defaultElevation = 6.dp,
-                        pressedElevation = 2.dp
+                        defaultElevation = 2.dp,
+                        pressedElevation = 1.dp
                     )
                 ) {
                     Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
-                    Spacer(modifier = Modifier.width(10.dp))
+                    Spacer(modifier = Modifier.width(8.dp))
                     Text(
                         "Save Transaction",
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
@@ -338,7 +399,10 @@ fun AddSpendScreen(
 private fun SectionTitle(text: String) {
     Text(
         text = text,
-        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+        style = MaterialTheme.typography.titleLarge.copy(
+            fontWeight = FontWeight.Bold,
+            fontSize = 20.sp
+        ),
         color = MaterialTheme.colorScheme.onSurface
     )
 }
@@ -347,43 +411,37 @@ private fun SectionTitle(text: String) {
 private fun AmountInputCard(
     amount: String,
     onAmountChange: (String) -> Unit,
+    onClear: () -> Unit,
     isError: Boolean,
     errorMessage: String?
 ) {
-    val borderColor = if (isError) MaterialTheme.colorScheme.error
-    else MaterialTheme.colorScheme.primary.copy(alpha = 0.35f)
     Surface(
-        color = if (isError)
-            MaterialTheme.colorScheme.error.copy(alpha = 0.10f)
-        else
-            MaterialTheme.colorScheme.primary.copy(alpha = 0.10f),
-        shape = RoundedCornerShape(28.dp),
-        border = androidx.compose.foundation.BorderStroke(1.5.dp, borderColor),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(16.dp),
+        // The only state that earns an outline here is the error state.
+        border = if (isError) BorderStroke(1.dp, MaterialTheme.colorScheme.error) else null,
         modifier = Modifier.fillMaxWidth()
     ) {
         Column(
-            modifier = Modifier.padding(vertical = 28.dp, horizontal = 20.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+            modifier = Modifier.padding(vertical = 16.dp, horizontal = 20.dp),
+            horizontalAlignment = Alignment.Start
         ) {
             Text(
-                text = "AMOUNT SPENT",
-                style = MaterialTheme.typography.labelMedium.copy(
-                    fontWeight = FontWeight.Bold,
-                    letterSpacing = 1.5.sp
-                ),
+                text = "Amount",
+                style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(8.dp))
             Row(
-                verticalAlignment = Alignment.Bottom,
-                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Start,
                 modifier = Modifier.fillMaxWidth()
             ) {
                 Text(
                     text = "₹",
-                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.SemiBold),
+                    style = MaterialTheme.typography.headlineMedium.asMoney(),
                     color = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.padding(bottom = 6.dp, end = 4.dp)
+                    modifier = Modifier.padding(end = 6.dp)
                 )
                 TextField(
                     value = amount,
@@ -392,17 +450,17 @@ private fun AmountInputCard(
                     },
                     placeholder = {
                         Text(
-                            "0.00",
-                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.3f),
-                            style = MaterialTheme.typography.displaySmall
+                            "0",
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.35f),
+                            style = MaterialTheme.typography.displaySmall.asMoney()
                         )
                     },
-                    textStyle = MaterialTheme.typography.displaySmall.copy(
-                        fontWeight = FontWeight.Bold,
+                    textStyle = MaterialTheme.typography.displaySmall.asMoney().copy(
                         textAlign = TextAlign.Start,
                         color = MaterialTheme.colorScheme.onSurface
                     ),
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                    singleLine = true,
                     isError = isError,
                     colors = TextFieldDefaults.colors(
                         focusedContainerColor = Color.Transparent,
@@ -413,14 +471,24 @@ private fun AmountInputCard(
                         unfocusedIndicatorColor = Color.Transparent,
                         errorIndicatorColor = Color.Transparent
                     ),
-                    modifier = Modifier.width(220.dp)
+                    modifier = Modifier.weight(1f)
                 )
+                if (amount.isNotBlank()) {
+                    IconButton(onClick = onClear, modifier = Modifier.size(36.dp)) {
+                        Icon(
+                            Icons.Rounded.Clear,
+                            contentDescription = "Clear amount",
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.size(20.dp)
+                        )
+                    }
+                }
             }
             if (errorMessage != null) {
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = errorMessage,
-                    style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.SemiBold),
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.error
                 )
             }
@@ -442,6 +510,7 @@ private fun DateSelectorRow(
 
     Row(
         horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically,
         modifier = Modifier.fillMaxWidth()
     ) {
         DateChip(
@@ -456,56 +525,77 @@ private fun DateSelectorRow(
             weight = 1.0f,
             onClick = { onTimestampChange(yesterdayMillis()) }
         )
-        Box(
-            modifier = Modifier
-                .weight(1.3f)
-                .background(
-                    color = if (isCustomSelected) MaterialTheme.colorScheme.primaryContainer
-                            else MaterialTheme.colorScheme.surfaceContainerHigh,
-                    shape = RoundedCornerShape(12.dp)
-                )
-                .clickable {
-                    val activity = context.findActivity() ?: run {
-                        onShowNotification("Could not open the date picker", NotificationType.ERROR)
-                        return@clickable
-                    }
-                    val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
-                    DatePickerDialog(
-                        activity,
-                        { _, year, month, dayOfMonth ->
-                            val updated = Calendar.getInstance().apply {
-                                set(Calendar.YEAR, year)
-                                set(Calendar.MONTH, month)
-                                set(Calendar.DAY_OF_MONTH, dayOfMonth)
-                            }
-                            onTimestampChange(updated.timeInMillis)
-                        },
-                        calendar.get(Calendar.YEAR),
-                        calendar.get(Calendar.MONTH),
-                        calendar.get(Calendar.DAY_OF_MONTH)
-                    ).show()
+        DateChip(
+            label = if (isCustomSelected) formatShortDate(timestamp) else "Choose date",
+            isSelected = isCustomSelected,
+            weight = 1.3f,
+            icon = Icons.Rounded.Event,
+            onClick = {
+                val activity = context.findActivity() ?: run {
+                    onShowNotification("Could not open the date picker", NotificationType.ERROR)
+                    return@DateChip
                 }
-                .padding(vertical = 12.dp),
+                val calendar = Calendar.getInstance().apply { timeInMillis = timestamp }
+                DatePickerDialog(
+                    activity,
+                    { _, year, month, dayOfMonth ->
+                        val updated = Calendar.getInstance().apply {
+                            set(Calendar.YEAR, year)
+                            set(Calendar.MONTH, month)
+                            set(Calendar.DAY_OF_MONTH, dayOfMonth)
+                        }
+                        onTimestampChange(updated.timeInMillis)
+                    },
+                    calendar.get(Calendar.YEAR),
+                    calendar.get(Calendar.MONTH),
+                    calendar.get(Calendar.DAY_OF_MONTH)
+                ).show()
+            }
+        )
+    }
+}
+
+@Composable
+private fun RowScope.DateChip(
+    label: String,
+    isSelected: Boolean,
+    weight: Float,
+    icon: ImageVector? = null,
+    onClick: () -> Unit
+) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(12.dp),
+        color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainer,
+        border = null,
+        modifier = Modifier.weight(weight)
+    ) {
+        Box(
+            modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
             contentAlignment = Alignment.Center
         ) {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
-                Icon(
-                    Icons.Rounded.Event,
-                    contentDescription = null,
-                    modifier = Modifier.size(16.dp),
-                    tint = if (isCustomSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                           else MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                Spacer(modifier = Modifier.width(4.dp))
+                if (icon != null) {
+                    Icon(
+                        imageVector = icon,
+                        contentDescription = null,
+                        modifier = Modifier.size(16.dp),
+                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                               else MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
+                }
                 Text(
-                    text = if (isCustomSelected) formatShortDate(timestamp) else "Choose…",
-                    style = MaterialTheme.typography.bodyMedium.copy(
-                        fontWeight = if (isCustomSelected) FontWeight.Bold else FontWeight.Normal
+                    text = label,
+                    style = MaterialTheme.typography.bodySmall.copy(
+                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                        fontSize = 12.sp
                     ),
-                    color = if (isCustomSelected) MaterialTheme.colorScheme.onPrimaryContainer
+                    color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
                             else MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
@@ -516,75 +606,63 @@ private fun DateSelectorRow(
 }
 
 @Composable
-private fun RowScope.DateChip(
-    label: String,
-    isSelected: Boolean,
-    weight: Float,
-    onClick: () -> Unit
-) {
-    Box(
-        modifier = Modifier
-            .weight(weight)
-            .background(
-                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
-                        else MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(12.dp)
-            )
-            .clickable(onClick = onClick)
-            .padding(vertical = 12.dp),
-        contentAlignment = Alignment.Center
-    ) {
-        Text(
-            text = label,
-            style = MaterialTheme.typography.bodyMedium.copy(
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
-            ),
-            color = if (isSelected) MaterialTheme.colorScheme.onPrimaryContainer
-                    else MaterialTheme.colorScheme.onSurface
-        )
-    }
-}
-
-@Composable
 private fun PurposePresetGrid(
     selected: String,
     onSelect: (String) -> Unit
 ) {
-    Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-        PURPOSE_PRESETS.chunked(3).forEach { chunk ->
+    val items = PURPOSE_PRESETS
+
+    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+        items.chunked(3).forEach { chunk ->
             Row(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                horizontalArrangement = Arrangement.spacedBy(6.dp),
                 modifier = Modifier.fillMaxWidth()
             ) {
                 chunk.forEach { purpose ->
                     val isSelected = selected.equals(purpose, ignoreCase = true)
+                    val isBorrowing = purpose.equals("Borrowing", ignoreCase = true)
+
+                    val activeBg = if (isBorrowing) MaterialTheme.colorScheme.error
+                                   else MaterialTheme.colorScheme.secondary
+                    val activeFg = if (isBorrowing) MaterialTheme.colorScheme.onError
+                                   else MaterialTheme.colorScheme.onSecondary
+
                     Box(
                         modifier = Modifier
                             .weight(1f)
-                            .background(
-                                color = if (isSelected) MaterialTheme.colorScheme.secondaryContainer
-                                        else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                shape = RoundedCornerShape(12.dp)
-                            )
-                            .clickable { onSelect(purpose) }
-                            .padding(vertical = 10.dp, horizontal = 4.dp),
+                            .height(34.dp)
+                            .clip(RoundedCornerShape(8.dp))
+                            .background(if (isSelected) activeBg else MaterialTheme.colorScheme.surfaceContainer)
+                            .clickable { onSelect(purpose) },
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
                             text = purpose,
-                            style = MaterialTheme.typography.bodySmall.copy(
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Normal
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                fontSize = 11.sp
                             ),
-                            color = if (isSelected) MaterialTheme.colorScheme.onSecondaryContainer
-                                    else MaterialTheme.colorScheme.onSurface,
+                            color = if (isSelected) activeFg else MaterialTheme.colorScheme.onSurfaceVariant,
                             textAlign = TextAlign.Center,
                             maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            overflow = TextOverflow.Ellipsis,
+                            modifier = Modifier.padding(horizontal = 4.dp)
                         )
                     }
                 }
+                repeat(3 - chunk.size) {
+                    Spacer(modifier = Modifier.weight(1f))
+                }
             }
         }
+    }
+}
+
+private fun formatPlainAmount(amount: Double): String {
+    return if (amount % 1.0 == 0.0) {
+        amount.toLong().toString()
+    } else {
+        amount.toString()
     }
 }
 
@@ -594,3 +672,16 @@ private fun suggestedPurposeFor(preset: AppPreset, current: String): String =
         "amazon", "flipkart", "myntra", "ajio" -> "Shopping & Apparels"
         else -> current
     }
+
+@Preview(showBackground = true)
+@Composable
+fun AddSpendScreenPreview() {
+    MyApplicationTheme {
+        AddSpendScreen(
+            onDismiss = {},
+            onShowNotification = { _, _ -> },
+            onSave = {}
+        )
+    }
+}
+

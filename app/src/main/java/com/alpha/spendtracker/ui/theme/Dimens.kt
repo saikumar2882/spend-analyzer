@@ -1,12 +1,8 @@
 /**
- * Design tokens — a single spacing scale and a single shape scale so the UI has consistent
- * rhythm and corner hierarchy instead of ad-hoc per-call-site values.
+ * Design tokens — a single spacing scale and a single shape scale following 4/8pt grid rules.
  *
- * Spacing:  4 / 8 / 12 / 16 / 20 / 24 / 32 / 48   (every step divisible by 4)
- * Radius:   4 (xxs) / 8 (xs) / 12 (sm) / 16 (md) / 24 (lg) / 28 (xl)
- *
- * `AppShapes` is wired into MaterialTheme so MaterialTheme.shapes.{small,medium,large,...} resolve
- * to these tokens; the `Radius` object is for places that need an explicit dp corner.
+ * Spacing:  4 (xs) / 8 (sm) / 12 (md) / 16 (lg) / 20 (ml) / 24 (xl) / 32 (xxl) / 48 (xxxl)
+ * Radius:   4 (xxs) / 8 (xs) / 12 (sm) / 16 (md) / 20 (lg) / 24 (xl)
  */
 package com.alpha.spendtracker.ui.theme
 
@@ -27,42 +23,37 @@ object Spacing {
     val xl = 24.dp
     val xxl = 32.dp
     val xxxl = 48.dp
+
+    // Fixed component spacing rules
+    val ScreenPadding = 16.dp
+    val CardPadding   = 12.dp
+    val CardGap       = 12.dp
+    val SectionGap    = 20.dp
 }
 
 object Radius {
-    val xxs = 4.dp
-    val xs = 8.dp
-    val sm = 12.dp
-    val md = 16.dp
-    val lg = 24.dp
-    val xl = 28.dp
+    val xxs = 2.dp
+    val xs  = 4.dp
+    val sm  = 8.dp  // Small controls (chips, small buttons)
+    val md  = 12.dp // Standard cards / transaction rows
+    val lg  = 16.dp // Hero card / main containers
+    val xl  = 20.dp // Bottom sheets / modals
 }
 
-/**
- * Scales a dp value by the system font scale, clamped so a huge accessibility setting can't blow the
- * layout out entirely.
- *
- * For boxes whose *contents* are text but whose height cannot simply be a minimum — a fixed-size
- * `Canvas`, most of all. Everything else should prefer `heightIn(min = …)`, which grows on its own.
- */
 @Composable
 @ReadOnlyComposable
 fun Dp.scaledByFont(max: Float = 1.5f): Dp =
     this * LocalDensity.current.fontScale.coerceIn(1f, max)
 
 object Sizes {
-    /**
-     * Floor for anything tappable. Material's own components already reserve this much touch area
-     * even when they paint smaller, so this is only for hand-rolled `Surface(onClick = …)` targets,
-     * which get no such treatment.
-     */
     val minTouchTarget = 48.dp
+    val ButtonHeight   = 52.dp
+    val InputHeight    = 56.dp
+    val FabSize        = 56.dp
 
-    /** Icon inside a [minTouchTarget] button, and inline next to a line of text. */
     val iconAction = 20.dp
     val iconInline = 16.dp
 
-    /** Date badge on a transaction row: compact in dense lists, standard on the dashboard. */
     val dateBadgeCompact = 44.dp
     val dateBadge = 48.dp
 }

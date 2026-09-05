@@ -55,13 +55,14 @@ fun AiInputBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismiss,
         sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         BackHandler(enabled = true) { onDismiss() }
 
         Column(
             modifier = Modifier
-                .padding(horizontal = 20.dp, vertical = 8.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
                 .fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
@@ -114,7 +115,6 @@ fun AiInputBottomSheet(
                 Surface(
                     color = chipColor.copy(alpha = 0.14f),
                     shape = RoundedCornerShape(12.dp),
-                    border = BorderStroke(1.dp, chipColor.copy(alpha = 0.35f))
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
@@ -260,7 +260,7 @@ fun AiInputBottomSheet(
                 }
             )
 
-            if (!isProcessing) {
+            if (!isProcessing && textInput.isBlank()) {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     Row(verticalAlignment = Alignment.CenterVertically) {
                         Box(

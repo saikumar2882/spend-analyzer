@@ -35,9 +35,11 @@ import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material3.AlertDialog
+import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
@@ -129,6 +131,7 @@ import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 import java.util.Locale
 import kotlin.math.roundToInt
 import androidx.compose.runtime.rememberCoroutineScope
+import com.alpha.spendtracker.ui.components.SwipeableLogCard
 
 private const val ALL_CATEGORIES = "All"
 
@@ -149,6 +152,7 @@ fun HistoryScreen(
 ) {
     val context = LocalContext.current
     var searchQuery by rememberSaveable(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
+    var isSearchActive by rememberSaveable { mutableStateOf(initialSearchQuery.isNotBlank()) }
     var selectedCategory by rememberSaveable(initialCategoryFilter) { mutableStateOf(initialCategoryFilter) }
     var selectedTimeFilter by rememberSaveable(initialTimeFilter) { mutableStateOf(initialTimeFilter) }
     var customDateRange by remember { mutableStateOf(initialDateRange) }
@@ -468,17 +472,38 @@ fun HistoryScreen(
     ) {
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Search, filter & AI assistant — grouped in one compact, aligned row
+        // Header row with section title, search lens, filter toggle, export & recycle bin
         Row(
-            modifier = Modifier.fillMaxWidth().padding(vertical = 4.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
             verticalAlignment = Alignment.CenterVertically,
             horizontalArrangement = Arrangement.spacedBy(10.dp)
         ) {
-            SearchField(
-                value = searchQuery,
-                onValueChange = { searchQuery = it },
-                placeholder = "Search ...",
-                modifier = Modifier.weight(1f)
+            if (isSearchActive) {
+                SearchField(
+                    value = searchQuery,
+                    onValueChange = { searchQuery = it },
+                    placeholder = "Search history...",
+                    modifier = Modifier.weight(1f)
+                )
+            } else {
+                Text(
+                    text = "History",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
+            }
+
+            SearchLensButton(
+                active = isSearchActive,
+                onClick = {
+                    isSearchActive = !isSearchActive
+                    if (!isSearchActive) {
+                        searchQuery = ""
+                    }
+                }
             )
 
             FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
@@ -550,143 +575,166 @@ fun HistoryScreen(
             }
         }
 
-        AnimatedVisibility(
-            visible = showFilters,
-            enter = fadeIn() + expandVertically(),
-            exit = fadeOut() + shrinkVertically()
-        ) {
-            Column {
-                Spacer(modifier = Modifier.height(12.dp))
-
-                val categoryFilters = remember { listOf(ALL_CATEGORIES) + CATEGORY_PRESETS }
-                LazyRow(
+        if (showFilters) {
+            ModalBottomSheet(
+                onDismissRequest = { showFilters = false },
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                contentColor = MaterialTheme.colorScheme.onSurface
+            ) {
+                Column(
                     modifier = Modifier
                         .fillMaxWidth()
-                        // A floor, not a fixed height: a FilterChip's own height grows with the
-                        // system font scale, and a hard 44dp sliced the labels in half.
-                        .heightIn(min = 44.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
+                        .padding(horizontal = 20.dp, vertical = 8.dp)
                 ) {
-                    items(categoryFilters, key = { it }) { name ->
-                        FilterChip(
-                            selected = selectedCategory == name,
-                            onClick = { selectedCategory = name },
-                            label = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                            )
-                        )
-                    }
-                }
-
-                val timeFilters = remember {
-                    listOf(
-                        TimeFilter.ALL to "All Time",
-                        TimeFilter.DAY to "Today",
-                        TimeFilter.WEEK to "This Week",
-                        TimeFilter.MONTH to "This Month",
-                        TimeFilter.YEAR to "This Year"
+                    Text(
+                        text = "Filter Transactions",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
-                }
-                LazyRow(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(vertical = 4.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    items(timeFilters, key = { it.first.name }) { (filter, label) ->
-                        FilterChip(
-                            selected = selectedTimeFilter == filter,
-                            onClick = { selectedTimeFilter = filter },
-                            label = { Text(label, fontSize = 12.sp) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        )
-                    }
-                    item(key = "custom") {
-                        val range = customDateRange
-                        val customLabel = if ((selectedTimeFilter == TimeFilter.CUSTOM) && (range != null)) {
-                            "${formatShortDate(range.first)} – ${formatShortDate(range.second)}"
-                        } else {
-                            "Custom"
-                        }
-                        FilterChip(
-                            selected = selectedTimeFilter == TimeFilter.CUSTOM,
-                            onClick = { showDatePicker = true },
-                            label = { Text(customLabel, fontSize = 12.sp) },
-                            leadingIcon = {
-                                Icon(
-                                    Icons.Rounded.DateRange,
-                                    contentDescription = null,
-                                    modifier = Modifier.size(16.dp)
-                                )
-                            },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onSecondaryContainer
-                            )
-                        )
-                    }
-                }
 
-                Spacer(modifier = Modifier.height(10.dp))
-                Row(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .padding(horizontal = 8.dp)
-                        .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
-                        .padding(horizontal = 12.dp, vertical = 10.dp),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(10.dp)
-                ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = "₹${minAmountFilter.roundToInt()} — ${if (maxRangeProgress >= 1f) "Max" else "₹${maxAmountFilter.roundToInt()}"}",
-                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
-                                color = MaterialTheme.colorScheme.secondary
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    val categoryFilters = remember { listOf(ALL_CATEGORIES) + CATEGORY_PRESETS }
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .heightIn(min = 44.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items(categoryFilters, key = { it }) { name ->
+                            FilterChip(
+                                selected = selectedCategory == name,
+                                onClick = { selectedCategory = name },
+                                label = { Text(name, maxLines = 1, overflow = TextOverflow.Ellipsis) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
                             )
-                            if (isAmountFilterActive) {
-                                Surface(
-                                    onClick = { 
-                                        minRangeProgress = 0f
-                                        maxRangeProgress = 1f
-                                    },
-                                    shape = CircleShape,
-                                    color = MaterialTheme.colorScheme.secondary.copy(alpha = 0.1f),
-                                    modifier = Modifier.size(20.dp)
-                                ) {
-                                    Box(contentAlignment = Alignment.Center) {
-                                        Icon(Icons.Rounded.Clear, contentDescription = "Reset", tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(12.dp))
+                        }
+                    }
+
+                    val timeFilters = remember {
+                        listOf(
+                            TimeFilter.ALL to "All Time",
+                            TimeFilter.DAY to "Today",
+                            TimeFilter.WEEK to "This Week",
+                            TimeFilter.MONTH to "This Month",
+                            TimeFilter.YEAR to "This Year"
+                        )
+                    }
+                    LazyRow(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(vertical = 4.dp),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        items(timeFilters, key = { it.first.name }) { (filter, label) ->
+                            FilterChip(
+                                selected = selectedTimeFilter == filter,
+                                onClick = { selectedTimeFilter = filter },
+                                label = { Text(label, fontSize = 12.sp) },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                        item(key = "custom") {
+                            val range = customDateRange
+                            val customLabel = if ((selectedTimeFilter == TimeFilter.CUSTOM) && (range != null)) {
+                                "${formatShortDate(range.first)} – ${formatShortDate(range.second)}"
+                            } else {
+                                "Custom"
+                            }
+                            FilterChip(
+                                selected = selectedTimeFilter == TimeFilter.CUSTOM,
+                                onClick = { showDatePicker = true },
+                                label = { Text(customLabel, fontSize = 12.sp) },
+                                leadingIcon = {
+                                    Icon(
+                                        Icons.Rounded.DateRange,
+                                        contentDescription = null,
+                                        modifier = Modifier.size(16.dp)
+                                    )
+                                },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(10.dp))
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .background(MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.25f), RoundedCornerShape(12.dp))
+                            .padding(horizontal = 12.dp, vertical = 10.dp),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween,
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Text(
+                                    text = "₹${minAmountFilter.roundToInt()} — ${if (maxRangeProgress >= 1f) "Max" else "₹${maxAmountFilter.roundToInt()}"}",
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, fontSize = 11.sp),
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                                if (isAmountFilterActive) {
+                                    Surface(
+                                        onClick = { 
+                                            minRangeProgress = 0f
+                                            maxRangeProgress = 1f
+                                        },
+                                        shape = CircleShape,
+                                        color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
+                                        modifier = Modifier.size(20.dp)
+                                    ) {
+                                        Box(contentAlignment = Alignment.Center) {
+                                            Icon(Icons.Rounded.Clear, contentDescription = "Reset", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
+                                        }
                                     }
                                 }
                             }
+                            Spacer(modifier = Modifier.height(4.dp))
+                            RangeSlider(
+                                value = minRangeProgress..maxRangeProgress,
+                                onValueChange = { 
+                                    minRangeProgress = it.start
+                                    maxRangeProgress = it.endInclusive
+                                },
+                                valueRange = 0f..1f,
+                                colors = SliderDefaults.colors(
+                                    activeTrackColor = MaterialTheme.colorScheme.primary,
+                                    inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+                                    thumbColor = MaterialTheme.colorScheme.primary
+                                ),
+                                modifier = Modifier.height(10.dp)
+                            )
                         }
-                        Spacer(modifier = Modifier.height(4.dp))
-                        RangeSlider(
-                            value = minRangeProgress..maxRangeProgress,
-                            onValueChange = { 
-                                minRangeProgress = it.start
-                                maxRangeProgress = it.endInclusive
-                            },
-                            valueRange = 0f..1f,
-                            colors = SliderDefaults.colors(
-                                activeTrackColor = MaterialTheme.colorScheme.secondary,
-                                inactiveTrackColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
-                                thumbColor = MaterialTheme.colorScheme.secondary
-                            ),
-                            modifier = Modifier.height(10.dp)
-                        )
                     }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Button(
+                        onClick = { showFilters = false },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp)
+                    ) {
+                        Text("Apply Filters", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                    }
+
+                    Spacer(modifier = Modifier.height(24.dp))
                 }
             }
         }
@@ -719,7 +767,7 @@ fun HistoryScreen(
             LazyColumn(
                 modifier = Modifier.weight(1f),
                 verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 80.dp)
+                contentPadding = PaddingValues(bottom = 120.dp)
             ) {
                 groupedHistory.forEach { group ->
                     val monthHeader = group.monthHeader
@@ -746,18 +794,44 @@ fun HistoryScreen(
                         }
                     }
                     items(spends, key = { it.uuid }) { spend ->
-                        HistorySpendCard(
-                            spend = spend,
+                        SwipeableLogCard(
                             onEdit = { onEditSpend(spend) },
                             onDelete = { spendToDelete = spend },
-                            modifier = Modifier.animateItem(),
-                            onClick = if (spend.noteUuid.isNotBlank()) {
-                                { onOpenNote(spend.noteUuid) }
-                            } else null
-                        )
+                            modifier = Modifier.animateItem()
+                        ) {
+                            HistorySpendCard(
+                                spend = spend,
+                                onEdit = { onEditSpend(spend) },
+                                onDelete = { spendToDelete = spend },
+                                onClick = if (spend.noteUuid.isNotBlank()) {
+                                    { onOpenNote(spend.noteUuid) }
+                                } else null
+                            )
+                        }
                     }
                 }
             }
+        }
+    }
+}
+
+@Composable
+private fun SearchLensButton(active: Boolean, onClick: () -> Unit) {
+    Surface(
+        onClick = onClick,
+        shape = RoundedCornerShape(14.dp),
+        color = if (active) MaterialTheme.colorScheme.primaryContainer
+                else MaterialTheme.colorScheme.surfaceContainerHigh,
+        modifier = Modifier.size(Sizes.minTouchTarget)
+    ) {
+        Box(contentAlignment = Alignment.Center) {
+            Icon(
+                Icons.Rounded.Search,
+                contentDescription = if (active) "Close search" else "Search history",
+                tint = if (active) MaterialTheme.colorScheme.onPrimaryContainer
+                       else MaterialTheme.colorScheme.onSurfaceVariant,
+                modifier = Modifier.size(20.dp)
+            )
         }
     }
 }

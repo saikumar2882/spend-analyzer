@@ -57,6 +57,7 @@ fun BillTrackingBottomSheet(
     ModalBottomSheet(
         onDismissRequest = onDismissRequest,
         sheetState = sheetState,
+        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
         dragHandle = { BottomSheetDefaults.DragHandle() }
     ) {
         BackHandler(enabled = true) {
@@ -66,9 +67,9 @@ fun BillTrackingBottomSheet(
         Column(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 20.dp, vertical = 16.dp)
+                .padding(horizontal = 16.dp, vertical = 12.dp)
                 .verticalScroll(rememberScrollState()),
-            verticalArrangement = Arrangement.spacedBy(20.dp)
+            verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // Hero Summary Section
             Column(
@@ -87,15 +88,26 @@ fun BillTrackingBottomSheet(
                     )
                     Spacer(Modifier.weight(1f))
                     Surface(
-                        color = MaterialTheme.colorScheme.surfaceVariant.copy(alpha = 0.5f),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
                         shape = CircleShape
                     ) {
-                        Text(
-                            text = if (selectedPreset.id == "other") customAppName else selectedPreset.displayName,
-                            modifier = Modifier.padding(horizontal = 16.dp, vertical = 6.dp),
-                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
+                        val displayApp = if (selectedPreset.id == "other") customAppName.ifBlank { "Other" } else selectedPreset.displayName
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(6.dp),
+                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 6.dp)
+                        ) {
+                            AppIconImage(
+                                appName = displayApp,
+                                fallbackColor = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Text(
+                                text = displayApp,
+                                style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
                     }
                 }
                 Spacer(Modifier.height(12.dp))
@@ -130,6 +142,17 @@ fun BillTrackingBottomSheet(
                 }
             }
 
+            val cleanTextFieldColors = OutlinedTextFieldDefaults.colors(
+                focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                unfocusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+                disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.015f),
+                focusedBorderColor = Color.Transparent,
+                unfocusedBorderColor = Color.Transparent,
+                disabledBorderColor = Color.Transparent,
+                focusedLabelColor = MaterialTheme.colorScheme.primary,
+                unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+            )
+
             // Input Fields
             OutlinedTextField(
                 value = amount,
@@ -139,7 +162,8 @@ fun BillTrackingBottomSheet(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                singleLine = true
+                singleLine = true,
+                colors = cleanTextFieldColors
             )
 
             AppPresetDropdown(
@@ -152,10 +176,21 @@ fun BillTrackingBottomSheet(
                     value = customAppName,
                     onValueChange = { customAppName = it },
                     label = { Text("App / Platform") },
-                    leadingIcon = { Icon(Icons.Rounded.CreditCard, null) },
+                    leadingIcon = if (customAppName.isNotBlank()) {
+                        {
+                            AppIconImage(
+                                appName = customAppName,
+                                fallbackColor = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(24.dp)
+                            )
+                        }
+                    } else {
+                        { Icon(Icons.Rounded.CreditCard, null) }
+                    },
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(16.dp),
-                    singleLine = true
+                    singleLine = true,
+                    colors = cleanTextFieldColors
                 )
             }
 
@@ -171,7 +206,8 @@ fun BillTrackingBottomSheet(
                 leadingIcon = { Icon(Icons.Rounded.Description, null) },
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
-                singleLine = true
+                singleLine = true,
+                colors = cleanTextFieldColors
             )
 
             // Date Field
@@ -265,6 +301,16 @@ private fun AppPresetDropdown(
     onSelect: (AppPreset) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val cleanTextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+        unfocusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.015f),
+        focusedBorderColor = Color.Transparent,
+        unfocusedBorderColor = Color.Transparent,
+        disabledBorderColor = Color.Transparent,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
             value = selected.displayName,
@@ -274,7 +320,8 @@ private fun AppPresetDropdown(
             leadingIcon = { Box(modifier = Modifier.size(20.dp).clip(CircleShape).background(selected.color)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = cleanTextFieldColors
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             APP_PRESETS.forEach { preset ->
@@ -295,6 +342,16 @@ private fun PurposeDropdown(
     onSelect: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
+    val cleanTextFieldColors = OutlinedTextFieldDefaults.colors(
+        focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+        unfocusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+        disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.015f),
+        focusedBorderColor = Color.Transparent,
+        unfocusedBorderColor = Color.Transparent,
+        disabledBorderColor = Color.Transparent,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+    )
     ExposedDropdownMenuBox(expanded = expanded, onExpandedChange = { expanded = it }) {
         OutlinedTextField(
             value = selected,
@@ -304,7 +361,8 @@ private fun PurposeDropdown(
             leadingIcon = { Icon(Icons.Rounded.Category, null) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp)
+            shape = RoundedCornerShape(16.dp),
+            colors = cleanTextFieldColors
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             PURPOSE_PRESETS.forEach { p ->

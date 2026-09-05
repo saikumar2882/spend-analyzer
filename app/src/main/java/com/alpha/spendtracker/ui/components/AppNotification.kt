@@ -52,8 +52,7 @@ fun AppNotification(
             colors = CardDefaults.cardColors(
                 containerColor = MaterialTheme.colorScheme.surface
             ),
-            border = BorderStroke(1.dp, accent.copy(alpha = 0.4f)),
-            elevation = CardDefaults.cardElevation(defaultElevation = 10.dp)
+            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
         ) {
             Row(
                 // IntrinsicSize.Min so the accent strip below can fillMaxHeight: a fixed 44dp strip

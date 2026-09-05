@@ -24,8 +24,11 @@ import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedTextField
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import androidx.compose.material3.TextField
+import androidx.compose.material3.TextFieldDefaults
+import androidx.compose.ui.graphics.Color
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
@@ -134,14 +137,37 @@ fun RegisterScreen(
         }
     }
 
+    val textFieldColors = TextFieldDefaults.colors(
+        focusedContainerColor = Color.Transparent,
+        unfocusedContainerColor = Color.Transparent,
+        disabledContainerColor = Color.Transparent,
+        errorContainerColor = Color.Transparent,
+        focusedIndicatorColor = MaterialTheme.colorScheme.primary,
+        unfocusedIndicatorColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f),
+        disabledIndicatorColor = Color.Transparent,
+        errorIndicatorColor = MaterialTheme.colorScheme.error,
+        focusedLabelColor = MaterialTheme.colorScheme.primary,
+        unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        focusedLeadingIconColor = MaterialTheme.colorScheme.primary,
+        unfocusedLeadingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        focusedTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        unfocusedTrailingIconColor = MaterialTheme.colorScheme.onSurfaceVariant,
+        focusedTextColor = MaterialTheme.colorScheme.onBackground,
+        unfocusedTextColor = MaterialTheme.colorScheme.onBackground
+    )
+
     if (errorMessage != null) {
         AlertDialog(
             onDismissRequest = { errorMessage = null },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             icon = { Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.error) },
-            title = { Text("Error") },
-            text = { Text(errorMessage!!) },
+            title = { Text("Error", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text(errorMessage!!, color = MaterialTheme.colorScheme.onSurfaceVariant) },
             confirmButton = {
-                TextButton(onClick = { errorMessage = null }) { Text("OK") }
+                TextButton(
+                    onClick = { errorMessage = null },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                ) { Text("OK") }
             }
         )
     }
@@ -149,17 +175,27 @@ fun RegisterScreen(
     if (signInPromptMessage != null) {
         AlertDialog(
             onDismissRequest = { signInPromptMessage = null },
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
             icon = { Icon(Icons.Rounded.ErrorOutline, contentDescription = null, tint = MaterialTheme.colorScheme.primary) },
-            title = { Text("Already registered") },
-            text = { Text(signInPromptMessage!!) },
+            title = { Text("Already registered", color = MaterialTheme.colorScheme.onSurface) },
+            text = { Text(signInPromptMessage!!, color = MaterialTheme.colorScheme.onSurfaceVariant) },
             confirmButton = {
-                Button(onClick = {
-                    signInPromptMessage = null
-                    onNavigateToSignIn()
-                }) { Text("Sign in") }
+                Button(
+                    onClick = {
+                        signInPromptMessage = null
+                        onNavigateToSignIn()
+                    },
+                    colors = ButtonDefaults.buttonColors(
+                        containerColor = MaterialTheme.colorScheme.primary,
+                        contentColor = MaterialTheme.colorScheme.onPrimary
+                    )
+                ) { Text("Sign in") }
             },
             dismissButton = {
-                TextButton(onClick = { signInPromptMessage = null }) { Text("Cancel") }
+                TextButton(
+                    onClick = { signInPromptMessage = null },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                ) { Text("Cancel") }
             }
         )
     }
@@ -195,7 +231,8 @@ fun RegisterScreen(
                 )
                 TextButton(
                     onClick = onNavigateToSignIn,
-                    enabled = !isLoading
+                    enabled = !isLoading,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text(
                         "Sign in",
@@ -206,7 +243,7 @@ fun RegisterScreen(
             }
         }
     ) {
-        OutlinedTextField(
+        TextField(
             value = email,
             onValueChange = {
                 email = it
@@ -218,7 +255,7 @@ fun RegisterScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             isError = emailError,
-            shape = RoundedCornerShape(14.dp),
+            colors = textFieldColors,
             keyboardOptions = KeyboardOptions(
                 keyboardType = KeyboardType.Email,
                 imeAction = ImeAction.Next
@@ -228,9 +265,9 @@ fun RegisterScreen(
             } else null
         )
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
-        OutlinedTextField(
+        TextField(
             value = password,
             onValueChange = {
                 password = it
@@ -254,7 +291,7 @@ fun RegisterScreen(
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
             isError = passwordError,
-            shape = RoundedCornerShape(14.dp),
+            colors = textFieldColors,
             supportingText = if (passwordError) {
                 { Text("Password must be at least 6 characters") }
             } else null
@@ -271,7 +308,11 @@ fun RegisterScreen(
                     .fillMaxWidth()
                     .heightIn(min = 54.dp),
                 shape = RoundedCornerShape(16.dp),
-                elevation = ButtonDefaults.buttonElevation(defaultElevation = 6.dp, pressedElevation = 2.dp)
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                ),
+                elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 1.dp)
             ) {
                 Text(
                     "Create account",
@@ -285,13 +326,19 @@ fun RegisterScreen(
                 modifier = Modifier.fillMaxWidth(),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                HorizontalDivider(modifier = Modifier.weight(1f))
+                HorizontalDivider(
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
                 Text(
                     text = "  OR  ",
-                    style = MaterialTheme.typography.labelMedium,
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
-                HorizontalDivider(modifier = Modifier.weight(1f))
+                HorizontalDivider(
+                    modifier = Modifier.weight(1f),
+                    color = MaterialTheme.colorScheme.outlineVariant
+                )
             }
 
             Spacer(modifier = Modifier.height(20.dp))

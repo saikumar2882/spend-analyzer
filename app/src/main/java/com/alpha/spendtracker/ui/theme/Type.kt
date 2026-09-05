@@ -1,12 +1,9 @@
 /**
  * Typography configuration for the application's theme.
  *
- * Two bundled variable fonts give the app a deliberate voice (replacing the stock system face):
+ * Two bundled variable fonts give the app a deliberate voice:
  *  - Space Grotesk — display / headlines / titles / currency figures (geometric, editorial fintech).
  *  - Inter         — body / labels (highly legible UI text).
- *
- * Variable-weight axes are applied via FontVariation (API 26+); on API 24–25 the fonts fall back to
- * their default instance, which is an acceptable degradation. Space Grotesk tops out at 700 (Bold).
  */
 package com.alpha.spendtracker.ui.theme
 
@@ -42,55 +39,33 @@ val Grotesk = FontFamily(
     groteskFont(400), groteskFont(500), groteskFont(600), groteskFont(700)
 )
 
-/**
- * Turns any step of the type scale into a currency style: Space Grotesk, tabular figures so digits
- * keep a constant width (totals don't jiggle as they count up).
- *
- * Deliberately a modifier on the existing scale rather than a parallel set of money sizes — amounts
- * stay locked to the same steps as everything around them.
- *
- * Weight tops out at [FontWeight.Bold] (700) on purpose: that is the heaviest instance the bundled
- * variable fonts actually carry, so the `ExtraBold`/`Black` this replaces was being faux-bolded by
- * the rasterizer — visibly different from real Bold, and inconsistent across API levels.
- */
 fun TextStyle.asMoney(): TextStyle = copy(
     fontFamily = Grotesk,
     fontWeight = FontWeight.Bold,
     fontFeatureSettings = "tnum",
-    // Tracking is left at zero deliberately. Tabular figures already give every digit an identical
-    // advance, so tightening on top of that only crowds them — and Space Grotesk's ₹ has a long
-    // crossbar that ran straight into the first digit at the -0.5sp these call sites used to pass.
     letterSpacing = 0.sp,
 )
 
 val Typography = Typography(
-    displayLarge = TextStyle(
-        fontFamily = Grotesk, fontWeight = FontWeight.Bold,
-        fontSize = 56.sp, lineHeight = 60.sp, letterSpacing = (-1.5).sp
-    ),
-    displayMedium = TextStyle(
-        fontFamily = Grotesk, fontWeight = FontWeight.Bold,
-        fontSize = 44.sp, lineHeight = 50.sp, letterSpacing = (-1.0).sp
-    ),
+    // Display: 32 / Bold
     displaySmall = TextStyle(
         fontFamily = Grotesk, fontWeight = FontWeight.Bold,
-        fontSize = 34.sp, lineHeight = 40.sp, letterSpacing = (-0.6).sp
+        fontSize = 32.sp, lineHeight = 38.sp, letterSpacing = (-0.6).sp
     ),
-    headlineLarge = TextStyle(
-        fontFamily = Grotesk, fontWeight = FontWeight.Bold,
-        fontSize = 30.sp, lineHeight = 36.sp, letterSpacing = (-0.5).sp
-    ),
+    // LargeAmount: 28 / Bold
     headlineMedium = TextStyle(
         fontFamily = Grotesk, fontWeight = FontWeight.Bold,
-        fontSize = 26.sp, lineHeight = 32.sp, letterSpacing = (-0.3).sp
+        fontSize = 28.sp, lineHeight = 34.sp, letterSpacing = (-0.4).sp
     ),
+    // PageTitle: 24 / SemiBold
     headlineSmall = TextStyle(
         fontFamily = Grotesk, fontWeight = FontWeight.SemiBold,
-        fontSize = 22.sp, lineHeight = 28.sp, letterSpacing = (-0.2).sp
+        fontSize = 24.sp, lineHeight = 30.sp, letterSpacing = (-0.2).sp
     ),
+    // Section: 18 / SemiBold
     titleLarge = TextStyle(
         fontFamily = Grotesk, fontWeight = FontWeight.SemiBold,
-        fontSize = 20.sp, lineHeight = 26.sp, letterSpacing = (-0.1).sp
+        fontSize = 18.sp, lineHeight = 24.sp, letterSpacing = (-0.1).sp
     ),
     titleMedium = TextStyle(
         fontFamily = Grotesk, fontWeight = FontWeight.SemiBold,
@@ -100,28 +75,31 @@ val Typography = Typography(
         fontFamily = Grotesk, fontWeight = FontWeight.Medium,
         fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.1.sp
     ),
+    // Body: 16 / Regular
     bodyLarge = TextStyle(
         fontFamily = Inter, fontWeight = FontWeight.Normal,
-        fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.3.sp
+        fontSize = 16.sp, lineHeight = 24.sp, letterSpacing = 0.2.sp
     ),
+    // Secondary: 14 / Regular
     bodyMedium = TextStyle(
         fontFamily = Inter, fontWeight = FontWeight.Normal,
         fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.2.sp
     ),
+    // Caption: 12 / Medium
     bodySmall = TextStyle(
-        fontFamily = Inter, fontWeight = FontWeight.Normal,
+        fontFamily = Inter, fontWeight = FontWeight.Medium,
         fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.3.sp
     ),
     labelLarge = TextStyle(
         fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-        fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.4.sp
+        fontSize = 14.sp, lineHeight = 20.sp, letterSpacing = 0.3.sp
     ),
     labelMedium = TextStyle(
-        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-        fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.6.sp
+        fontFamily = Inter, fontWeight = FontWeight.Medium,
+        fontSize = 12.sp, lineHeight = 16.sp, letterSpacing = 0.4.sp
     ),
     labelSmall = TextStyle(
-        fontFamily = Inter, fontWeight = FontWeight.SemiBold,
-        fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.8.sp
+        fontFamily = Inter, fontWeight = FontWeight.Medium,
+        fontSize = 11.sp, lineHeight = 14.sp, letterSpacing = 0.5.sp
     ),
 )

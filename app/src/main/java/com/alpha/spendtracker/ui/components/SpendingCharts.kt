@@ -262,15 +262,16 @@ fun SpendingDonutChart(
             modifier = Modifier.weight(1f),
             verticalArrangement = Arrangement.spacedBy(Spacing.xs)
         ) {
-            items.take(4).forEach { (category, amount) ->
+            val visibleCount = if (items.size <= 5) 5 else 4
+            items.take(visibleCount).forEach { (category, amount) ->
                 LegendRow(
                     label = category,
                     percent = if (total > 0) (amount / total * 100).toInt() else 0,
                     swatch = chartColors[category] ?: neutralSwatch
                 )
             }
-            if (items.size > 4) {
-                val remainingAmount = items.drop(4).sumOf { it.second }
+            if (items.size > visibleCount) {
+                val remainingAmount = items.drop(visibleCount).sumOf { it.second }
                 LegendRow(
                     label = "Others",
                     percent = if (total > 0) (remainingAmount / total * 100).toInt() else 0,
@@ -583,8 +584,11 @@ fun SpendingTrendBarChart(
                     val clipped = point.amount > displayMax
 
                     val fraction = (point.amount / displayMax).coerceAtMost(1.0)
-                    val barHeight = (fraction * plotHeight).toFloat() * progressFactor
+                    val rawBarHeight = (fraction * plotHeight).toFloat() * progressFactor
+                    val minBarHeight = 4.dp.toPx()
+                    val barHeight = if (point.amount > 0) rawBarHeight.coerceAtLeast(minBarHeight) else 0f
                     val yStart = axisY - barHeight
+                    val cornerR = (barWidth / 2f).coerceAtMost(barHeight / 2f)
                     // A clipped bar's amount has to clear the detached cap drawn above it.
                     val valueBaseY = if (clipped) yStart - clipExtra else yStart
 
@@ -604,7 +608,7 @@ fun SpendingTrendBarChart(
                             ),
                             topLeft = Offset(xStart, yStart),
                             size = Size(barWidth, barHeight),
-                            cornerRadius = CornerRadius(barWidth / 2)
+                            cornerRadius = CornerRadius(cornerR)
                         )
                         // Broken-bar cap: a detached stub above a day that runs past the ceiling,
                         // the conventional "continues beyond this scale" mark. Its amount is

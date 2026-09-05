@@ -3,12 +3,10 @@
  */
 package com.alpha.spendtracker.ui.screens
 
-import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.ColumnScope
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -19,17 +17,16 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.ChevronRight
+import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Password
-import androidx.compose.material.icons.rounded.Person
-import androidx.compose.material.icons.rounded.Security
-import androidx.compose.material.icons.rounded.Settings
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.Tune
 import androidx.compose.material.icons.rounded.Visibility
@@ -44,15 +41,16 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.ui.components.AiSettingsDialog
-import com.alpha.spendtracker.ui.components.ProfileDialog
+import com.alpha.spendtracker.ui.components.AppAvatar
 import com.alpha.spendtracker.ui.components.NotificationType
+import com.alpha.spendtracker.ui.components.ProfileDialog
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -78,28 +76,59 @@ fun SettingsScreen(
     val auth = FirebaseAuth.getInstance()
     var displayName by remember { mutableStateOf(auth.currentUser?.displayName.orEmpty()) }
     val email = auth.currentUser?.email.orEmpty()
+    val photoUrl = auth.currentUser?.photoUrl?.toString()
+
+    val effectiveDisplayName = remember(displayName, email) {
+        if (displayName.isNotBlank()) {
+            displayName.trim()
+        } else if (email.isNotBlank()) {
+            val handle = email.substringBefore('@').trim()
+            handle.split('.', '_', '-')
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { word ->
+                    word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                }
+        } else {
+            ""
+        }
+    }
 
     if (showProfileDialog) {
         ProfileDialog(
             currentName = displayName,
             email = email,
+            photoUrl = photoUrl,
             onDismiss = { showProfileDialog = false },
             onSave = { newName ->
-                val request = com.google.firebase.auth.UserProfileChangeRequest.Builder()
+                val currentUser = auth.currentUser
+                if (currentUser == null) {
+                    showProfileDialog = false
+                    onShowNotification("Please sign in to update your profile", NotificationType.ERROR)
+                    return@ProfileDialog
+                }
+                val request = UserProfileChangeRequest.Builder()
                     .setDisplayName(newName)
                     .build()
-                auth.currentUser?.updateProfile(request)?.addOnCompleteListener { task ->
-                    if (task.isSuccessful) {
-                        displayName = newName
+                currentUser.updateProfile(request)
+                    .addOnCompleteListener { task ->
                         showProfileDialog = false
-                        onShowNotification("Profile updated", NotificationType.SUCCESS)
-                    } else {
+                        if (task.isSuccessful) {
+                            displayName = newName
+                            onShowNotification("Profile updated", NotificationType.SUCCESS)
+                        } else {
+                            onShowNotification(
+                                "Error: ${task.exception?.message ?: "Could not save profile"}",
+                                NotificationType.ERROR
+                            )
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        showProfileDialog = false
                         onShowNotification(
-                            "Error: ${task.exception?.message ?: "Could not save"}",
+                            "Error: ${e.message ?: "Could not save profile"}",
                             NotificationType.ERROR
                         )
                     }
-                }
             }
         )
     }
@@ -159,7 +188,18 @@ fun SettingsScreen(
                             }
                         },
                         modifier = Modifier.fillMaxWidth(),
-                        singleLine = true
+                        singleLine = true,
+                        shape = RoundedCornerShape(14.dp),
+                        colors = OutlinedTextFieldDefaults.colors(
+                            focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+                            unfocusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+                            disabledContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.015f),
+                            focusedBorderColor = Color.Transparent,
+                            unfocusedBorderColor = Color.Transparent,
+                            disabledBorderColor = Color.Transparent,
+                            focusedLabelColor = MaterialTheme.colorScheme.primary,
+                            unfocusedLabelColor = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
                     )
                 }
             },
@@ -216,169 +256,193 @@ fun SettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
                     }
-                }
+                },
+                colors = TopAppBarDefaults.topAppBarColors(
+                    containerColor = MaterialTheme.colorScheme.background
+                )
             )
-        }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(padding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 16.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            contentPadding = PaddingValues(start = 16.dp, top = 8.dp, end = 16.dp, bottom = 120.dp),
+            verticalArrangement = Arrangement.spacedBy(12.dp)
         ) {
+            // Profile Card Section
             item {
-                SettingsGroup(title = "Appearance") {
-                    SettingsRow(
-                        icon = when (themePreference) {
-                            ThemePreference.SYSTEM -> AppIcons.ThemeAuto
-                            ThemePreference.LIGHT -> AppIcons.ThemeLight
-                            ThemePreference.DARK -> AppIcons.ThemeDark
-                        },
-                        title = "Theme",
-                        subtitle = when (themePreference) {
-                            ThemePreference.SYSTEM -> "Follow system"
-                            ThemePreference.LIGHT -> "Light"
-                            ThemePreference.DARK -> "Dark"
-                        },
-                        onClick = onCycleTheme,
-                        trailing = {
-                            Surface(
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                                shape = RoundedCornerShape(Radius.xs)
-                            ) {
-                                Text(
-                                    text = when (themePreference) {
-                                        ThemePreference.SYSTEM -> "Auto"
-                                        ThemePreference.LIGHT -> "Light"
-                                        ThemePreference.DARK -> "Dark"
-                                    },
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Radius.lg),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+                    )
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clickable(onClick = { showProfileDialog = true })
+                            .padding(16.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        AppAvatar(
+                            name = effectiveDisplayName,
+                            color = MaterialTheme.colorScheme.primary,
+                            size = 52.dp,
+                            photoUrl = photoUrl
+                        )
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = effectiveDisplayName.ifBlank { "User" },
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = email.ifBlank { "Not signed in" },
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                            modifier = Modifier.size(36.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    imageVector = Icons.Rounded.Edit,
+                                    contentDescription = "Edit Profile",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
-                    )
+                    }
                 }
             }
 
+            // Appearance & Security Section
             item {
-                SettingsGroup(title = "Security") {
-                    SettingsRow(
-                        icon = Icons.Rounded.Fingerprint,
-                        title = "Biometric Lock",
-                        subtitle = "Require authentication to open the app",
-                        iconTint = if (aiPreferences.isBiometricEnabled)
-                            MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        onClick = { onToggleBiometrics(!aiPreferences.isBiometricEnabled) },
-                        trailing = {
-                            Switch(
-                                checked = aiPreferences.isBiometricEnabled,
-                                // Display-only: the row's onClick is the single toggle source, so the
-                                // Switch must not also handle the change (would double-fire and cancel out).
-                                onCheckedChange = null
-                            )
-                        }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Radius.lg),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
                     )
-                    SettingsDivider()
-                    SettingsRow(
-                        icon = Icons.Rounded.Password,
-                        title = "Account Security",
-                        subtitle = "Change or reset your password",
-                        onClick = { showSecurityOptions = true }
-                    )
+                ) {
+                    Column {
+                        SettingsRow(
+                            icon = when (themePreference) {
+                                ThemePreference.SYSTEM -> AppIcons.ThemeAuto
+                                ThemePreference.LIGHT -> AppIcons.ThemeLight
+                                ThemePreference.DARK -> AppIcons.ThemeDark
+                            },
+                            title = "Theme",
+                            subtitle = when (themePreference) {
+                                ThemePreference.SYSTEM -> "Follow system"
+                                ThemePreference.LIGHT -> "Light mode"
+                                ThemePreference.DARK -> "Dark mode"
+                            },
+                            onClick = onCycleTheme
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = Icons.Rounded.Fingerprint,
+                            title = "Biometric Lock",
+                            subtitle = "Require authentication to open the app",
+                            onClick = { onToggleBiometrics(!aiPreferences.isBiometricEnabled) },
+                            trailing = {
+                                Switch(
+                                    checked = aiPreferences.isBiometricEnabled,
+                                    onCheckedChange = null
+                                )
+                            }
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = Icons.Rounded.Password,
+                            title = "Account Security",
+                            subtitle = "Change or reset your password",
+                            onClick = { showSecurityOptions = true }
+                        )
+                    }
                 }
             }
 
+            // Preferences & Features Section
             item {
-                SettingsGroup(title = "AI & Defaults") {
-                    SettingsRow(
-                        icon = Icons.Rounded.Tune,
-                        title = "App Defaults",
-                        subtitle = "${aiPreferences.defaultCurrency} · ${aiPreferences.defaultApp} · ${aiPreferences.defaultPurpose}",
-                        onClick = { showAiSettingsDialog = true }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Radius.lg),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
                     )
-                    SettingsDivider()
-                    SettingsRow(
-                        icon = AppIcons.Ai,
-                        title = "AI History Assistant",
-                        subtitle = "Ask questions about your spending",
-                        iconTint = MaterialTheme.colorScheme.primary,
-                        onClick = onAiAssistantClick
-                    )
-                    SettingsDivider()
-                    SettingsRow(
-                        icon = Icons.AutoMirrored.Rounded.ReceiptLong,
-                        title = "Recurring Bills",
-                        subtitle = "Manage subscriptions and bill reminders",
-                        onClick = onRecurringBillsClick
-                    )
-                    SettingsDivider()
-                    SettingsRow(
-                        icon = AppIcons.Notes,
-                        title = "Notes",
-                        subtitle = "Custom collections of transaction entries",
-                        onClick = onNotesClick
-                    )
+                ) {
+                    Column {
+                        SettingsRow(
+                            icon = Icons.Rounded.Tune,
+                            title = "App Defaults",
+                            subtitle = "${aiPreferences.defaultCurrency} · ${aiPreferences.defaultApp} · ${aiPreferences.defaultPurpose}",
+                            onClick = { showAiSettingsDialog = true }
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = AppIcons.Ai,
+                            title = "AI History Assistant",
+                            subtitle = "Ask questions about your spending",
+                            onClick = onAiAssistantClick
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = Icons.AutoMirrored.Rounded.ReceiptLong,
+                            title = "Recurring Bills",
+                            subtitle = "Manage subscriptions and bill reminders",
+                            onClick = onRecurringBillsClick
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = AppIcons.Notes,
+                            title = "Notes",
+                            subtitle = "Custom collections of transaction entries",
+                            onClick = onNotesClick
+                        )
+                    }
                 }
             }
 
+            // Account & Sign Out Section
             item {
-                SettingsGroup(title = "Account") {
-                    SettingsRow(
-                        icon = Icons.Rounded.Person,
-                        title = "Profile",
-                        subtitle = email.ifBlank { "Edit your display name" },
-                        onClick = { showProfileDialog = true }
+                Card(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(Radius.lg),
+                    colors = CardDefaults.cardColors(
+                        containerColor = MaterialTheme.colorScheme.surfaceContainer
                     )
-                    SettingsDivider()
-                    SettingsRow(
-                        icon = Icons.Rounded.Share,
-                        title = "Share App",
-                        subtitle = "Tell your friends about Spendly",
-                        onClick = onShareApp
-                    )
-                    SettingsDivider()
-                    SettingsRow(
-                        icon = Icons.AutoMirrored.Rounded.Logout,
-                        title = "Sign Out",
-                        subtitle = "Log out of your account",
-                        iconTint = MaterialTheme.colorScheme.error,
-                        titleColor = MaterialTheme.colorScheme.error,
-                        onClick = onLogout
-                    )
+                ) {
+                    Column {
+                        SettingsRow(
+                            icon = Icons.Rounded.Share,
+                            title = "Share App",
+                            subtitle = "Tell your friends about Spendly",
+                            onClick = onShareApp
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = Icons.AutoMirrored.Rounded.Logout,
+                            title = "Sign Out",
+                            subtitle = "Log out of your account",
+                            iconTint = MaterialTheme.colorScheme.error,
+                            titleColor = MaterialTheme.colorScheme.error,
+                            containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),
+                            onClick = onLogout
+                        )
+                    }
                 }
             }
-        }
-    }
-}
-
-@Composable
-private fun SettingsGroup(
-    title: String,
-    content: @Composable ColumnScope.() -> Unit
-) {
-    Column {
-        Row(verticalAlignment = Alignment.CenterVertically, modifier = Modifier.padding(start = 4.dp, bottom = 10.dp)) {
-            Box(
-                modifier = Modifier
-                    .size(width = 4.dp, height = 18.dp)
-                    .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
-            )
-            Spacer(modifier = Modifier.width(10.dp))
-            Text(
-                text = title,
-                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                color = MaterialTheme.colorScheme.onSurface
-            )
-        }
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(Radius.md),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
-        ) {
-            Column(content = content)
         }
     }
 }
@@ -389,6 +453,7 @@ private fun SettingsRow(
     title: String,
     subtitle: String,
     onClick: () -> Unit,
+    containerColor: Color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
     iconTint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     titleColor: Color = MaterialTheme.colorScheme.onSurface,
     trailing: (@Composable () -> Unit)? = null
@@ -401,9 +466,9 @@ private fun SettingsRow(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Surface(
-            shape = RoundedCornerShape(Radius.sm),
-            color = iconTint.copy(alpha = 0.12f),
-            modifier = Modifier.size(40.dp)
+            shape = CircleShape,
+            color = containerColor,
+            modifier = Modifier.size(42.dp)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
@@ -436,7 +501,7 @@ private fun SettingsRow(
             Icon(
                 imageVector = Icons.Rounded.ChevronRight,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.6f),
+                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
                 modifier = Modifier.size(20.dp)
             )
         }
@@ -446,7 +511,7 @@ private fun SettingsRow(
 @Composable
 private fun SettingsDivider() {
     HorizontalDivider(
-        modifier = Modifier.padding(start = 70.dp),
-        color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f)
+        modifier = Modifier.padding(start = 72.dp),
+        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
     )
 }

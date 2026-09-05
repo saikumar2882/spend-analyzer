@@ -8,8 +8,38 @@
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
 
     <queries>
+        <!-- Payment / merchant apps whose launcher icon AppIconImage shows when installed.
+             From API 30 a package absent from this list is invisible to PackageManager, so the
+             icon lookup returns null and the avatar silently falls back to initials. -->
+        <package android:name="com.google.android.apps.nbu.paisa.user" />
+        <package android:name="com.phonepe.app" />
+        <package android:name="net.one97.paytm" />
+        <package android:name="in.swiggy.android" />
+        <package android:name="com.application.zomato" />
+        <package android:name="com.kirana.consumer" />
+        <package android:name="com.zepto.consumer" />
+        <package android:name="com.grofers.customerapp" />
+        <package android:name="com.dreamplug.android.cred" />
+        <package android:name="in.amazon.mShop.android.shopping" />
+        <package android:name="com.flipkart.android" />
+        <package android:name="com.myntra.android" />
+        <package android:name="com.ril.ajio" />
+        <package android:name="com.csam.icici.bank.imobile" />
+        <package android:name="com.sbi.lotusintouch" />
+        <package android:name="com.snapwork.hdfc" />
+        <package android:name="com.axis.mobile" />
+        <package android:name="com.ubercab" />
+        <package android:name="com.olacabs.customer" />
+        <package android:name="com.rapido.passenger" />
+        <package android:name="com.netflix.mediaclient" />
+        <package android:name="com.spotify.music" />
+
         <package android:name="com.google.android.gms" />
         <package android:name="com.android.vending" />
+        <intent>
+            <action android:name="android.intent.action.MAIN" />
+            <category android:name="android.intent.category.LAUNCHER" />
+        </intent>
         <intent>
             <action android:name="com.google.android.gms.auth.api.signin.SERVICE" />
         </intent>

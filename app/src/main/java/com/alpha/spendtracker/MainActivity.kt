@@ -27,6 +27,7 @@ import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.interaction.MutableInteractionSource
@@ -43,6 +44,7 @@ import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.material.icons.Icons
@@ -65,11 +67,16 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.dp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.spring
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -399,7 +406,7 @@ fun MainContainer(
     var pendingUpdate by remember { mutableStateOf<UpdateChecker.UpdateInfo?>(null) }
     val updateChecker = remember { UpdateChecker(context) }
 
-    LaunchedEffect(Unit) {
+LaunchedEffect(Unit) {
         val packageInfo = context.packageManager.getPackageInfo(context.packageName, 0)
         val currentVersion = packageInfo.versionName ?: "0.0.0"
         val update = updateChecker.checkForUpdates(currentVersion)
@@ -835,42 +842,84 @@ fun MainContainer(
                             exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
                         ) {
                             Column(
-                                horizontalAlignment = Alignment.End, 
-                                modifier = Modifier.padding(bottom = 24.dp),
-                                verticalArrangement = Arrangement.spacedBy(12.dp)
+                                horizontalAlignment = Alignment.End,
+                                modifier = Modifier.padding(bottom = 16.dp),
+                                verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
-                                ExtendedFloatingActionButton(
+                                Surface(
                                     onClick = {
                                         showFabMenu = false
                                         showAiInput = true
                                     },
-                                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
-                                    icon = { Icon(AppIcons.Ai, "Track with AI") },
-                                    text = { Text("AI Track") }
-                                )
-                                ExtendedFloatingActionButton(
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.primaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    shadowElevation = 4.dp,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Icon(AppIcons.Ai, contentDescription = null, modifier = Modifier.size(20.dp))
+                                        Text("AI log", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                }
+
+                                Surface(
                                     onClick = {
                                         showFabMenu = false
                                         editingSpend = null
                                         returnTo = activeView
                                         activeView = ActiveView.ADD_SPEND
                                     },
-                                    containerColor = MaterialTheme.colorScheme.tertiaryContainer,
-                                    icon = { Icon(Icons.Rounded.Edit, "Track Manually") },
-                                    text = { Text("Manual") }
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = MaterialTheme.colorScheme.secondaryContainer,
+                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    shadowElevation = 4.dp,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f))
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
+                                        Text("Manual", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                                    }
+                                }
+                            }
+                        }
+
+                        val fabRotation by animateFloatAsState(
+                            targetValue = if (showFabMenu) 45f else 0f,
+                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            label = "fab_rotation"
+                        )
+
+                        val haptic = LocalHapticFeedback.current
+                        Surface(
+                            onClick = {
+                                runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+                                showFabMenu = !showFabMenu
+                            },
+                            shape = RoundedCornerShape(20.dp),
+                            color = if (showFabMenu) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primary,
+                            contentColor = if (showFabMenu) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
+                            shadowElevation = 6.dp,
+                            modifier = Modifier.size(56.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Rounded.Add,
+                                    contentDescription = if (showFabMenu) "Close tracking menu" else "Track spend",
+                                    modifier = Modifier
+                                        .size(26.dp)
+                                        .graphicsLayer { rotationZ = fabRotation }
                                 )
                             }
                         }
-                        ExtendedFloatingActionButton(
-                            onClick = { showFabMenu = !showFabMenu },
-                            expanded = fabExpanded || showFabMenu,
-                            icon = {
-                                Icon(Icons.Rounded.Add, null, modifier = Modifier.graphicsLayer { rotationZ = if (showFabMenu) 45f else 0f })
-                            },
-                            text = { Text(if (showFabMenu) "Close Tracking" else "Track Spend") },
-                            containerColor = if (showFabMenu) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primary,
-                            elevation = FloatingActionButtonDefaults.elevation(6.dp)
-                        )
                     }
                 }
             }
@@ -932,7 +981,17 @@ fun MainContainer(
                                 goToMajor(ActiveView.HISTORY)
                             },
                             onAiAssistantClick = { showAiHistoryAssistant = true },
-                            onNotesClick = { goToMajor(ActiveView.NOTES) }
+                            onNotesClick = { goToMajor(ActiveView.NOTES) },
+                            onEditSpend = { spend ->
+                                editingSpend = spend
+                                returnTo = activeView
+                                activeView = ActiveView.ADD_SPEND
+                            },
+                            onDeleteSpend = { spend ->
+                                viewModel.deleteSpend(spend) {
+                                    notifyResult(it, "Record moved to trash", NotificationType.INFO)
+                                }
+                            }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
                             allSpends = allSpends,

@@ -16,8 +16,8 @@ android {
     applicationId = "com.alpha.spendtracker"
     minSdk = 24
     targetSdk = 37
-    versionCode = 17
-    versionName = "2.2.0"
+    versionCode = 18
+    versionName = "2.3.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -112,7 +112,7 @@ dependencies {
   implementation(libs.androidx.room.ktx)
   implementation(libs.androidx.room.runtime)
   implementation(libs.androidx.datastore.preferences)
-  // implementation(libs.coil.compose)
+  implementation("io.coil-kt:coil-compose:2.7.0")
   implementation(libs.converter.moshi)
   // implementation(libs.firebase.ai)
   implementation(libs.kotlinx.coroutines.android)

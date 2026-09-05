@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.Email
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.CircularProgressIndicator
@@ -63,6 +64,7 @@ import com.alpha.spendtracker.R
 import com.alpha.spendtracker.ui.theme.BrandGradientEnd
 import com.alpha.spendtracker.ui.theme.BrandGradientMid
 import com.alpha.spendtracker.ui.theme.BrandGradientStart
+import com.alpha.spendtracker.ui.theme.isAppInDarkTheme
 import com.alpha.spendtracker.util.findActivity
 import com.google.android.libraries.identity.googleid.GetGoogleIdOption
 import com.google.android.libraries.identity.googleid.GoogleIdTokenCredential
@@ -84,41 +86,46 @@ fun AuthScaffold(
     footer: @Composable () -> Unit,
     content: @Composable ColumnScope.() -> Unit
 ) {
+    val isDark = isAppInDarkTheme
+    val bgModifier = if (isDark) {
+        Modifier.background(
+            Brush.verticalGradient(
+                colors = listOf(
+                    MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
+                    MaterialTheme.colorScheme.background
+                )
+            )
+        )
+    } else {
+        Modifier.background(MaterialTheme.colorScheme.background)
+    }
+
     Column(
         modifier = Modifier
             .fillMaxSize()
             .statusBarsPadding()
-            .background(
-                Brush.verticalGradient(
-                    colors = listOf(
-                        MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        MaterialTheme.colorScheme.background
-                    )
-                )
-            )
-            // ⚠️ Must sit *outside* verticalScroll, and the app draws edge-to-edge with no
-            // windowSoftInputMode, so without it the IME simply overlaid the card: the password
-            // field ended up under the keyboard and the scroll container — sized to the full window,
-            // keyboard included — had nothing left to scroll, so there was no way to reach it.
-            // Applied here the viewport shrinks to the space above the keyboard and both fields
-            // stay reachable. It goes after `background` so the gradient still fills the window.
+            .then(bgModifier)
             .imePadding()
             .verticalScroll(rememberScrollState())
-            // Tighter than the 24dp this used to carry: between this and the card's own inset the
-            // fields were left ~170dp of text width, which is narrower than a typical email address.
-            .padding(horizontal = 16.dp, vertical = 24.dp),
+            .padding(horizontal = 24.dp, vertical = 24.dp),
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(16.dp))
 
         Box(
             modifier = Modifier
-                .size(92.dp)
+                .size(76.dp)
                 .clip(CircleShape)
                 .background(
-                    Brush.linearGradient(
-                        listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)
-                    )
+                    if (isDark) {
+                        Brush.linearGradient(
+                            listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)
+                        )
+                    } else {
+                        Brush.horizontalGradient(
+                            listOf(MaterialTheme.colorScheme.primary, MaterialTheme.colorScheme.primary)
+                        )
+                    }
                 ),
             contentAlignment = Alignment.Center
         ) {
@@ -126,16 +133,16 @@ fun AuthScaffold(
                 imageVector = Icons.Rounded.AccountBalanceWallet,
                 contentDescription = null,
                 tint = Color.White,
-                modifier = Modifier.size(46.dp)
+                modifier = Modifier.size(38.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(24.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
         Text(
             text = stringResource(R.string.app_name),
             style = MaterialTheme.typography.displaySmall,
-            color = MaterialTheme.colorScheme.onSurface
+            color = MaterialTheme.colorScheme.onBackground
         )
         Spacer(modifier = Modifier.height(4.dp))
         Text(
@@ -144,58 +151,52 @@ fun AuthScaffold(
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(32.dp))
+        Spacer(modifier = Modifier.height(28.dp))
 
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(28.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant),
-            elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
-        ) {
-            Column(
-                modifier = Modifier.padding(horizontal = 16.dp, vertical = 24.dp),
-                horizontalAlignment = Alignment.CenterHorizontally
-            ) {
-                Text(
-                    text = title,
-                    style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold)
-                )
-                Spacer(modifier = Modifier.height(4.dp))
-                Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
-                    textAlign = TextAlign.Center
-                )
-                Spacer(modifier = Modifier.height(24.dp))
-                content()
-            }
-        }
+        Text(
+            text = title,
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onBackground,
+            textAlign = TextAlign.Center
+        )
+        Spacer(modifier = Modifier.height(4.dp))
+        Text(
+            text = subtitle,
+            style = MaterialTheme.typography.bodySmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant,
+            textAlign = TextAlign.Center
+        )
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(28.dp))
+
+        content()
+
+        Spacer(modifier = Modifier.height(24.dp))
         footer()
         Spacer(modifier = Modifier.height(16.dp))
     }
 }
 
-/** The shared outlined "Continue with Google" button. */
+/** The shared minimal "Continue with Google" button without harsh outlines or boxes. */
 @Composable
 fun GoogleButton(
     text: String,
     onClick: () -> Unit
 ) {
-    OutlinedButton(
+    TextButton(
         onClick = onClick,
         modifier = Modifier
             .fillMaxWidth()
-            .heightIn(min = 54.dp),
-        shape = RoundedCornerShape(16.dp),
-        border = BorderStroke(1.5.dp, MaterialTheme.colorScheme.outline)
+            .heightIn(min = 52.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = ButtonDefaults.textButtonColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.25f),
+            contentColor = MaterialTheme.colorScheme.onSurface
+        )
     ) {
         Text(
             text = "G",
-            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.primary
         )
         Spacer(modifier = Modifier.width(12.dp))
@@ -312,11 +313,15 @@ fun EmailVerificationDialog(
         onDismissRequest = {
             if (!isVerifying && !isResending) onDismiss()
         },
+        containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+        iconContentColor = MaterialTheme.colorScheme.primary,
+        titleContentColor = MaterialTheme.colorScheme.onSurface,
+        textContentColor = MaterialTheme.colorScheme.onSurfaceVariant,
         title = {
-            androidx.compose.foundation.layout.Row(verticalAlignment = Alignment.CenterVertically) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(Icons.Rounded.Email, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Verify your email")
+                Text("Verify your email", color = MaterialTheme.colorScheme.onSurface)
             }
         },
         text = {
@@ -324,6 +329,7 @@ fun EmailVerificationDialog(
                 Text(
                     "We've sent a verification link to:",
                     style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
                     textAlign = TextAlign.Center
                 )
                 Spacer(modifier = Modifier.height(4.dp))
@@ -353,7 +359,11 @@ fun EmailVerificationDialog(
 
                 if (isVerifying || isResending) {
                     Spacer(modifier = Modifier.height(16.dp))
-                    CircularProgressIndicator(modifier = Modifier.size(24.dp), strokeWidth = 2.dp)
+                    CircularProgressIndicator(
+                        modifier = Modifier.size(24.dp),
+                        strokeWidth = 2.dp,
+                        color = MaterialTheme.colorScheme.primary
+                    )
                 }
             }
         },
@@ -385,7 +395,11 @@ fun EmailVerificationDialog(
                             }
                         }
                 },
-                enabled = !isVerifying && !isResending
+                enabled = !isVerifying && !isResending,
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
             ) { Text("I've Verified") }
         },
         dismissButton = {
@@ -413,11 +427,17 @@ fun EmailVerificationDialog(
                                     }
                             }
                     },
-                    enabled = !isVerifying && !isResending
+                    enabled = !isVerifying && !isResending,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.primary
+                    )
                 ) { Text("Resend") }
                 TextButton(
                     onClick = onDismiss,
-                    enabled = !isVerifying && !isResending
+                    enabled = !isVerifying && !isResending,
+                    colors = ButtonDefaults.textButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 ) { Text("Cancel") }
             }
         }
