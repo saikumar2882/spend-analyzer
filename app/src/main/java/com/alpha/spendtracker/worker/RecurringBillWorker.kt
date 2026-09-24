@@ -115,12 +115,17 @@ class RecurringBillWorker @AssistedInject constructor(
     }
 
     private fun showNotification(bill: RecurringBill) {
-        val notificationManager = applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        val notificationManager =
+            applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH)
+            val channel = NotificationChannel(CHANNEL_ID, CHANNEL_NAME, NotificationManager.IMPORTANCE_HIGH).apply {
+                description = "Reminders for due recurring bills"
+            }
             notificationManager.createNotificationChannel(channel)
         }
+
+        val notificationId = bill.uuid.hashCode()
 
         val intent = Intent(applicationContext, MainActivity::class.java).apply {
             flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TASK
@@ -132,22 +137,43 @@ class RecurringBillWorker @AssistedInject constructor(
             putExtra("BILL_NOTES", bill.notes)
         }
 
-        val pendingIntent = PendingIntent.getActivity(
+        val trackPendingIntent = PendingIntent.getActivity(
             applicationContext,
-            bill.uuid.hashCode(),
+            notificationId,
             intent,
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        val markAsReadIntent = Intent(applicationContext, NotificationActionReceiver::class.java).apply {
+            action = NotificationActionReceiver.ACTION_MARK_AS_READ
+            putExtra(NotificationActionReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+        }
+
+        val markAsReadPendingIntent = PendingIntent.getBroadcast(
+            applicationContext,
+            notificationId,
+            markAsReadIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
+        val contentText = if (bill.amount > 0) {
+            "Due today • ₹${String.format(Locale.getDefault(), "%.2f", bill.amount)} via ${bill.appName}"
+        } else {
+            "Due today via ${bill.appName}"
+        }
+
         val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
-            .setSmallIcon(R.drawable.ic_launcher_foreground) 
-            .setContentTitle("Bill Reminder: ${bill.name}")
-            .setContentText("Your recurring bill is due today. Tap to track it.")
+            .setSmallIcon(R.drawable.ic_launcher_foreground)
+            .setContentTitle(bill.name)
+            .setContentText(contentText)
             .setPriority(NotificationCompat.PRIORITY_HIGH)
+            .setCategory(NotificationCompat.CATEGORY_REMINDER)
             .setAutoCancel(true)
-            .setContentIntent(pendingIntent)
+            .setContentIntent(trackPendingIntent)
+            .addAction(0, "Mark as read", markAsReadPendingIntent)
+            .addAction(0, "Track spend", trackPendingIntent)
             .build()
 
-        notificationManager.notify(bill.uuid.hashCode(), notification)
+        notificationManager.notify(notificationId, notification)
     }
 }

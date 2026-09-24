@@ -13,4 +13,9 @@
     <color name="finance_navy">#1A237E</color>
     <color name="finance_dark">#121212</color>
     <color name="launcher_background">#FFFFFF</color>
+
+    <!-- Google-style Search Widget Adaptive Colors -->
+    <color name="widget_bar_bg">#F1EFF9</color>
+    <color name="widget_text">#191A23</color>
+    <color name="widget_icon_tint">#5D45E8</color>
 </resources>

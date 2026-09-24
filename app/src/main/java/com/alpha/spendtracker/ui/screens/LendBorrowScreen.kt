@@ -45,6 +45,7 @@ import com.alpha.spendtracker.ui.components.*
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.asMoney
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
+import com.alpha.spendtracker.util.PdfExporter
 import com.alpha.spendtracker.util.formatMonth
 import com.alpha.spendtracker.util.formatShortDate
 import kotlinx.coroutines.CancellationException
@@ -68,7 +69,6 @@ fun LendBorrowScreen(
     onShowNotification: (String, NotificationType) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
-    val scope = rememberCoroutineScope()
     var selectedTab by remember { mutableIntStateOf(0) }
     val mainTabs = listOf("You lent", "You borrowed")
     var spendToDelete by remember { mutableStateOf<Spend?>(null) }
@@ -79,114 +79,8 @@ fun LendBorrowScreen(
     var showDatePicker by remember { mutableStateOf(false) }
     var showFilters by rememberSaveable { mutableStateOf(false) }
 
-    var showExportMenu by remember { mutableStateOf(false) }
     var showExportPreview by remember { mutableStateOf(false) }
     var exportSpends by remember { mutableStateOf<List<Spend>>(emptyList()) }
-    val graphicsLayer = rememberGraphicsLayer()
-
-    fun exportToCsv(context: Context, spends: List<Spend>, share: Boolean = true) {
-        val csvHeader = "Date,App Name,Amount,Purpose,Notes\n"
-        val csvData = StringBuilder(csvHeader)
-        val sdf = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-        spends.forEach { spend ->
-            csvData.append("${sdf.format(spend.timestamp)},")
-            csvData.append("${spend.appName.replace(",", " ")},")
-            csvData.append("${spend.amount},")
-            csvData.append("${spend.purpose.replace(",", " ")},")
-            csvData.append("${spend.notes.replace(",", " ")}\n")
-        }
-
-        val fileName = "lend_borrow_history_${System.currentTimeMillis()}.csv"
-
-        if (share) {
-            try {
-                val file = File(context.cacheDir, fileName)
-                FileOutputStream(file).use { it.write(csvData.toString().toByteArray()) }
-                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "text/csv"
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    putExtra(Intent.EXTRA_SUBJECT, "Dues History")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                context.startActivity(Intent.createChooser(intent, "Share CSV Report"))
-            } catch (e: Exception) {
-                onShowNotification("Failed to share CSV: ${e.message}", NotificationType.ERROR)
-            }
-        } else {
-            try {
-                val resolver = context.contentResolver
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "text/csv")
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_DOWNLOADS)
-                    }
-                }
-                val collection = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                    MediaStore.Downloads.EXTERNAL_CONTENT_URI
-                } else {
-                    MediaStore.Files.getContentUri("external")
-                }
-
-                val uri = resolver.insert(collection, contentValues)
-                uri?.let {
-                    resolver.openOutputStream(it)?.use { os ->
-                        os.write(csvData.toString().toByteArray())
-                    }
-                    onShowNotification("Saved to Downloads", NotificationType.SUCCESS)
-                } ?: run {
-                    onShowNotification("Failed to create file", NotificationType.ERROR)
-                }
-            } catch (e: Exception) {
-                onShowNotification("Failed to download CSV: ${e.message}", NotificationType.ERROR)
-            }
-        }
-    }
-
-    suspend fun exportToPng(share: Boolean = true) {
-        try {
-            val bitmap = graphicsLayer.toImageBitmap().asAndroidBitmap()
-            val fileName = "lend_borrow_report_${System.currentTimeMillis()}.png"
-
-            if (share) {
-                val file = File(context.cacheDir, fileName)
-                FileOutputStream(file).use { bitmap.compress(Bitmap.CompressFormat.PNG, 100, it) }
-                val uri = FileProvider.getUriForFile(context, "${context.packageName}.provider", file)
-                val intent = Intent(Intent.ACTION_SEND).apply {
-                    type = "image/png"
-                    putExtra(Intent.EXTRA_STREAM, uri)
-                    putExtra(Intent.EXTRA_SUBJECT, "Dues Report")
-                    addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                }
-                context.startActivity(Intent.createChooser(intent, "Share Image Report"))
-            } else {
-                val resolver = context.contentResolver
-                val contentValues = ContentValues().apply {
-                    put(MediaStore.MediaColumns.DISPLAY_NAME, fileName)
-                    put(MediaStore.MediaColumns.MIME_TYPE, "image/png")
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        put(MediaStore.MediaColumns.RELATIVE_PATH, Environment.DIRECTORY_PICTURES + "/SpendTracker")
-                        put(MediaStore.MediaColumns.IS_PENDING, 1)
-                    }
-                }
-                val uri = resolver.insert(MediaStore.Images.Media.EXTERNAL_CONTENT_URI, contentValues)
-                uri?.let {
-                    resolver.openOutputStream(it)?.use { os -> bitmap.compress(Bitmap.CompressFormat.PNG, 100, os) }
-                    if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
-                        contentValues.clear()
-                        contentValues.put(MediaStore.MediaColumns.IS_PENDING, 0)
-                        resolver.update(uri, contentValues, null, null)
-                    }
-                    onShowNotification("Saved to Gallery", NotificationType.SUCCESS)
-                }
-            }
-        } catch (e: CancellationException) {
-            throw e
-        } catch (e: Exception) {
-            onShowNotification("Failed to export image: ${e.message}", NotificationType.ERROR)
-        }
-    }
 
     if (showExportPreview) {
         ModalBottomSheet(
@@ -202,69 +96,73 @@ fun LendBorrowScreen(
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
                 Text(
-                    text = "Export Preview",
+                    text = "PDF Report Preview",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
-                Spacer(modifier = Modifier.height(16.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
                         .weight(1f, fill = false),
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    shape = RoundedCornerShape(16.dp),
+                    shape = RoundedCornerShape(14.dp),
                     border = null
                 ) {
                     val exportTotal = remember(exportSpends) { exportSpends.sumOf { it.amount } }
                     Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        Box(modifier = Modifier.drawWithContent {
-                            graphicsLayer.record {
-                                this@drawWithContent.drawContent()
-                            }
-                            drawLayer(graphicsLayer)
-                        }) {
-                            ExportTable(exportSpends, exportTotal)
-                        }
+                        ExportTable(exportSpends, exportTotal)
                     }
                 }
 
-                Spacer(modifier = Modifier.height(20.dp))
+                Spacer(modifier = Modifier.height(16.dp))
                 Row(
                     modifier = Modifier.fillMaxWidth(),
                     horizontalArrangement = Arrangement.spacedBy(12.dp)
                 ) {
                     Button(
                         onClick = {
-                            scope.launch {
-                                exportToPng(share = true)
-                                showExportPreview = false
-                            }
+                            PdfExporter.exportToPdf(
+                                context = context,
+                                spends = exportSpends,
+                                reportTitle = "Dues & Borrowing Report",
+                                filePrefix = "dues_report",
+                                share = true,
+                                onShowNotification = onShowNotification
+                            )
+                            showExportPreview = false
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp),
-                        shape = RoundedCornerShape(14.dp),
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
                         colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.primary)
                     ) {
                         Icon(Icons.Rounded.Share, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Share Image", fontWeight = FontWeight.SemiBold)
+                        Text("Share PDF", fontWeight = FontWeight.SemiBold)
                     }
-                    FilledTonalButton(
+                    Button(
                         onClick = {
-                            scope.launch {
-                                exportToPng(share = false)
-                                showExportPreview = false
-                            }
+                            PdfExporter.exportToPdf(
+                                context = context,
+                                spends = exportSpends,
+                                reportTitle = "Dues & Borrowing Report",
+                                filePrefix = "dues_report",
+                                share = false,
+                                onShowNotification = onShowNotification
+                            )
+                            showExportPreview = false
                         },
                         modifier = Modifier
                             .weight(1f)
-                            .height(52.dp),
-                        shape = RoundedCornerShape(14.dp)
+                            .height(48.dp),
+                        shape = RoundedCornerShape(12.dp),
+                        colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.secondary)
                     ) {
                         Icon(Icons.Rounded.FileDownload, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Save to Device", fontWeight = FontWeight.SemiBold)
+                        Text("Save PDF", fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -346,52 +244,21 @@ fun LendBorrowScreen(
 
             FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
 
-            Box {
-                Surface(
-                    onClick = { showExportMenu = true },
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                    modifier = Modifier.size(44.dp)
-                ) {
-                    Box(contentAlignment = Alignment.Center) {
-                        Icon(
-                            Icons.Rounded.FileDownload,
-                            contentDescription = "Export CSV or Image",
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.size(20.dp)
-                        )
-                    }
-                }
-                DropdownMenu(
-                    expanded = showExportMenu,
-                    onDismissRequest = { showExportMenu = false },
-                    modifier = Modifier.background(MaterialTheme.colorScheme.surfaceContainerHigh)
-                ) {
-                    DropdownMenuItem(
-                        text = { Text("Share CSV", style = MaterialTheme.typography.labelLarge) },
-                        leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        onClick = {
-                            showExportMenu = false
-                            exportToCsv(context, filteredSpends, share = true)
-                        }
-                    )
-                    DropdownMenuItem(
-                        text = { Text("Download CSV", style = MaterialTheme.typography.labelLarge) },
-                        leadingIcon = { Icon(Icons.Rounded.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        onClick = {
-                            showExportMenu = false
-                            exportToCsv(context, filteredSpends, share = false)
-                        }
-                    )
-                    HorizontalDivider(modifier = Modifier.padding(vertical = 4.dp), color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
-                    DropdownMenuItem(
-                        text = { Text("Image Report", style = MaterialTheme.typography.labelLarge) },
-                        leadingIcon = { Icon(Icons.Rounded.Image, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                        onClick = {
-                            showExportMenu = false
-                            exportSpends = filteredSpends
-                            showExportPreview = true
-                        }
+            Surface(
+                onClick = {
+                    exportSpends = filteredSpends
+                    showExportPreview = true
+                },
+                shape = RoundedCornerShape(12.dp),
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.size(44.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        Icons.Rounded.FileDownload,
+                        contentDescription = "Export A4 PDF Report",
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
             }
@@ -978,66 +845,79 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
     val locale = LocalConfiguration.current.locales[0]
     val sdf = remember(locale) { SimpleDateFormat("dd MMM yy", locale) }
     val generatedDate = remember(locale) {
-        SimpleDateFormat("dd MMM yyyy", locale).format(System.currentTimeMillis())
+        SimpleDateFormat("dd MMM yyyy, hh:mm a", locale).format(System.currentTimeMillis())
     }
     Column(
         modifier = modifier
-            .background(Color.White)
+            .fillMaxWidth()
             .padding(16.dp)
     ) {
         Text(
-            "Dues Report",
-            style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, color = Color.Black),
-            modifier = Modifier.padding(bottom = 2.dp)
+            "Dues & Borrowing Report",
+            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.onSurface
         )
         Text(
             "Generated on $generatedDate",
-            style = MaterialTheme.typography.bodySmall,
-            color = Color.DarkGray
+            style = MaterialTheme.typography.labelSmall,
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
-        Surface(
-            color = Color(0xFFF9FAFB),
-            shape = RoundedCornerShape(8.dp),
-            border = BorderStroke(1.dp, Color(0xFFE5E7EB)),
-            modifier = Modifier.fillMaxWidth()
+        // Clean Minimal Summary Section (No heavy box fill or borders)
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(vertical = 4.dp),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Row(
-                modifier = Modifier.padding(12.dp),
-                horizontalArrangement = Arrangement.SpaceBetween,
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column {
-                    Text("TOTAL AMOUNT", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Gray))
-                    Text("₹${formatCurrency(total)}", style = MaterialTheme.typography.headlineSmall.copy(fontWeight = FontWeight.Bold, color = Color.Black))
-                }
-                Column(horizontalAlignment = Alignment.End) {
-                    Text("RECORDS", style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Gray))
-                    Text("${spends.size}", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold, color = Color.Black))
-                }
+            Column {
+                Text(
+                    "TOTAL AMOUNT",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "₹${formatCurrency(total)}",
+                    style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+            Column(horizontalAlignment = Alignment.End) {
+                Text(
+                    "RECORDS",
+                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    "${spends.size}",
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
             }
         }
 
-        Spacer(modifier = Modifier.height(20.dp))
+        Spacer(modifier = Modifier.height(12.dp))
+        HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f))
+        Spacer(modifier = Modifier.height(10.dp))
 
         // Table Header
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(Color(0xFFF3F4F6))
-                .padding(vertical = 8.dp, horizontal = 4.dp),
+                .padding(vertical = 4.dp, horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Date", modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Black))
-            Text("App/Person", modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Black))
-            Text("Details", modifier = Modifier.weight(2.5f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Black))
-            Text("Amount", modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold, color = Color.Black), textAlign = TextAlign.End)
+            Text("Date", modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+            Text("App/Person", modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+            Text("Details", modifier = Modifier.weight(2.5f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+            Text("Amount", modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End)
         }
-        HorizontalDivider(color = Color.Black, thickness = 1.dp)
+        HorizontalDivider(color = MaterialTheme.colorScheme.onSurface, thickness = 1.dp)
 
-        // Spends
+        // Spends Rows
         spends.forEach { spend ->
             val (personName, detailsNotes) = parseLendBorrowNotes(spend.notes, spend.appName)
             val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
@@ -1047,29 +927,24 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
             Row(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(vertical = 4.dp, horizontal = 4.dp),
+                    .padding(vertical = 6.dp, horizontal = 2.dp),
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(sdf.format(spend.timestamp), modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = Color.Black))
-                Text(appOrPerson, modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, color = Color.Black), maxLines = 1)
-                Column(modifier = Modifier.weight(2.5f)) {
-                    Text(spend.purpose, style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black), maxLines = 1)
-                    if (detailText.isNotBlank()) {
-                        Text(detailText, style = MaterialTheme.typography.labelSmall.copy(fontSize = 9.sp, color = Color.Gray), maxLines = 1)
-                    }
-                }
-                Text("₹${formatCurrency(spend.amount)}", modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold, color = Color.Black), textAlign = TextAlign.End)
+                Text(sdf.format(spend.timestamp), modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = MaterialTheme.colorScheme.onSurface)
+                Text(appOrPerson, modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                Text(detailText, modifier = Modifier.weight(2.5f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                Text("₹${formatCurrency(spend.amount)}", modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End)
             }
-            HorizontalDivider(color = Color(0xFFE5E7EB))
+            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(14.dp))
         Text(
             "* End of Report *",
             modifier = Modifier.fillMaxWidth(),
             textAlign = TextAlign.Center,
             style = MaterialTheme.typography.labelSmall,
-            color = Color.Gray
+            color = MaterialTheme.colorScheme.onSurfaceVariant
         )
     }
 }

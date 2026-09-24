@@ -1,12 +1,12 @@
 package com.alpha.spendtracker.ui.components
 
 import androidx.compose.foundation.BorderStroke
-import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.CheckCircle
-import androidx.compose.material.icons.rounded.Error
+import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Info
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
@@ -26,80 +26,64 @@ fun AppNotification(
     message: String,
     type: NotificationType = NotificationType.INFO
 ) {
+    val isDarkTheme = MaterialTheme.colorScheme.surface.red < 0.4f
+
     val accent = when (type) {
-        NotificationType.SUCCESS -> MaterialTheme.colorScheme.secondary
+        NotificationType.SUCCESS -> if (isDarkTheme) Color(0xFF81C784) else Color(0xFF2E7D32)
         NotificationType.ERROR -> MaterialTheme.colorScheme.error
         NotificationType.INFO -> MaterialTheme.colorScheme.primary
     }
 
     val icon = when (type) {
         NotificationType.SUCCESS -> Icons.Rounded.CheckCircle
-        NotificationType.ERROR -> Icons.Rounded.Error
+        NotificationType.ERROR -> Icons.Rounded.ErrorOutline
         NotificationType.INFO -> Icons.Rounded.Info
     }
 
     Box(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(top = 16.dp),
+            .statusBarsPadding()
+            .padding(top = 10.dp),
         contentAlignment = Alignment.TopCenter
     ) {
-        Card(
-            modifier = Modifier
-                .fillMaxWidth(0.92f)
-                .padding(horizontal = 8.dp),
-            shape = RoundedCornerShape(18.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            elevation = CardDefaults.cardElevation(defaultElevation = 4.dp)
+        Surface(
+            modifier = Modifier.padding(horizontal = 16.dp),
+            shape = RoundedCornerShape(16.dp),
+            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+            contentColor = MaterialTheme.colorScheme.onSurface,
+            shadowElevation = 2.dp,
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
         ) {
             Row(
-                // IntrinsicSize.Min so the accent strip below can fillMaxHeight: a fixed 44dp strip
-                // stopped short of the bottom of the card as soon as the message wrapped or the
-                // system font scale grew.
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .height(IntrinsicSize.Min),
-                verticalAlignment = Alignment.CenterVertically
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
-                Box(
-                    modifier = Modifier
-                        .width(4.dp)
-                        .fillMaxHeight()
-                        .background(
-                            color = accent,
-                            shape = RoundedCornerShape(topEnd = 4.dp, bottomEnd = 4.dp)
-                        )
-                )
-                Row(
-                    modifier = Modifier
-                        .padding(horizontal = 14.dp, vertical = 14.dp)
-                        .fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.spacedBy(12.dp)
+                Surface(
+                    modifier = Modifier.size(28.dp),
+                    shape = CircleShape,
+                    color = accent.copy(alpha = 0.12f)
                 ) {
-                    Surface(
-                        modifier = Modifier.size(32.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        color = accent.copy(alpha = 0.18f)
-                    ) {
+                    Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
                             tint = accent,
-                            modifier = Modifier.padding(6.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                     }
-                    Text(
-                        text = message,
-                        color = MaterialTheme.colorScheme.onSurface,
-                        style = MaterialTheme.typography.bodyMedium,
-                        fontWeight = FontWeight.SemiBold,
-                        lineHeight = 18.sp,
-                        modifier = Modifier.weight(1f)
-                    )
                 }
+
+                Text(
+                    text = message,
+                    style = MaterialTheme.typography.bodyMedium.copy(
+                        fontWeight = FontWeight.Medium,
+                        letterSpacing = (-0.1).sp
+                    ),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    modifier = Modifier.weight(1f)
+                )
             }
         }
     }

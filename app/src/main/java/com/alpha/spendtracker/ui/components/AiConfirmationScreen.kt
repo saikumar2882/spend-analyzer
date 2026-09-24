@@ -1,7 +1,6 @@
 package com.alpha.spendtracker.ui.components
 
 import android.app.DatePickerDialog
-import android.widget.Toast
 import androidx.activity.compose.BackHandler
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
@@ -28,13 +27,11 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import com.alpha.spendtracker.data.AiTransactionResponse
-import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.util.findActivity
 import java.text.SimpleDateFormat
 import java.util.Calendar
-import java.util.Locale
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -43,8 +40,6 @@ fun AiConfirmationScreen(
     onConfirm: (NewSpend) -> Unit,
     onCancel: () -> Unit,
     onShowNotification: (String, NotificationType) -> Unit,
-    // The user's transaction defaults, so a spend the AI couldn't fully classify falls
-    // back to what the user configured (not a hardcoded preset). See AiSettingsDialog.
     defaultApp: String = "Google Pay",
     defaultPurpose: String = "Others",
     currencySymbol: String = "₹"
@@ -73,10 +68,9 @@ fun AiConfirmationScreen(
     }
     var notes by remember { mutableStateOf(extractedData.notes) }
     var selectedTimestamp by remember {
-        mutableStateOf(extractedData.timestamp ?: System.currentTimeMillis())
+        mutableLongStateOf(extractedData.timestamp ?: System.currentTimeMillis())
     }
 
-    val context = LocalContext.current
     val locale = LocalConfiguration.current.locales[0]
     val dateFormatter = remember(locale) { SimpleDateFormat("EEE, d MMM yyyy", locale) }
     val isAiExtractedDate = extractedData.timestamp != null
@@ -87,29 +81,48 @@ fun AiConfirmationScreen(
 
     Column(
         modifier = Modifier
-            .padding(horizontal = 20.dp, vertical = 16.dp)
+            .padding(horizontal = 16.dp, vertical = 8.dp)
             .fillMaxWidth()
             .verticalScroll(rememberScrollState()),
-        verticalArrangement = Arrangement.spacedBy(16.dp)
+        verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Row(verticalAlignment = Alignment.CenterVertically) {
-            Icon(
-                AppIcons.Ai,
-                contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
-            )
-            Spacer(Modifier.width(8.dp))
+        // Compact Header
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Row(verticalAlignment = Alignment.CenterVertically) {
+                Box(
+                    modifier = Modifier
+                        .size(28.dp)
+                        .background(
+                            MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.6f),
+                            CircleShape
+                        ),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        AppIcons.Ai,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                }
+                Spacer(Modifier.width(8.dp))
+                Text(
+                    text = "Review AI Details",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+
             Text(
-                text = "Review & Confirm",
-                style = MaterialTheme.typography.headlineSmall,
-                fontWeight = FontWeight.Bold
+                text = "Double-check before saving",
+                style = MaterialTheme.typography.labelSmall,
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
         }
-        Text(
-            text = "AI extracted the details below. Double-check before saving.",
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
 
         ExtractedSummaryCard(
             amount = amount,
@@ -122,11 +135,18 @@ fun AiConfirmationScreen(
 
         if (extractedData.needsAmount && amount.isBlank()) {
             Text(
-                "AI couldn't find the amount. Please enter it below.",
+                "Please enter the spend amount below.",
                 color = MaterialTheme.colorScheme.error,
-                style = MaterialTheme.typography.bodyMedium
+                style = MaterialTheme.typography.bodySmall
             )
         }
+
+        val fieldColors = OutlinedTextFieldDefaults.colors(
+            focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+            unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+            focusedBorderColor = MaterialTheme.colorScheme.primary,
+            unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+        )
 
         OutlinedTextField(
             value = amount,
@@ -134,53 +154,58 @@ fun AiConfirmationScreen(
                 if (input.matches(Regex("""^\d*\.?\d*$"""))) amount = input
             },
             label = { Text("Amount") },
-            leadingIcon = { Icon(Icons.Rounded.Payments, contentDescription = null) },
+            leadingIcon = { Icon(Icons.Rounded.Payments, contentDescription = null, modifier = Modifier.size(18.dp)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
-            shape = RoundedCornerShape(14.dp),
+            shape = RoundedCornerShape(12.dp),
+            colors = fieldColors,
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
         )
 
         AppPresetDropdown(
             selected = selectedPreset,
-            onSelect = { selectedPreset = it }
+            onSelect = { selectedPreset = it },
+            colors = fieldColors
         )
 
         if (selectedPreset.id == "other") {
             OutlinedTextField(
                 value = customAppName,
                 onValueChange = { customAppName = it },
-                label = { Text("Custom App / Platform name") },
+                label = { Text("Custom App / Platform") },
                 leadingIcon = if (customAppName.isNotBlank()) {
                     {
                         AppIconImage(
                             appName = customAppName,
                             fallbackColor = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 } else {
-                    { Icon(Icons.Rounded.CreditCard, contentDescription = null) }
+                    { Icon(Icons.Rounded.CreditCard, contentDescription = null, modifier = Modifier.size(18.dp)) }
                 },
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
-                shape = RoundedCornerShape(14.dp)
+                colors = fieldColors,
+                shape = RoundedCornerShape(12.dp)
             )
         }
 
         PurposeDropdown(
             selected = purpose,
-            onSelect = { purpose = it }
+            onSelect = { purpose = it },
+            colors = fieldColors
         )
 
         OutlinedTextField(
             value = notes,
             onValueChange = { notes = it },
-            label = { Text("Description") },
-            leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null) },
-            placeholder = { Text("e.g., Biryani") },
+            label = { Text("Description / Notes") },
+            leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null, modifier = Modifier.size(18.dp)) },
+            placeholder = { Text("e.g. Biryani, Uber ride") },
             modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
+            colors = fieldColors,
+            shape = RoundedCornerShape(12.dp)
         )
 
         DateField(
@@ -193,12 +218,12 @@ fun AiConfirmationScreen(
 
         Row(
             modifier = Modifier.fillMaxWidth().padding(top = 4.dp),
-            horizontalArrangement = Arrangement.spacedBy(12.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
             OutlinedButton(
                 onClick = onCancel,
-                modifier = Modifier.weight(1f).heightIn(min = 52.dp),
-                shape = RoundedCornerShape(14.dp)
+                modifier = Modifier.weight(1f).height(44.dp),
+                shape = RoundedCornerShape(12.dp)
             ) { Text("Cancel") }
 
             Button(
@@ -215,8 +240,8 @@ fun AiConfirmationScreen(
                         )
                     )
                 },
-                modifier = Modifier.weight(1f).heightIn(min = 52.dp),
-                shape = RoundedCornerShape(14.dp),
+                modifier = Modifier.weight(1f).height(44.dp),
+                shape = RoundedCornerShape(12.dp),
                 enabled = amount.toDoubleOrNull()?.let { it > 0 } == true &&
                           (selectedPreset.id != "other" || customAppName.isNotBlank())
             ) { Text("Confirm & Save", fontWeight = FontWeight.SemiBold) }
@@ -235,80 +260,68 @@ private fun ExtractedSummaryCard(
     dateLabel: String,
     currencySymbol: String
 ) {
-    Card(
+    Surface(
         modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
-        )
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
-        Column(modifier = Modifier.padding(16.dp)) {
+        Column(modifier = Modifier.padding(10.dp)) {
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Text(
                     text = "$currencySymbol${amount.ifBlank { "0" }}",
-                    style = MaterialTheme.typography.displaySmall,
+                    style = MaterialTheme.typography.titleLarge,
+                    fontWeight = FontWeight.Bold,
                     color = MaterialTheme.colorScheme.primary
                 )
                 Spacer(Modifier.weight(1f))
-                Box(
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                     modifier = Modifier
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.primary.copy(alpha = 0.15f))
-                        .padding(horizontal = 12.dp, vertical = 6.dp)
+                        .clip(RoundedCornerShape(6.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .padding(horizontal = 8.dp, vertical = 3.dp)
                 ) {
-                    Row(
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(6.dp)
-                    ) {
-                        AppIconImage(
-                            appName = appName,
-                            fallbackColor = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
-                        )
-                        Text(
-                            text = appName,
-                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
-                            color = MaterialTheme.colorScheme.primary
-                        )
-                    }
+                    AppIconImage(
+                        appName = appName,
+                        fallbackColor = MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Text(
+                        text = appName,
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
                 }
             }
-            Spacer(Modifier.height(8.dp))
+            Spacer(Modifier.height(4.dp))
             Row(verticalAlignment = Alignment.CenterVertically) {
                 Icon(
                     Icons.Rounded.Category,
                     contentDescription = null,
                     tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
+                    modifier = Modifier.size(12.dp)
                 )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.width(4.dp))
                 Text(
                     text = purpose,
-                    style = MaterialTheme.typography.bodyMedium,
+                    style = MaterialTheme.typography.bodySmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
                 if (notes.isNotBlank()) {
-                    Spacer(Modifier.width(8.dp))
-                    Text("•", color = MaterialTheme.colorScheme.onSurfaceVariant)
-                    Spacer(Modifier.width(8.dp))
+                    Spacer(Modifier.width(4.dp))
+                    Text("•", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                    Spacer(Modifier.width(4.dp))
                     Text(
                         text = notes,
-                        style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
+                        style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Medium),
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                 }
-            }
-            Spacer(Modifier.height(6.dp))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    Icons.Rounded.Event,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                    modifier = Modifier.size(16.dp)
-                )
-                Spacer(Modifier.width(6.dp))
+                Spacer(Modifier.weight(1f))
                 Text(
                     text = dateLabel,
-                    style = MaterialTheme.typography.bodySmall,
+                    style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
             }
@@ -325,7 +338,7 @@ private fun DateField(
     onPickError: (String) -> Unit
 ) {
     val context = LocalContext.current
-    OutlinedCard(
+    Surface(
         modifier = Modifier
             .fillMaxWidth()
             .clickable {
@@ -348,20 +361,22 @@ private fun DateField(
                     cal.get(Calendar.DAY_OF_MONTH)
                 ).show()
             },
-        shape = RoundedCornerShape(14.dp)
+        shape = RoundedCornerShape(12.dp),
+        color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 16.dp, vertical = 14.dp),
+                .padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
                 Icons.Rounded.Event,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(16.dp)
             )
-            Spacer(Modifier.width(12.dp))
+            Spacer(Modifier.width(8.dp))
             Column(modifier = Modifier.weight(1f)) {
                 Text(
                     text = "Date",
@@ -370,22 +385,24 @@ private fun DateField(
                 )
                 Text(
                     text = dateFormatter.format(timestamp),
-                    style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.Medium)
+                    style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium)
                 )
             }
             if (isAiExtracted) {
-                AssistChip(
-                    onClick = {},
-                    enabled = false,
-                    label = { Text("AI detected", style = MaterialTheme.typography.labelSmall) },
-                    colors = AssistChipDefaults.assistChipColors(
-                        disabledContainerColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f),
-                        disabledLabelColor = MaterialTheme.colorScheme.primary
+                Surface(
+                    shape = RoundedCornerShape(4.dp),
+                    color = MaterialTheme.colorScheme.primary.copy(alpha = 0.12f)
+                ) {
+                    Text(
+                        "AI detected",
+                        modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.primary
                     )
-                )
+                }
             } else {
                 Text(
-                    "Tap to change",
+                    "Change",
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -398,7 +415,8 @@ private fun DateField(
 @Composable
 private fun AppPresetDropdown(
     selected: AppPreset,
-    onSelect: (AppPreset) -> Unit
+    onSelect: (AppPreset) -> Unit,
+    colors: TextFieldColors
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -414,14 +432,15 @@ private fun AppPresetDropdown(
             leadingIcon = {
                 Box(
                     modifier = Modifier
-                        .size(20.dp)
+                        .size(14.dp)
                         .clip(CircleShape)
                         .background(selected.color)
                 )
             },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(12.dp),
+            colors = colors
         )
         ExposedDropdownMenu(
             expanded = expanded,
@@ -432,7 +451,7 @@ private fun AppPresetDropdown(
                     leadingIcon = {
                         Box(
                             modifier = Modifier
-                                .size(16.dp)
+                                .size(12.dp)
                                 .clip(CircleShape)
                                 .background(preset.color)
                         )
@@ -461,7 +480,8 @@ private fun AppPresetDropdown(
 @Composable
 private fun PurposeDropdown(
     selected: String,
-    onSelect: (String) -> Unit
+    onSelect: (String) -> Unit,
+    colors: TextFieldColors
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -473,11 +493,12 @@ private fun PurposeDropdown(
             value = selected,
             onValueChange = {},
             readOnly = true,
-            label = { Text("Purpose") },
-            leadingIcon = { Icon(Icons.Rounded.Category, contentDescription = null) },
+            label = { Text("Category / Purpose") },
+            leadingIcon = { Icon(Icons.Rounded.Category, contentDescription = null, modifier = Modifier.size(18.dp)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp)
+            shape = RoundedCornerShape(12.dp),
+            colors = colors
         )
         ExposedDropdownMenu(
             expanded = expanded,

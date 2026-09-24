@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <queries>
         <!-- Payment / merchant apps whose launcher icon AppIconImage shows when installed.
@@ -48,6 +49,9 @@
         </intent>
         <intent>
             <action android:name="com.google.android.gms.credentials.GET_CREDENTIALS" />
+        </intent>
+        <intent>
+            <action android:name="android.speech.RecognitionService" />
         </intent>
     </queries>
 
@@ -92,6 +96,14 @@
             <meta-data
                 android:name="android.appwidget.provider"
                 android:resource="@xml/quick_add_widget_info" />
+        </receiver>
+
+        <receiver
+            android:name=".worker.NotificationActionReceiver"
+            android:exported="false">
+            <intent-filter>
+                <action android:name="com.alpha.spendtracker.ACTION_MARK_AS_READ" />
+            </intent-filter>
         </receiver>
 
         <provider

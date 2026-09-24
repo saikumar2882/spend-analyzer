@@ -7,7 +7,6 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
-import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
@@ -18,13 +17,15 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.MoreVert
-import androidx.compose.material.icons.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -34,12 +35,13 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.Note
 import com.alpha.spendtracker.data.NoteEntry
 import com.alpha.spendtracker.data.NoteField
+import com.alpha.spendtracker.ui.components.SwipeableLogCard
 import com.alpha.spendtracker.ui.components.formatCurrency
 import com.alpha.spendtracker.ui.icons.AppIcons
 import java.text.SimpleDateFormat
@@ -85,6 +87,10 @@ fun NotesScreen(
     var selectedNoteUuid by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedNote = selectedNoteUuid?.let { id -> notes.find { it.uuid == id } }
 
+    // Independent layout toggles: Level 1 (Notes section) vs Level 2 (Logs inside a note)
+    var isNotesGridView by rememberSaveable { mutableStateOf(true) }
+    var isEntriesGridView by rememberSaveable { mutableStateOf(true) }
+
     LaunchedEffect(initialNoteUuid) {
         if (initialNoteUuid != null) {
             selectedNoteUuid = initialNoteUuid
@@ -120,9 +126,24 @@ fun NotesScreen(
                     }
                 },
                 actions = {
+                    // View Mode Toggle (Grid vs List) — operates independently for Notes vs Entries inside a Note
+                    val currentIsGrid = if (selectedNote == null) isNotesGridView else isEntriesGridView
+                    IconButton(onClick = {
+                        if (selectedNote == null) {
+                            isNotesGridView = !isNotesGridView
+                        } else {
+                            isEntriesGridView = !isEntriesGridView
+                        }
+                    }) {
+                        Icon(
+                            imageVector = if (currentIsGrid) Icons.AutoMirrored.Rounded.ViewList else Icons.Rounded.GridView,
+                            contentDescription = if (currentIsGrid) "Switch to List View" else "Switch to Grid View"
+                        )
+                    }
+
                     if (selectedNote != null) {
                         IconButton(onClick = { onLogAsTransaction(selectedNote) }) {
-                            Icon(Icons.Rounded.ReceiptLong, contentDescription = "Log as transaction")
+                            Icon(Icons.AutoMirrored.Rounded.ReceiptLong, contentDescription = "Log as transaction")
                         }
                         IconButton(onClick = { editingNote = selectedNote }) {
                             Icon(Icons.Rounded.Edit, contentDescription = "Edit note")
@@ -143,7 +164,7 @@ fun NotesScreen(
         }
     ) { padding ->
         if (selectedNote == null) {
-            // ---------- Level 1: grid of note tiles ----------
+            // ---------- Level 1: Notes collection (Grid / List) ----------
             if (notes.isEmpty()) {
                 EmptyState(
                     title = "No notes yet",
@@ -151,11 +172,11 @@ fun NotesScreen(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(2),
+                    columns = GridCells.Fixed(if (isNotesGridView) 2 else 1),
                     modifier = Modifier.fillMaxSize().padding(padding),
-                    contentPadding = PaddingValues(16.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
-                    verticalArrangement = Arrangement.spacedBy(12.dp)
+                    contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
+                    verticalArrangement = Arrangement.spacedBy(10.dp)
                 ) {
                     gridItems(notes, key = { it.uuid }) { note ->
                         val noteEntries = entries.filter { it.noteUuid == note.uuid }
@@ -164,6 +185,7 @@ fun NotesScreen(
                             itemCount = noteEntries.size,
                             subtotal = noteEntries.sumOf { it.amount },
                             currencySymbol = currencySymbol,
+                            isGridView = isNotesGridView,
                             onOpen = { selectedNoteUuid = note.uuid },
                             onEdit = { editingNote = note },
                             onDelete = { noteToDelete = note },
@@ -189,19 +211,27 @@ fun NotesScreen(
                         subtitle = "Tap + in the top bar to add your first entry."
                     )
                 } else {
-                    LazyColumn(
+                    LazyVerticalGrid(
+                        columns = GridCells.Fixed(if (isEntriesGridView) 2 else 1),
                         modifier = Modifier.fillMaxSize(),
-                        contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
-                        verticalArrangement = Arrangement.spacedBy(12.dp)
+                        contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 120.dp),
+                        horizontalArrangement = Arrangement.spacedBy(10.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        items(noteEntries, key = { it.uuid }) { entry ->
-                            NoteEntryItem(
-                                entry = entry,
-                                accent = accent,
-                                currencySymbol = currencySymbol,
+                        gridItems(noteEntries, key = { it.uuid }) { entry ->
+                            SwipeableLogCard(
                                 onEdit = { editingEntry = entry },
-                                onDelete = { entryToDelete = entry }
-                            )
+                                onDelete = { entryToDelete = entry },
+                                modifier = Modifier.animateItem()
+                            ) {
+                                NoteEntryCard(
+                                    entry = entry,
+                                    accent = accent,
+                                    currencySymbol = currencySymbol,
+                                    isGridView = isEntriesGridView,
+                                    onClick = { editingEntry = entry }
+                                )
+                            }
                         }
                     }
                 }
@@ -250,7 +280,6 @@ fun NotesScreen(
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            // If we're deleting the note that's currently open, pop back to the list.
                             if (selectedNoteUuid == target.uuid) selectedNoteUuid = null
                             onDeleteNote(target)
                             noteToDelete = null
@@ -296,7 +325,7 @@ private fun EmptyState(title: String, subtitle: String) {
                 subtitle,
                 style = MaterialTheme.typography.bodyMedium,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
+                textAlign = TextAlign.Center
             )
         }
     }
@@ -308,6 +337,7 @@ private fun NoteTile(
     itemCount: Int,
     subtotal: Double,
     currencySymbol: String,
+    isGridView: Boolean,
     onOpen: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
@@ -317,63 +347,140 @@ private fun NoteTile(
     var menuOpen by remember { mutableStateOf(false) }
 
     Card(
-        // A floor, not a fixed height: the tile holds three lines of text, and at a large
-        // system font scale a hard 140.dp cropped the amount line off the bottom of every note.
-        modifier = Modifier.fillMaxWidth().heightIn(min = 140.dp).clickable(onClick = onOpen),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (isGridView) Modifier.heightIn(min = 108.dp) else Modifier)
+            .clickable(onClick = onOpen),
+        shape = RoundedCornerShape(16.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Column(modifier = Modifier.fillMaxWidth().padding(14.dp)) {
-            // Title is the heading. A short color bar underneath keeps the note's color as a
-            // subtle accent rather than the dominant element.
-            Row(verticalAlignment = Alignment.Top) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        note.title,
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Box(modifier = Modifier.width(28.dp).height(4.dp).background(accent, RoundedCornerShape(2.dp)))
-                }
-                Box {
-                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
-                        Icon(Icons.Rounded.MoreVert, contentDescription = "Options", modifier = Modifier.size(18.dp), tint = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (isGridView) {
+            // M-size Box mode for Grid View (2 columns, 108dp min height, clean spacing)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 108.dp)
+                    .padding(13.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Top: Title + Accent bar + Options menu
+                Row(
+                    verticalAlignment = Alignment.Top,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = note.title.ifBlank { "Untitled" },
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(4.dp))
+                        Box(
+                            modifier = Modifier
+                                .width(24.dp)
+                                .height(3.dp)
+                                .background(accent, RoundedCornerShape(1.5.dp))
+                        )
                     }
-                    DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
-                        DropdownMenuItem(
-                            text = { Text("Log as transaction") },
-                            leadingIcon = { Icon(Icons.Rounded.ReceiptLong, null) },
-                            onClick = { menuOpen = false; onLogAsTransaction() }
+                    Box {
+                        IconButton(
+                            onClick = { menuOpen = true },
+                            modifier = Modifier.size(24.dp)
+                        ) {
+                            Icon(
+                                Icons.Rounded.MoreVert,
+                                contentDescription = "Options",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        NoteTileDropdownMenu(
+                            expanded = menuOpen,
+                            onDismiss = { menuOpen = false },
+                            onLogAsTransaction = onLogAsTransaction,
+                            onEdit = onEdit,
+                            onDelete = onDelete
                         )
-                        DropdownMenuItem(
-                            text = { Text("Edit") },
-                            leadingIcon = { Icon(Icons.Rounded.Edit, null) },
-                            onClick = { menuOpen = false; onEdit() }
-                        )
-                        DropdownMenuItem(
-                            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
-                            leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
-                            onClick = { menuOpen = false; onDelete() }
+                    }
+                }
+
+                // Bottom: Items count & Subtotal
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Text(
+                        text = if (itemCount == 1) "1 item" else "$itemCount items",
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (subtotal > 0) {
+                        Text(
+                            text = "$currencySymbol${formatCurrency(subtotal)}",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
             }
-            Spacer(modifier = Modifier.weight(1f))
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Text(
-                    if (itemCount == 1) "1 item" else "$itemCount items",
-                    style = MaterialTheme.typography.labelMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+        } else {
+            // List mode layout (1 column full-width card with comfortable height)
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 14.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .height(38.dp)
+                        .background(accent, RoundedCornerShape(2.dp))
                 )
-                Spacer(modifier = Modifier.weight(1f))
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
+                    Text(
+                        text = note.title.ifBlank { "Untitled" },
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+                    Spacer(modifier = Modifier.height(3.dp))
+                    Text(
+                        text = if (itemCount == 1) "1 item" else "$itemCount items",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                }
                 if (subtotal > 0) {
                     Text(
-                        "$currencySymbol${formatCurrency(subtotal)}",
-                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        text = "$currencySymbol${formatCurrency(subtotal)}",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                }
+                Box {
+                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
+                        Icon(
+                            Icons.Rounded.MoreVert,
+                            contentDescription = "Options",
+                            modifier = Modifier.size(18.dp),
+                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    NoteTileDropdownMenu(
+                        expanded = menuOpen,
+                        onDismiss = { menuOpen = false },
+                        onLogAsTransaction = onLogAsTransaction,
+                        onEdit = onEdit,
+                        onDelete = onDelete
                     )
                 }
             }
@@ -382,14 +489,43 @@ private fun NoteTile(
 }
 
 @Composable
+private fun NoteTileDropdownMenu(
+    expanded: Boolean,
+    onDismiss: () -> Unit,
+    onLogAsTransaction: () -> Unit,
+    onEdit: () -> Unit,
+    onDelete: () -> Unit
+) {
+    DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
+        DropdownMenuItem(
+            text = { Text("Log as transaction") },
+            leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null) },
+            onClick = { onDismiss(); onLogAsTransaction() }
+        )
+        DropdownMenuItem(
+            text = { Text("Edit") },
+            leadingIcon = { Icon(Icons.Rounded.Edit, null) },
+            onClick = { onDismiss(); onEdit() }
+        )
+        DropdownMenuItem(
+            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+            leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
+            onClick = { onDismiss(); onDelete() }
+        )
+    }
+}
+
+@Composable
 private fun NoteSummaryHeader(accent: Color, itemCount: Int, subtotal: Double, currencySymbol: String) {
     Card(
-        modifier = Modifier.fillMaxWidth().padding(horizontal = 16.dp, vertical = 16.dp),
-        shape = RoundedCornerShape(18.dp),
-        colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.12f))
+        modifier = Modifier.fillMaxWidth().padding(horizontal = 12.dp, vertical = 6.dp),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = accent.copy(alpha = 0.12f)),
+        border = null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Row(
-            modifier = Modifier.fillMaxWidth().padding(18.dp),
+            modifier = Modifier.fillMaxWidth().padding(12.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
@@ -411,72 +547,149 @@ private fun NoteSummaryHeader(accent: Color, itemCount: Int, subtotal: Double, c
 }
 
 @Composable
-private fun NoteEntryItem(
+private fun NoteEntryCard(
     entry: NoteEntry,
     accent: Color,
     currencySymbol: String,
-    onEdit: () -> Unit,
-    onDelete: () -> Unit
+    isGridView: Boolean,
+    onClick: () -> Unit
 ) {
     Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+        modifier = Modifier
+            .fillMaxWidth()
+            .then(if (isGridView) Modifier.heightIn(min = 96.dp) else Modifier)
+            .clickable(onClick = onClick),
+        shape = RoundedCornerShape(14.dp),
+        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
+        border = null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
-        Row(modifier = Modifier.padding(14.dp), verticalAlignment = Alignment.CenterVertically) {
-            // Accent bar ties the entry to its note's color.
-            Box(modifier = Modifier.width(4.dp).height(40.dp).background(accent, RoundedCornerShape(2.dp)))
-            Spacer(modifier = Modifier.width(12.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    entry.label.ifBlank { "Untitled" },
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
-                if (entry.date > 0) {
+        if (isGridView) {
+            // Grid View: Consistent M-size Box format (min 96dp height, non-congested)
+            Column(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = 96.dp)
+                    .padding(11.dp),
+                verticalArrangement = Arrangement.SpaceBetween
+            ) {
+                // Top: Accent indicator + Title Label
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Box(
+                        modifier = Modifier
+                            .width(3.5.dp)
+                            .height(18.dp)
+                            .background(accent, RoundedCornerShape(2.dp))
+                    )
+                    Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        entryDateFormat.format(entry.date),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = entry.label.ifBlank { "Untitled" },
+                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f)
                     )
                 }
-                if (!entry.detail.isNullOrBlank()) {
+
+                // Middle: Detail or Custom field note preview (if available)
+                val noteText = entry.detail?.takeIf { it.isNotBlank() }
+                    ?: entry.customFields.firstOrNull { it.value.isNotBlank() }?.let {
+                        if (it.name.isNotBlank()) "${it.name}: ${it.value}" else it.value
+                    }
+
+                if (!noteText.isNullOrBlank()) {
                     Text(
-                        entry.detail,
+                        text = noteText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 2,
-                        overflow = TextOverflow.Ellipsis
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.padding(vertical = 2.dp)
                     )
                 }
-                entry.customFields.filter { it.name.isNotBlank() || it.value.isNotBlank() }.forEach { field ->
+
+                // Bottom: Amount & Date
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    if (entry.amount > 0) {
+                        Text(
+                            text = "$currencySymbol${formatCurrency(entry.amount)}",
+                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    }
+                    Spacer(modifier = Modifier.weight(1f))
+                    if (entry.date > 0) {
+                        Text(
+                            text = entryDateFormat.format(entry.date),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+            }
+        } else {
+            // List View: Comfortable 1-column Row format
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(horizontal = 14.dp, vertical = 12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Box(
+                    modifier = Modifier
+                        .width(4.dp)
+                        .height(38.dp)
+                        .background(accent, RoundedCornerShape(2.dp))
+                )
+                Spacer(modifier = Modifier.width(12.dp))
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        buildString {
-                            if (field.name.isNotBlank()) append("${field.name}: ")
-                            append(field.value)
-                        },
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        text = entry.label.ifBlank { "Untitled" },
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
+                    if (entry.date > 0) {
+                        Text(
+                            text = entryDateFormat.format(entry.date),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                    if (!entry.detail.isNullOrBlank()) {
+                        Text(
+                            text = entry.detail,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                    entry.customFields.filter { it.name.isNotBlank() || it.value.isNotBlank() }.forEach { field ->
+                        Text(
+                            text = buildString {
+                                if (field.name.isNotBlank()) append("${field.name}: ")
+                                append(field.value)
+                            },
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
-            }
-            if (entry.amount > 0) {
-                Text(
-                    "$currencySymbol${formatCurrency(entry.amount)}",
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-            IconButton(onClick = onEdit) {
-                Icon(Icons.Rounded.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp))
-            }
-            IconButton(onClick = onDelete) {
-                Icon(Icons.Rounded.Delete, contentDescription = "Delete", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
+                if (entry.amount > 0) {
+                    Text(
+                        text = "$currencySymbol${formatCurrency(entry.amount)}",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                }
             }
         }
     }
@@ -600,7 +813,6 @@ private fun EntryEditDialog(
                     colors = cleanTextFieldColors
                 )
                 // Read-only date field; a transparent overlay opens the date picker on tap
-                // (a plain TextField would otherwise swallow the click).
                 Box {
                     OutlinedTextField(
                         value = entryDateFormat.format(date),
@@ -634,7 +846,6 @@ private fun EntryEditDialog(
                     colors = cleanTextFieldColors
                 )
 
-                // User-defined extra fields: each is a title + input, added via "Add field".
                 fieldDrafts.forEachIndexed { index, draft ->
                     Row(verticalAlignment = Alignment.CenterVertically, horizontalArrangement = Arrangement.spacedBy(8.dp)) {
                         OutlinedTextField(
@@ -681,7 +892,7 @@ private fun EntryEditDialog(
                 enabled = label.isNotBlank()
             ) { Text("Save") }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = { onDismiss() }) { Text("Cancel") } }
     )
 
     if (showDatePicker) {

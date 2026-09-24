@@ -8,7 +8,9 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
+import android.util.Log
 import androidx.activity.compose.BackHandler
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.result.contract.ActivityResultContracts
@@ -23,6 +25,8 @@ import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.shrinkVertically
 import androidx.compose.animation.togetherWith
+import androidx.compose.animation.scaleIn
+import androidx.compose.animation.scaleOut
 import androidx.compose.animation.slideInHorizontally
 import androidx.compose.animation.slideOutHorizontally
 import androidx.compose.animation.slideInVertically
@@ -41,6 +45,7 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.heightIn
+import androidx.compose.foundation.layout.offset
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -51,6 +56,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.outlined.Handshake
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Lock
@@ -67,16 +73,28 @@ import androidx.compose.ui.graphics.graphicsLayer
 import androidx.compose.ui.input.nestedscroll.NestedScrollConnection
 import androidx.compose.ui.input.nestedscroll.NestedScrollSource
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.foundation.gestures.awaitEachGesture
+import androidx.compose.foundation.gestures.awaitFirstDown
+import androidx.compose.foundation.gestures.detectDragGestures
 import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
+import androidx.compose.ui.input.pointer.positionChange
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
+import androidx.compose.ui.unit.IntOffset
 import androidx.compose.ui.unit.dp
+import kotlin.math.roundToInt
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.biometric.BiometricManager
 import androidx.biometric.BiometricPrompt
+import androidx.compose.animation.animateColorAsState
 import androidx.compose.animation.core.Spring
+import androidx.compose.animation.core.animateDpAsState
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.spring
+import androidx.compose.ui.graphics.TransformOrigin
 import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
@@ -87,6 +105,8 @@ import com.alpha.spendtracker.data.userMessageOrGeneric
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.AiConfirmationScreen
 import com.alpha.spendtracker.ui.components.AiInputBottomSheet
+import com.alpha.spendtracker.ui.components.VoiceInputOverlay
+import com.alpha.spendtracker.util.VoiceInputHelper
 import com.alpha.spendtracker.ui.components.AppNotification
 import com.alpha.spendtracker.ui.components.BillTrackingBottomSheet
 import com.alpha.spendtracker.ui.components.NotificationType
@@ -495,11 +515,22 @@ LaunchedEffect(Unit) {
     }
 
     // AI Flow State
-    var showAiInput by remember { mutableStateOf(false) } 
+    var showAiInput by remember { mutableStateOf(false) }
+    var showVoiceInput by remember { mutableStateOf(false) }
     var showAiHistoryAssistant by remember { mutableStateOf(false) }
     var aiProcessingResult by remember { mutableStateOf<AiTransactionResponse?>(null) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     var discardCallback by remember { mutableStateOf<(() -> Unit)?>(null) }
+
+    val recordAudioPermissionLauncher = rememberLauncherForActivityResult(
+        contract = ActivityResultContracts.RequestPermission()
+    ) { isGranted ->
+        if (isGranted) {
+            showVoiceInput = true
+        } else {
+            showNotification("Voice needs mic access — you can still type", NotificationType.ERROR)
+        }
+    }
 
     // Navigation State
     var activeView by rememberSaveable { mutableStateOf(ActiveView.DASHBOARD) }
@@ -609,10 +640,12 @@ LaunchedEffect(Unit) {
         }
     }
 
-    val aiInputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val aiInputSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val aiConfirmationSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
-    val aiHistorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+    val aiHistorySheetState = rememberModalBottomSheetState(skipPartiallyExpanded = false)
     val billTrackingSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+
+    val isAiProcessing by viewModel.isAiProcessing.collectAsStateWithLifecycle()
 
     val recurringBills by viewModel.recurringBills.collectAsStateWithLifecycle()
     val notes by viewModel.notes.collectAsStateWithLifecycle()
@@ -653,6 +686,10 @@ LaunchedEffect(Unit) {
             android.util.Log.d("MainActivity", "Showing AI input via widget.")
             showAiInput = true
             intent.removeExtra("SHOW_AI_INPUT")
+        } else if (intent?.getBooleanExtra("SHOW_VOICE_INPUT", false) == true) {
+            Log.d("MainActivity", "Showing Voice input via widget.")
+            showVoiceInput = true
+            intent.removeExtra("SHOW_VOICE_INPUT")
         }
     }
 
@@ -677,12 +714,20 @@ LaunchedEffect(Unit) {
     }
 
     // Handlers for closing sheets with safety
-    val dismissAiInput = {
-        showDiscardDialog = true
-        discardCallback = {
-            showDiscardDialog = false
-            // Cancel any in-flight AI request so a late result can't surface
-            // a confirmation sheet after the user has chosen to discard.
+    val dismissAiInput: () -> Unit = {
+        if (isAiProcessing) {
+            showDiscardDialog = true
+            discardCallback = {
+                showDiscardDialog = false
+                viewModel.cancelAiInput()
+                scope.launch {
+                    runCatching {
+                        if (aiInputSheetState.isVisible) aiInputSheetState.hide()
+                    }
+                    showAiInput = false
+                }
+            }
+        } else {
             viewModel.cancelAiInput()
             scope.launch {
                 runCatching {
@@ -782,6 +827,10 @@ LaunchedEffect(Unit) {
     // while it lived inside the slot there was no way to close it except tapping the FAB again.
     var showFabMenu by remember { mutableStateOf(false) }
 
+    // Session-remembered FAB drag offset (resets to 0,0 bottom-right on fresh app launch)
+    var fabOffsetX by remember { mutableFloatStateOf(0f) }
+    var fabOffsetY by remember { mutableFloatStateOf(0f) }
+
     // Composed after the navigation handler, so it wins while the speed dial is open (BackHandlers
     // resolve last-registered-first).
     BackHandler(enabled = showFabMenu) { showFabMenu = false }
@@ -835,11 +884,49 @@ LaunchedEffect(Unit) {
             },
             floatingActionButton = {
                 if (activeView == ActiveView.DASHBOARD || activeView == ActiveView.HISTORY || activeView == ActiveView.LEND_BORROW || activeView == ActiveView.SETTINGS) {
-                    Column(horizontalAlignment = Alignment.End) {
+                    val configuration = LocalConfiguration.current
+                    val density = LocalDensity.current
+                    val screenWidthPx = with(density) { configuration.screenWidthDp.dp.toPx() }
+                    val screenHeightPx = with(density) { configuration.screenHeightDp.dp.toPx() }
+
+                    val minOffsetX = -screenWidthPx + with(density) { 72.dp.toPx() }
+                    val maxOffsetX = 0f
+                    val minOffsetY = -screenHeightPx + with(density) { 160.dp.toPx() }
+                    val maxOffsetY = with(density) { 20.dp.toPx() }
+
+                    Column(
+                        horizontalAlignment = Alignment.End,
+                        modifier = Modifier.offset { IntOffset(fabOffsetX.roundToInt(), fabOffsetY.roundToInt()) }
+                    ) {
+                        val fabItem1Progress by animateFloatAsState(
+                            targetValue = if (showFabMenu) 1f else 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = if (showFabMenu) Spring.StiffnessLow else Spring.StiffnessMedium
+                            ),
+                            label = "fab_item1_progress"
+                        )
+                        val fabItem2Progress by animateFloatAsState(
+                            targetValue = if (showFabMenu) 1f else 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = if (showFabMenu) Spring.StiffnessMediumLow else Spring.StiffnessLow
+                            ),
+                            label = "fab_item2_progress"
+                        )
+                        val fabItem3Progress by animateFloatAsState(
+                            targetValue = if (showFabMenu) 1f else 0f,
+                            animationSpec = spring(
+                                dampingRatio = Spring.DampingRatioMediumBouncy,
+                                stiffness = if (showFabMenu) Spring.StiffnessMedium else Spring.StiffnessVeryLow
+                            ),
+                            label = "fab_item3_progress"
+                        )
+
                         AnimatedVisibility(
                             visible = showFabMenu,
-                            enter = fadeIn() + expandVertically(expandFrom = Alignment.Bottom),
-                            exit = fadeOut() + shrinkVertically(shrinkTowards = Alignment.Bottom)
+                            enter = fadeIn(animationSpec = tween(180)) + scaleIn(initialScale = 0.4f, transformOrigin = TransformOrigin(1f, 1f)),
+                            exit = fadeOut(animationSpec = tween(140)) + scaleOut(targetScale = 0.4f, transformOrigin = TransformOrigin(1f, 1f))
                         ) {
                             Column(
                                 horizontalAlignment = Alignment.End,
@@ -851,19 +938,74 @@ LaunchedEffect(Unit) {
                                         showFabMenu = false
                                         showAiInput = true
                                     },
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.primaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
                                     shadowElevation = 4.dp,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.35f))
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                                    modifier = Modifier.graphicsLayer {
+                                        transformOrigin = TransformOrigin(1f, 1f)
+                                        rotationZ = (1f - fabItem1Progress) * -40f
+                                        rotationY = (1f - fabItem1Progress) * 55f
+                                        translationX = (1f - fabItem1Progress) * -65f
+                                        translationY = (1f - fabItem1Progress) * 18f
+                                        alpha = fabItem1Progress.coerceIn(0f, 1f)
+                                        scaleX = 0.5f + 0.5f * fabItem1Progress
+                                        scaleY = 0.5f + 0.5f * fabItem1Progress
+                                        cameraDistance = 14f * this.density
+                                    }
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        Icon(AppIcons.Ai, contentDescription = null, modifier = Modifier.size(20.dp))
-                                        Text("AI log", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                                        Icon(AppIcons.Ai, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
+                                        Text("AI log", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+                                    }
+                                }
+
+                                Surface(
+                                    onClick = {
+                                        showFabMenu = false
+                                        if (!VoiceInputHelper.isAvailable(context)) {
+                                            showNotification("Voice recognition is not available on this device", NotificationType.ERROR)
+                                        } else {
+                                            val hasPermission = ContextCompat.checkSelfPermission(
+                                                context,
+                                                Manifest.permission.RECORD_AUDIO
+                                            ) == PackageManager.PERMISSION_GRANTED
+                                            if (hasPermission) {
+                                                showVoiceInput = true
+                                            } else {
+                                                recordAudioPermissionLauncher.launch(Manifest.permission.RECORD_AUDIO)
+                                            }
+                                        }
+                                    },
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
+                                    shadowElevation = 4.dp,
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                                    modifier = Modifier.graphicsLayer {
+                                        transformOrigin = TransformOrigin(1f, 1f)
+                                        rotationZ = (1f - fabItem2Progress) * -25f
+                                        rotationY = (1f - fabItem2Progress) * 35f
+                                        translationX = (1f - fabItem2Progress) * -40f
+                                        translationY = (1f - fabItem2Progress) * 10f
+                                        alpha = fabItem2Progress.coerceIn(0f, 1f)
+                                        scaleX = 0.5f + 0.5f * fabItem2Progress
+                                        scaleY = 0.5f + 0.5f * fabItem2Progress
+                                        cameraDistance = 14f * this.density
+                                    }
+                                ) {
+                                    Row(
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                                        verticalAlignment = Alignment.CenterVertically,
+                                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                                    ) {
+                                        Icon(Icons.Rounded.Mic, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(18.dp))
+                                        Text("Voice", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
                                     }
                                 }
 
@@ -874,41 +1016,96 @@ LaunchedEffect(Unit) {
                                         returnTo = activeView
                                         activeView = ActiveView.ADD_SPEND
                                     },
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = MaterialTheme.colorScheme.secondaryContainer,
-                                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    shape = RoundedCornerShape(14.dp),
+                                    color = MaterialTheme.colorScheme.surfaceContainerHighest,
+                                    contentColor = MaterialTheme.colorScheme.onSurface,
                                     shadowElevation = 4.dp,
-                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.secondary.copy(alpha = 0.35f))
+                                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.45f)),
+                                    modifier = Modifier.graphicsLayer {
+                                        transformOrigin = TransformOrigin(1f, 1f)
+                                        rotationZ = (1f - fabItem3Progress) * -12f
+                                        rotationY = (1f - fabItem3Progress) * 18f
+                                        translationX = (1f - fabItem3Progress) * -18f
+                                        translationY = (1f - fabItem3Progress) * 4f
+                                        alpha = fabItem3Progress.coerceIn(0f, 1f)
+                                        scaleX = 0.5f + 0.5f * fabItem3Progress
+                                        scaleY = 0.5f + 0.5f * fabItem3Progress
+                                        cameraDistance = 14f * this.density
+                                    }
                                 ) {
                                     Row(
-                                        modifier = Modifier.padding(horizontal = 16.dp, vertical = 12.dp),
+                                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
                                         verticalAlignment = Alignment.CenterVertically,
                                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
-                                        Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(20.dp))
-                                        Text("Manual", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold))
+                                        Icon(Icons.Rounded.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
+                                        Text("Manual", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
                                     }
                                 }
                             }
                         }
 
                         val fabRotation by animateFloatAsState(
-                            targetValue = if (showFabMenu) 45f else 0f,
-                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            targetValue = if (showFabMenu) 135f else 0f,
+                            animationSpec = spring(dampingRatio = Spring.DampingRatioMediumBouncy, stiffness = Spring.StiffnessMediumLow),
                             label = "fab_rotation"
+                        )
+                        val fabBgColor by animateColorAsState(
+                            targetValue = if (showFabMenu) MaterialTheme.colorScheme.surfaceContainerHighest else MaterialTheme.colorScheme.primary,
+                            animationSpec = tween(200),
+                            label = "fab_bg_color"
+                        )
+                        val fabContentColor by animateColorAsState(
+                            targetValue = if (showFabMenu) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
+                            animationSpec = tween(200),
+                            label = "fab_content_color"
+                        )
+                        val fabCornerRadius by animateDpAsState(
+                            targetValue = if (showFabMenu) 28.dp else 16.dp,
+                            animationSpec = spring(stiffness = Spring.StiffnessMediumLow),
+                            label = "fab_corner_radius"
                         )
 
                         val haptic = LocalHapticFeedback.current
+
                         Surface(
                             onClick = {
                                 runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
                                 showFabMenu = !showFabMenu
                             },
-                            shape = RoundedCornerShape(20.dp),
-                            color = if (showFabMenu) MaterialTheme.colorScheme.surfaceContainerHigh else MaterialTheme.colorScheme.primary,
-                            contentColor = if (showFabMenu) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onPrimary,
-                            shadowElevation = 6.dp,
-                            modifier = Modifier.size(56.dp)
+                            shape = RoundedCornerShape(fabCornerRadius),
+                            color = fabBgColor,
+                            contentColor = fabContentColor,
+                            shadowElevation = 4.dp,
+                            modifier = Modifier
+                                .size(56.dp)
+                                .pointerInput(Unit) {
+                                    awaitEachGesture {
+                                        val down = awaitFirstDown(requireUnconsumed = false)
+                                        var isDrag = false
+                                        val touchSlop = viewConfiguration.touchSlop
+
+                                        while (true) {
+                                            val event = awaitPointerEvent()
+                                            val change = event.changes.firstOrNull { it.id == down.id } ?: break
+
+                                            if (!change.pressed) break
+
+                                            val dragDelta = change.positionChange()
+                                            val totalDelta = change.position - down.position
+
+                                            if (!isDrag && totalDelta.getDistance() > touchSlop) {
+                                                isDrag = true
+                                            }
+
+                                            if (isDrag) {
+                                                change.consume()
+                                                fabOffsetX = (fabOffsetX + dragDelta.x).coerceIn(minOffsetX, maxOffsetX)
+                                                fabOffsetY = (fabOffsetY + dragDelta.y).coerceIn(minOffsetY, maxOffsetY)
+                                            }
+                                        }
+                                    }
+                                }
                         ) {
                             Box(contentAlignment = Alignment.Center) {
                                 Icon(
@@ -1219,13 +1416,13 @@ LaunchedEffect(Unit) {
 
                 AnimatedVisibility(
                     visible = showFabMenu,
-                    enter = fadeIn(),
-                    exit = fadeOut()
+                    enter = fadeIn(animationSpec = tween(200)),
+                    exit = fadeOut(animationSpec = tween(200))
                 ) {
                     Box(
                         modifier = Modifier
                             .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.32f))
+                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
                             .clickable(
                                 interactionSource = remember { MutableInteractionSource() },
                                 indication = null
@@ -1267,6 +1464,29 @@ LaunchedEffect(Unit) {
                 onProcess = { viewModel.processAiInput(it) },
                 onDismiss = dismissAiInput
             )
+        }
+
+        if (showVoiceInput) {
+            ModalBottomSheet(
+                onDismissRequest = { showVoiceInput = false },
+                sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                dragHandle = { BottomSheetDefaults.DragHandle() }
+            ) {
+                VoiceInputOverlay(
+                    selectedLanguage = aiPrefs.lastVoiceLanguage,
+                    onLanguageChanged = { viewModel.updateVoiceLanguage(it) },
+                    onFinalTranscript = { transcript ->
+                        showVoiceInput = false
+                        if (transcript.isNotBlank()) {
+                            viewModel.processAiInput(transcript)
+                        }
+                    },
+                    onDismiss = {
+                        showVoiceInput = false
+                    }
+                )
+            }
         }
 
         val currentAiConfirmationResult = aiProcessingResult

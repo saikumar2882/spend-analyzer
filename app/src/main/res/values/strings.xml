@@ -1,4 +1,5 @@
 <resources>
     <string name="app_name">Spendly</string>
     <string name="default_web_client_id">460156966019-r2qrfdrc2ucgn6bq177smm7o9fkb20gi.apps.googleusercontent.com</string>
+    <string name="voice_privacy_notice">Voice is processed by Google\'s speech service</string>
 </resources>

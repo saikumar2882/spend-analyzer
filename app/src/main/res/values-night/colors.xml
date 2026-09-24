@@ -1,4 +1,9 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
     <color name="launcher_background">#000000</color>
+
+    <!-- Google-style Search Widget Adaptive Colors -->
+    <color name="widget_bar_bg">#252A38</color>
+    <color name="widget_text">#FFFFFF</color>
+    <color name="widget_icon_tint">#9D8BFF</color>
 </resources>

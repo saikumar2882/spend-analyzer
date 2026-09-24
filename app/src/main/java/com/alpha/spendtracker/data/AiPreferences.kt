@@ -21,7 +21,8 @@ data class AiPreferences(
     // Whether we've already offered to enable app-lock once on this device, so the one-time
     // prompt never nags again after the user enables or dismisses it.
     val hasPromptedBiometric: Boolean = false,
-    val dismissedUpdateVersion: String = ""
+    val dismissedUpdateVersion: String = "",
+    val lastVoiceLanguage: String = "te-IN"
 )
 
 class AiPreferencesRepository(private val context: Context) {
@@ -36,6 +37,7 @@ class AiPreferencesRepository(private val context: Context) {
         val IS_BIOMETRIC_ENABLED = booleanPreferencesKey("is_biometric_enabled")
         val HAS_PROMPTED_BIOMETRIC = booleanPreferencesKey("has_prompted_biometric")
         val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
+        val LAST_VOICE_LANGUAGE = stringPreferencesKey("last_voice_language")
     }
 
     val aiPreferencesFlow: Flow<AiPreferences> = context.dataStore.data
@@ -56,7 +58,8 @@ class AiPreferencesRepository(private val context: Context) {
                 isConfigured = preferences[PreferencesKeys.IS_CONFIGURED] ?: false,
                 isBiometricEnabled = preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] ?: false,
                 hasPromptedBiometric = preferences[PreferencesKeys.HAS_PROMPTED_BIOMETRIC] ?: false,
-                dismissedUpdateVersion = preferences[PreferencesKeys.DISMISSED_UPDATE_VERSION] ?: ""
+                dismissedUpdateVersion = preferences[PreferencesKeys.DISMISSED_UPDATE_VERSION] ?: "",
+                lastVoiceLanguage = preferences[PreferencesKeys.LAST_VOICE_LANGUAGE] ?: "te-IN"
             )
         }
 
@@ -86,6 +89,12 @@ class AiPreferencesRepository(private val context: Context) {
     suspend fun setDismissedUpdateVersion(version: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.DISMISSED_UPDATE_VERSION] = version
+        }
+    }
+
+    suspend fun updateVoiceLanguage(language: String) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.LAST_VOICE_LANGUAGE] = language
         }
     }
 

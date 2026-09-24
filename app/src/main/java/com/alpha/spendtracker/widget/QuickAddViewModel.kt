@@ -38,7 +38,7 @@ sealed interface QuickAddEffect {
 @HiltViewModel
 class QuickAddViewModel @Inject constructor(
     private val processor: AiTransactionProcessor,
-    aiPrefsRepository: AiPreferencesRepository,
+    private val aiPrefsRepository: AiPreferencesRepository,
 ) : ViewModel() {
 
     val aiPreferences: StateFlow<AiPreferences> = aiPrefsRepository.aiPreferencesFlow.stateIn(
@@ -46,6 +46,12 @@ class QuickAddViewModel @Inject constructor(
         started = SharingStarted.WhileSubscribed(5000),
         initialValue = AiPreferences()
     )
+
+    fun updateVoiceLanguage(language: String) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateVoiceLanguage(language)
+        }
+    }
 
     private val _uiState = MutableStateFlow(QuickAddUiState())
     val uiState: StateFlow<QuickAddUiState> = _uiState.asStateFlow()

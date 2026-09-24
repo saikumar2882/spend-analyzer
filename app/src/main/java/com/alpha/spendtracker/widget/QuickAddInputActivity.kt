@@ -6,9 +6,12 @@ import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
-import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.rememberModalBottomSheetState
-import androidx.compose.runtime.getValue
+import androidx.compose.foundation.layout.*
+import androidx.compose.material3.*
+import androidx.compose.runtime.*
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
+import androidx.compose.ui.unit.dp
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
@@ -17,6 +20,7 @@ import com.alpha.spendtracker.MainActivity
 import com.alpha.spendtracker.data.AiResultIntent
 import com.alpha.spendtracker.data.AiTransactionProcessor
 import com.alpha.spendtracker.ui.components.AiInputBottomSheet
+import com.alpha.spendtracker.ui.components.VoiceInputOverlay
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.isDark
 import com.alpha.spendtracker.ui.theme.rememberThemePreference
@@ -26,13 +30,10 @@ import kotlinx.coroutines.launch
 
 /**
  * The home-screen widget's input surface: a translucent activity that floats the AI input
- * sheet over the wallpaper.
+ * sheet or Voice input overlay over the wallpaper.
  *
- * An app widget can't host an editable field — `RemoteViews` only inflates `@RemoteView`
- * classes and `EditText` isn't one, and Glance has no `TextField` — so tapping the widget
- * opens this instead of the app. It shows nothing but the input, so it is deliberately
- * **not** behind the biometric lock: there is no spend data on screen to protect. The lock
- * applies at the next step, when [MainActivity] opens with the parsed result to confirm.
+ * An app widget can't host an editable field or interactive audio listener directly,
+ * so tapping the widget opens this translucent overlay without opening the main app UI.
  */
 @AndroidEntryPoint
 class QuickAddInputActivity : ComponentActivity() {
@@ -43,10 +44,13 @@ class QuickAddInputActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val isVoiceLaunch = intent.getBooleanExtra("SHOW_VOICE_INPUT", false) || intent.extras?.containsKey("SHOW_VOICE_INPUT") == true
+
         // Nothing can be logged without an account, and the confirmation step lives behind
         // the app's auth gate anyway — send them straight to the app to sign in.
         if (FirebaseAuth.getInstance().currentUser == null) {
-            startActivity(mainActivityIntent().putExtra("SHOW_AI_INPUT", true))
+            val redirectKey = if (isVoiceLaunch) "SHOW_VOICE_INPUT" else "SHOW_AI_INPUT"
+            startActivity(mainActivityIntent().putExtra(redirectKey, true))
             finish()
             return
         }
@@ -71,17 +75,65 @@ class QuickAddInputActivity : ComponentActivity() {
             MyApplicationTheme(darkTheme = themePref.value.isDark()) {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                 val prefs by viewModel.aiPreferences.collectAsStateWithLifecycle()
+                var isVoiceMode by remember { mutableStateOf(isVoiceLaunch) }
 
-                AiInputBottomSheet(
-                    sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
-                    remainingRequests = AiTransactionProcessor.DAILY_LIMIT - prefs.dailyUsageCount,
-                    errorMessage = uiState.errorMessage,
-                    onProcess = viewModel::process,
-                    onDismiss = {
-                        viewModel.cancel()
-                        finish()
+                if (isVoiceMode) {
+                    ModalBottomSheet(
+                        onDismissRequest = {
+                            viewModel.cancel()
+                            finish()
+                        },
+                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        dragHandle = { BottomSheetDefaults.DragHandle() }
+                    ) {
+                        if (uiState.isProcessing) {
+                            Column(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .padding(28.dp),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(16.dp)
+                            ) {
+                                LinearProgressIndicator(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    color = MaterialTheme.colorScheme.primary,
+                                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+                                )
+                                Text(
+                                    "AI is reading your voice input…",
+                                    style = MaterialTheme.typography.titleMedium,
+                                    color = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        } else {
+                            VoiceInputOverlay(
+                                selectedLanguage = prefs.lastVoiceLanguage,
+                                onLanguageChanged = viewModel::updateVoiceLanguage,
+                                onFinalTranscript = { transcript ->
+                                    if (transcript.isNotBlank()) {
+                                        viewModel.process(transcript)
+                                    }
+                                },
+                                onDismiss = {
+                                    viewModel.cancel()
+                                    finish()
+                                }
+                            )
+                        }
                     }
-                )
+                } else {
+                    AiInputBottomSheet(
+                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                        remainingRequests = AiTransactionProcessor.DAILY_LIMIT - prefs.dailyUsageCount,
+                        errorMessage = uiState.errorMessage,
+                        onProcess = viewModel::process,
+                        onDismiss = {
+                            viewModel.cancel()
+                            finish()
+                        }
+                    )
+                }
             }
         }
     }

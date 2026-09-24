@@ -1,6 +1,6 @@
 package com.alpha.spendtracker.ui.components
 
-import androidx.compose.foundation.BorderStroke
+import android.content.ClipData
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
@@ -19,21 +19,13 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import com.alpha.spendtracker.ui.icons.AppIcons
-import com.alpha.spendtracker.ui.theme.BrandGradientEnd
-import com.alpha.spendtracker.ui.theme.BrandGradientMid
-import com.alpha.spendtracker.ui.theme.BrandGradientStart
-import android.content.ClipData
 import androidx.compose.ui.layout.ContentScale
 import androidx.compose.ui.platform.ClipEntry
 import androidx.compose.ui.platform.LocalClipboard
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
-import kotlinx.coroutines.launch
-import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
@@ -41,11 +33,15 @@ import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import com.alpha.spendtracker.data.ChatMessage
+import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.viewmodel.AiErrorType
 import com.alpha.spendtracker.ui.viewmodel.AiHistoryStatus
 import com.google.firebase.auth.FirebaseAuth
+import kotlinx.coroutines.launch
+import java.text.SimpleDateFormat
+import java.util.Date
 
-@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiHistoryAssistantSheet(
     messages: List<ChatMessage>,
@@ -59,7 +55,6 @@ fun AiHistoryAssistantSheet(
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
     
-    // Calculate remaining messages in current session (Limit is 7)
     val lastMessage = messages.lastOrNull()
     val userMessagesInCurrentSession = if (lastMessage != null) {
         messages.count { it.sessionId == lastMessage.sessionId && it.fromUser }
@@ -97,18 +92,16 @@ fun AiHistoryAssistantSheet(
         ) {
             // Header
             Row(
-                modifier = Modifier.fillMaxWidth().padding(bottom = 14.dp),
+                modifier = Modifier.fillMaxWidth().padding(bottom = 12.dp),
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Row(verticalAlignment = Alignment.CenterVertically) {
                     Box(
                         modifier = Modifier
-                            .size(40.dp)
+                            .size(36.dp)
                             .background(
-                                Brush.linearGradient(
-                                    listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)
-                                ),
+                                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
                                 CircleShape
                             ),
                         contentAlignment = Alignment.Center
@@ -116,17 +109,17 @@ fun AiHistoryAssistantSheet(
                         Icon(
                             AppIcons.Ai,
                             contentDescription = null,
-                            tint = Color.White,
-                            modifier = Modifier.size(20.dp)
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier.size(18.dp)
                         )
                     }
-                    Spacer(modifier = Modifier.width(12.dp))
+                    Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
                             text = "Spend Assistant",
-                            style = MaterialTheme.typography.titleLarge.copy(
+                            style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
-                                letterSpacing = (-0.3).sp
+                                letterSpacing = (-0.2).sp
                             ),
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -141,13 +134,13 @@ fun AiHistoryAssistantSheet(
                 val chipColor = if (remainingMessages <= 1) MaterialTheme.colorScheme.error
                 else MaterialTheme.colorScheme.primary
                 Surface(
-                    color = chipColor.copy(alpha = 0.14f),
-                    shape = RoundedCornerShape(12.dp),
+                    color = chipColor.copy(alpha = 0.12f),
+                    shape = RoundedCornerShape(10.dp),
                 ) {
                     Text(
                         text = "$remainingMessages/7 left",
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                        style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                        style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                         color = chipColor
                     )
                 }
@@ -180,25 +173,25 @@ fun AiHistoryAssistantSheet(
                 }
             }
 
-            Spacer(modifier = Modifier.height(12.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
-            // Persistent example chips (hidden when user is typing text)
+            // Persistent example chips
             if (messages.isNotEmpty() && textInput.isBlank()) {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp)
                 ) {
                     items(examples) { example ->
                         Surface(
                             onClick = { textInput = example },
-                            shape = RoundedCornerShape(12.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh
+                            shape = RoundedCornerShape(10.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainer
                         ) {
                             Text(
                                 example,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                                style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurface
                             )
                         }
@@ -211,36 +204,36 @@ fun AiHistoryAssistantSheet(
                     value = textInput,
                     onValueChange = { textInput = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Ask about your history…") },
+                    placeholder = { Text("Ask about your history…", style = MaterialTheme.typography.bodyMedium) },
                     trailingIcon = {
-                        Surface(
+                        IconButton(
                             onClick = {
                                 if (textInput.isNotBlank()) {
                                     onSendMessage(textInput)
                                     textInput = ""
                                 }
                             },
-                            enabled = textInput.isNotBlank(),
-                            shape = CircleShape,
-                            color = if (textInput.isNotBlank()) MaterialTheme.colorScheme.primary
-                            else MaterialTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.size(38.dp)
+                            enabled = textInput.isNotBlank()
                         ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    Icons.AutoMirrored.Rounded.Send,
-                                    contentDescription = "Send message",
-                                    tint = if (textInput.isNotBlank()) MaterialTheme.colorScheme.onPrimary
-                                    else MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(18.dp)
-                                )
-                            }
+                            Icon(
+                                Icons.AutoMirrored.Rounded.Send,
+                                contentDescription = "Send message",
+                                tint = if (textInput.isNotBlank()) MaterialTheme.colorScheme.primary
+                                else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f),
+                                modifier = Modifier.size(18.dp)
+                            )
                         }
                     },
-                    shape = RoundedCornerShape(24.dp)
+                    shape = RoundedCornerShape(16.dp),
+                    colors = OutlinedTextFieldDefaults.colors(
+                        focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
+                        unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                        focusedBorderColor = MaterialTheme.colorScheme.primary,
+                        unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)
+                    )
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(4.dp))
 
                 Text(
                     text = "AI-powered. Answers depend on your recorded transactions.",
@@ -250,7 +243,7 @@ fun AiHistoryAssistantSheet(
                 )
             }
 
-            Spacer(modifier = Modifier.height(24.dp))
+            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
@@ -287,7 +280,7 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
             when (status.type) {
                 AiErrorType.SERVER_RATE_LIMIT -> {
                     icon = Icons.Rounded.Timer
-                    title = "Server Busy (Quota Exceeded)"
+                    title = "Server Busy"
                     color = MaterialTheme.colorScheme.error
                 }
                 AiErrorType.CLIENT_RATE_LIMIT -> {
@@ -310,42 +303,33 @@ private fun AiStatusIndicator(status: AiHistoryStatus) {
             Surface(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .padding(8.dp),
-                color = color.copy(alpha = 0.1f),
-                shape = RoundedCornerShape(12.dp),
+                    .padding(vertical = 4.dp),
+                color = color.copy(alpha = 0.08f),
+                shape = RoundedCornerShape(10.dp),
             ) {
-                Column(modifier = Modifier.padding(12.dp)) {
+                Column(modifier = Modifier.padding(10.dp)) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                        horizontalArrangement = Arrangement.spacedBy(6.dp)
                     ) {
                         Icon(
                             imageVector = icon,
                             contentDescription = null,
                             tint = color,
-                            modifier = Modifier.size(20.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Text(
                             text = title,
-                            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = color
                         )
                     }
-                    Spacer(modifier = Modifier.height(4.dp))
+                    Spacer(modifier = Modifier.height(2.dp))
                     Text(
                         text = status.message,
                         style = MaterialTheme.typography.bodySmall,
                         color = color.copy(alpha = 0.8f)
                     )
-                    
-                    if (status.type == AiErrorType.SERVER_RATE_LIMIT) {
-                        Spacer(modifier = Modifier.height(8.dp))
-                        Text(
-                            text = "Please wait a moment before trying again. The AI service is currently experiencing high traffic or temporary demand spikes.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = color.copy(alpha = 0.7f)
-                        )
-                    }
                 }
             }
         }
@@ -361,19 +345,19 @@ fun ChatBubble(
     val arrangement = if (isUser) Arrangement.End else Arrangement.Start
     
     val locale = LocalConfiguration.current.locales[0]
-    val timeFormat = remember(locale) { java.text.SimpleDateFormat("HH:mm", locale) }
-    val timeString = remember(message.timestamp) { timeFormat.format(java.util.Date(message.timestamp)) }
+    val timeFormat = remember(locale) { SimpleDateFormat("HH:mm", locale) }
+    val timeString = remember(message.timestamp) { timeFormat.format(Date(message.timestamp)) }
 
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .padding(vertical = 6.dp),
+            .padding(vertical = 4.dp),
         horizontalArrangement = arrangement,
         verticalAlignment = Alignment.Top
     ) {
         if (!isUser) {
             AiAvatar()
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
         }
 
         Column(
@@ -381,16 +365,11 @@ fun ChatBubble(
         ) {
             Surface(
                 color = if (isUser) MaterialTheme.colorScheme.primary
-                else MaterialTheme.colorScheme.surfaceContainerHigh,
-                shape = RoundedCornerShape(
-                    topStart = 18.dp,
-                    topEnd = 18.dp,
-                    bottomEnd = if (isUser) 4.dp else 18.dp,
-                    bottomStart = if (isUser) 18.dp else 4.dp
-                ),
+                else MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(14.dp),
                 modifier = Modifier.widthIn(max = 280.dp)
             ) {
-                Column(modifier = Modifier.padding(14.dp)) {
+                Column(modifier = Modifier.padding(12.dp)) {
                     if (isUser) {
                         Text(
                             text = message.text,
@@ -407,7 +386,7 @@ fun ChatBubble(
 
                     Row(
                         modifier = Modifier
-                            .padding(top = 6.dp)
+                            .padding(top = 4.dp)
                             .fillMaxWidth(),
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
@@ -421,14 +400,14 @@ fun ChatBubble(
 
                         IconButton(
                             onClick = onCopy,
-                            modifier = Modifier.size(24.dp)
+                            modifier = Modifier.size(20.dp)
                         ) {
                             Icon(
                                 imageVector = Icons.Rounded.ContentCopy,
                                 contentDescription = "Copy message",
                                 tint = (if (isUser) MaterialTheme.colorScheme.onPrimary
-                                else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.7f),
-                                modifier = Modifier.size(14.dp)
+                                else MaterialTheme.colorScheme.onSurfaceVariant).copy(alpha = 0.6f),
+                                modifier = Modifier.size(12.dp)
                             )
                         }
                     }
@@ -437,7 +416,7 @@ fun ChatBubble(
         }
 
         if (isUser) {
-            Spacer(modifier = Modifier.width(8.dp))
+            Spacer(modifier = Modifier.width(6.dp))
             UserAvatar()
         }
     }
@@ -447,11 +426,9 @@ fun ChatBubble(
 private fun AiAvatar() {
     Box(
         modifier = Modifier
-            .size(32.dp)
+            .size(28.dp)
             .background(
-                Brush.linearGradient(
-                    listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)
-                ),
+                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
                 CircleShape
             ),
         contentAlignment = Alignment.Center
@@ -459,8 +436,8 @@ private fun AiAvatar() {
         Icon(
             imageVector = AppIcons.Ai,
             contentDescription = null,
-            tint = Color.White,
-            modifier = Modifier.size(16.dp)
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.size(14.dp)
         )
     }
 }
@@ -480,7 +457,7 @@ private fun UserAvatar(
             },
             contentDescription = "User photo",
             modifier = Modifier
-                .size(32.dp)
+                .size(28.dp)
                 .clip(CircleShape),
             contentScale = ContentScale.Crop,
             loading = { DefaultUserAvatar() },
@@ -496,7 +473,7 @@ private fun DefaultUserAvatar() {
     Surface(
         color = MaterialTheme.colorScheme.surfaceContainerHigh,
         shape = CircleShape,
-        modifier = Modifier.size(32.dp),
+        modifier = Modifier.size(28.dp),
         border = null
     ) {
         Box(contentAlignment = Alignment.Center) {
@@ -504,7 +481,7 @@ private fun DefaultUserAvatar() {
                 imageVector = Icons.Rounded.Person,
                 contentDescription = null,
                 tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                modifier = Modifier.size(18.dp)
+                modifier = Modifier.size(16.dp)
             )
         }
     }
@@ -524,9 +501,9 @@ fun EmptyChatState(
     ) {
         Box(
             modifier = Modifier
-                .size(48.dp)
+                .size(40.dp)
                 .background(
-                    Brush.linearGradient(listOf(BrandGradientStart, BrandGradientMid, BrandGradientEnd)),
+                    MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.7f),
                     CircleShape
                 ),
             contentAlignment = Alignment.Center
@@ -534,48 +511,48 @@ fun EmptyChatState(
             Icon(
                 imageVector = AppIcons.Ai,
                 contentDescription = null,
-                tint = Color.White,
-                modifier = Modifier.size(24.dp)
+                tint = MaterialTheme.colorScheme.primary,
+                modifier = Modifier.size(20.dp)
             )
         }
 
-        Spacer(modifier = Modifier.height(12.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
         Text(
             text = "Ask me anything",
             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
             color = MaterialTheme.colorScheme.onSurface
         )
-        Spacer(modifier = Modifier.height(4.dp))
+        Spacer(modifier = Modifier.height(2.dp))
         Text(
             text = "Try one of these to get started",
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(14.dp))
 
         Column(
             modifier = Modifier.fillMaxWidth(),
-            verticalArrangement = Arrangement.spacedBy(8.dp)
+            verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             examples.forEach { example ->
                 Surface(
                     onClick = { onExampleClick(example) },
-                    shape = RoundedCornerShape(12.dp),
-                    color = MaterialTheme.colorScheme.surfaceVariant,
+                    shape = RoundedCornerShape(10.dp),
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 12.dp),
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
                         verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
                         Icon(
                             imageVector = AppIcons.Ai,
                             contentDescription = null,
                             tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(18.dp)
+                            modifier = Modifier.size(16.dp)
                         )
                         Text(
                             text = example,

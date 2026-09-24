@@ -21,6 +21,7 @@ import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
+import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.stateIn
@@ -749,6 +750,12 @@ class SpendViewModel @Inject constructor(
         }
     }
 
+    fun updateVoiceLanguage(language: String) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateVoiceLanguage(language)
+        }
+    }
+
     fun updateBiometricEnabled(enabled: Boolean) {
         viewModelScope.launch {
             aiPrefsRepository.updateBiometricEnabled(enabled)
@@ -785,10 +792,18 @@ class SpendViewModel @Inject constructor(
     private val _aiResult = MutableStateFlow<Result<AiTransactionResponse>?>(null)
     val aiResult: StateFlow<Result<AiTransactionResponse>?> = _aiResult
 
+    private val _isAiProcessing = MutableStateFlow(false)
+    val isAiProcessing: StateFlow<Boolean> = _isAiProcessing.asStateFlow()
+
     fun processAiInput(text: String) {
         aiJob?.cancel()
+        _isAiProcessing.value = true
         aiJob = viewModelScope.launch {
-            _aiResult.value = aiTransactionProcessor.parse(text, aiPreferences.value)
+            try {
+                _aiResult.value = aiTransactionProcessor.parse(text, aiPreferences.value)
+            } finally {
+                _isAiProcessing.value = false
+            }
         }
     }
 
@@ -799,6 +814,7 @@ class SpendViewModel @Inject constructor(
     fun cancelAiInput() {
         aiJob?.cancel()
         aiJob = null
+        _isAiProcessing.value = false
         _aiResult.value = null
     }
 
