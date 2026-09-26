@@ -1262,7 +1262,19 @@ LaunchedEffect(Unit) {
                         ActiveView.RECURRING_BILLS -> RecurringBillsScreen(
                             bills = recurringBills,
                             onBack = goBackMajor,
-                            onAddBill = viewModel::addRecurringBill,
+                            onAddBill = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4 ->
+                                viewModel.addRecurringBill(
+                                    name = name,
+                                    purpose = purpose,
+                                    category = category,
+                                    appName = app,
+                                    amount = amount,
+                                    dayOfMonth = day,
+                                    notes = notes,
+                                    isCreditCard = isCreditCard,
+                                    cardLast4 = cardLast4
+                                )
+                            },
                             onUpdateBill = viewModel::updateRecurringBill,
                             onDeleteBill = viewModel::deleteRecurringBill
                         )

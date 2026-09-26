@@ -201,6 +201,8 @@ class SpendViewModel @Inject constructor(
         amount: Double,
         dayOfMonth: Int,
         notes: String = "",
+        isCreditCard: Boolean = false,
+        cardLast4: String = "",
         onResult: (Result<Unit>) -> Unit = {}
     ) {
         mutate(onResult) {
@@ -214,6 +216,8 @@ class SpendViewModel @Inject constructor(
                 amount = amount,
                 dayOfMonth = dayOfMonth,
                 notes = notes,
+                isCreditCard = isCreditCard,
+                cardLast4 = cardLast4,
                 updatedAt = System.currentTimeMillis()
             )
             repository.insertRecurringBill(bill)

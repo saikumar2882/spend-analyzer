@@ -44,6 +44,7 @@ import com.alpha.spendtracker.data.NoteField
 import com.alpha.spendtracker.ui.components.SwipeableLogCard
 import com.alpha.spendtracker.ui.components.formatCurrency
 import com.alpha.spendtracker.ui.icons.AppIcons
+import com.alpha.spendtracker.ui.theme.isAppInDarkTheme
 import java.text.SimpleDateFormat
 import java.util.Locale
 
@@ -345,6 +346,7 @@ private fun NoteTile(
 ) {
     val accent = noteColor(note.colorIndex)
     var menuOpen by remember { mutableStateOf(false) }
+    val isDark = isAppInDarkTheme
 
     Card(
         modifier = Modifier
@@ -429,58 +431,66 @@ private fun NoteTile(
                 }
             }
         } else {
-            // List mode layout (1 column full-width card with comfortable height)
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 14.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
+            // List mode layout
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
                     modifier = Modifier
-                        .width(4.dp)
-                        .height(38.dp)
-                        .background(accent, RoundedCornerShape(2.dp))
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = note.title.ifBlank { "Untitled" },
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 14.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .height(38.dp)
+                            .background(accent, RoundedCornerShape(2.dp))
                     )
-                    Spacer(modifier = Modifier.height(3.dp))
-                    Text(
-                        text = if (itemCount == 1) "1 item" else "$itemCount items",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                }
-                if (subtotal > 0) {
-                    Text(
-                        text = "$currencySymbol${formatCurrency(subtotal)}",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                }
-                Box {
-                    IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
-                        Icon(
-                            Icons.Rounded.MoreVert,
-                            contentDescription = "Options",
-                            modifier = Modifier.size(18.dp),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
+                        Text(
+                            text = note.title.ifBlank { "Untitled" },
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                        Spacer(modifier = Modifier.height(3.dp))
+                        Text(
+                            text = if (itemCount == 1) "1 item" else "$itemCount items",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
                     }
-                    NoteTileDropdownMenu(
-                        expanded = menuOpen,
-                        onDismiss = { menuOpen = false },
-                        onLogAsTransaction = onLogAsTransaction,
-                        onEdit = onEdit,
-                        onDelete = onDelete
+                    if (subtotal > 0) {
+                        Text(
+                            text = "$currencySymbol${formatCurrency(subtotal)}",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                    }
+                    Box {
+                        IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
+                            Icon(
+                                Icons.Rounded.MoreVert,
+                                contentDescription = "Options",
+                                modifier = Modifier.size(18.dp),
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        NoteTileDropdownMenu(
+                            expanded = menuOpen,
+                            onDismiss = { menuOpen = false },
+                            onLogAsTransaction = onLogAsTransaction,
+                            onEdit = onEdit,
+                            onDelete = onDelete
+                        )
+                    }
+                }
+                if (isDark) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 28.dp),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                     )
                 }
             }
@@ -554,6 +564,8 @@ private fun NoteEntryCard(
     isGridView: Boolean,
     onClick: () -> Unit
 ) {
+    val isDark = isAppInDarkTheme
+
     Card(
         modifier = Modifier
             .fillMaxWidth()
@@ -630,64 +642,77 @@ private fun NoteEntryCard(
                         )
                     }
                 }
+                if (isDark) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
+                    )
+                }
             }
         } else {
-            // List View: Comfortable 1-column Row format
-            Row(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 14.dp, vertical = 12.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Box(
+            // List View: Comfortable 1-column Row format with subtle bottom divider
+            Column(modifier = Modifier.fillMaxWidth()) {
+                Row(
                     modifier = Modifier
-                        .width(4.dp)
-                        .height(38.dp)
-                        .background(accent, RoundedCornerShape(2.dp))
-                )
-                Spacer(modifier = Modifier.width(12.dp))
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = entry.label.ifBlank { "Untitled" },
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface,
-                        maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        .fillMaxWidth()
+                        .padding(horizontal = 14.dp, vertical = 12.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .width(4.dp)
+                            .height(38.dp)
+                            .background(accent, RoundedCornerShape(2.dp))
                     )
-                    if (entry.date > 0) {
+                    Spacer(modifier = Modifier.width(12.dp))
+                    Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = entryDateFormat.format(entry.date),
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    if (!entry.detail.isNullOrBlank()) {
-                        Text(
-                            text = entry.detail,
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            text = entry.label.ifBlank { "Untitled" },
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
                             overflow = TextOverflow.Ellipsis
                         )
+                        if (entry.date > 0) {
+                            Text(
+                                text = entryDateFormat.format(entry.date),
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        if (!entry.detail.isNullOrBlank()) {
+                            Text(
+                                text = entry.detail,
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
+                        entry.customFields.filter { it.name.isNotBlank() || it.value.isNotBlank() }.forEach { field ->
+                            Text(
+                                text = buildString {
+                                    if (field.name.isNotBlank()) append("${field.name}: ")
+                                    append(field.value)
+                                },
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                maxLines = 1,
+                                overflow = TextOverflow.Ellipsis
+                            )
+                        }
                     }
-                    entry.customFields.filter { it.name.isNotBlank() || it.value.isNotBlank() }.forEach { field ->
+                    if (entry.amount > 0) {
                         Text(
-                            text = buildString {
-                                if (field.name.isNotBlank()) append("${field.name}: ")
-                                append(field.value)
-                            },
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis
+                            text = "$currencySymbol${formatCurrency(entry.amount)}",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
                         )
                     }
                 }
-                if (entry.amount > 0) {
-                    Text(
-                        text = "$currencySymbol${formatCurrency(entry.amount)}",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = MaterialTheme.colorScheme.onSurface
+                if (isDark) {
+                    HorizontalDivider(
+                        modifier = Modifier.padding(start = 28.dp),
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
                     )
                 }
             }

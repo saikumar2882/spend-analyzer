@@ -1,18 +1,20 @@
 package com.alpha.spendtracker.ui.screens
 
 import androidx.compose.foundation.background
-import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
-import androidx.compose.material.icons.rounded.*
+import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
+import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
@@ -20,66 +22,183 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.data.RecurringBill
 import com.alpha.spendtracker.ui.components.APP_COLOR_BY_NAME
 import com.alpha.spendtracker.ui.components.APP_PRESETS
-import com.alpha.spendtracker.ui.components.AppPreset
-import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
+import com.alpha.spendtracker.ui.components.AppIconImage
+import com.alpha.spendtracker.ui.components.SwipeableLogCard
 import com.alpha.spendtracker.ui.components.formatCurrency
+import com.alpha.spendtracker.ui.theme.Radius
+import com.alpha.spendtracker.ui.theme.Spacing
+import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun RecurringBillsScreen(
     bills: List<RecurringBill>,
     onBack: () -> Unit,
-    onAddBill: (String, String, String, String, Double, Int, String) -> Unit,
+    onAddBill: (
+        name: String,
+        purpose: String,
+        category: String,
+        appName: String,
+        amount: Double,
+        dayOfMonth: Int,
+        notes: String,
+        isCreditCard: Boolean,
+        cardLast4: String
+    ) -> Unit,
     onUpdateBill: (RecurringBill) -> Unit,
     onDeleteBill: (RecurringBill) -> Unit
 ) {
+    var selectedTab by rememberSaveable { mutableIntStateOf(0) } // 0 = Bills & Subscriptions, 1 = Credit Cards
     var showAddDialog by remember { mutableStateOf(false) }
     var editingBill by remember { mutableStateOf<RecurringBill?>(null) }
     var billToDelete by remember { mutableStateOf<RecurringBill?>(null) }
 
+    val mainTabs = remember { listOf("Bills & Subscriptions", "Credit Cards") }
+
+    val displayedBills = remember(bills, selectedTab) {
+        if (selectedTab == 1) {
+            bills.filter { it.isCreditCardBill }
+        } else {
+            bills.filter { !it.isCreditCardBill }
+        }
+    }
+
     Scaffold(
         topBar = {
-            TopAppBar(
-                title = { Text("Recurring Bills", fontWeight = FontWeight.Bold) },
-                navigationIcon = {
-                    IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
-                    }
-                },
-                actions = {
-                    IconButton(onClick = { showAddDialog = true }) {
-                        Icon(Icons.Rounded.Add, contentDescription = "Add Bill")
+            Column {
+                TopAppBar(
+                    title = {
+                        Text(
+                            "Recurring Bills",
+                            style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                    },
+                    navigationIcon = {
+                        IconButton(onClick = onBack) {
+                            Icon(
+                                Icons.AutoMirrored.Rounded.ArrowBack,
+                                contentDescription = "Back",
+                                tint = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    },
+                    actions = {
+                        IconButton(onClick = { showAddDialog = true }) {
+                            Icon(
+                                Icons.Rounded.Add,
+                                contentDescription = "Add Bill",
+                                tint = MaterialTheme.colorScheme.primary
+                            )
+                        }
+                    },
+                    colors = TopAppBarDefaults.topAppBarColors(
+                        containerColor = MaterialTheme.colorScheme.background
+                    )
+                )
+
+                // High-contrast Segmented Pill Tabs matching LendBorrowScreen
+                Surface(
+                    shape = CircleShape,
+                    color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(horizontal = Spacing.ScreenPadding, vertical = Spacing.xs),
+                    border = null
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(4.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        mainTabs.forEachIndexed { index, title ->
+                            val isSelected = index == selectedTab
+                            val activeBg = if (index == 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.tertiaryContainer
+                            val activeFg = if (index == 0) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onTertiaryContainer
+
+                            Surface(
+                                onClick = { selectedTab = index },
+                                shape = CircleShape,
+                                color = if (isSelected) activeBg else Color.Transparent,
+                                border = null,
+                                modifier = Modifier.weight(1f)
+                            ) {
+                                Box(
+                                    modifier = Modifier.padding(vertical = 10.dp),
+                                    contentAlignment = Alignment.Center
+                                ) {
+                                    Text(
+                                        text = title,
+                                        style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                        color = if (isSelected) activeFg else MaterialTheme.colorScheme.onSurfaceVariant
+                                    )
+                                }
+                            }
+                        }
                     }
                 }
-            )
-        }
+            }
+        },
+        containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        if (bills.isEmpty()) {
-            Box(modifier = Modifier.fillMaxSize().padding(padding), contentAlignment = Alignment.Center) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null, modifier = Modifier.size(64.dp), tint = MaterialTheme.colorScheme.primary.copy(alpha = 0.5f))
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text("No recurring bills yet", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text("Tap + to add subscriptions or card bills.", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+        if (displayedBills.isEmpty()) {
+            Box(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentAlignment = Alignment.Center
+            ) {
+                Column(
+                    horizontalAlignment = Alignment.CenterHorizontally,
+                    modifier = Modifier.padding(horizontal = Spacing.xl)
+                ) {
+                    Icon(
+                        if (selectedTab == 1) Icons.Rounded.CreditCard else Icons.AutoMirrored.Rounded.ReceiptLong,
+                        contentDescription = null,
+                        modifier = Modifier.size(52.dp),
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.35f)
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.md))
+                    Text(
+                        if (selectedTab == 1) "No credit cards added yet" else "No bills or subscriptions yet",
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(Spacing.xs))
+                    Text(
+                        if (selectedTab == 1) "Tap + to manage credit card bills & due dates." else "Tap + to add rent, utilities, driver, maid, or subscriptions.",
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
                 }
             }
         } else {
             LazyColumn(
-                modifier = Modifier.fillMaxSize().padding(padding),
-                contentPadding = PaddingValues(start = 16.dp, top = 16.dp, end = 16.dp, bottom = 120.dp),
-                verticalArrangement = Arrangement.spacedBy(12.dp)
+                modifier = Modifier
+                    .fillMaxSize()
+                    .padding(padding),
+                contentPadding = PaddingValues(
+                    start = Spacing.ScreenPadding,
+                    top = Spacing.md,
+                    end = Spacing.ScreenPadding,
+                    bottom = 120.dp
+                ),
+                verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
-                items(bills) { bill ->
-                    RecurringBillItem(
-                        bill = bill,
-                        onEdit = { editingBill = it },
-                        onDelete = { billToDelete = it }
-                    )
+                items(displayedBills, key = { it.uuid }) { bill ->
+                    SwipeableLogCard(
+                        onEdit = { editingBill = bill },
+                        onDelete = { billToDelete = bill }
+                    ) {
+                        RecurringBillItem(
+                            bill = bill,
+                            onClick = { editingBill = bill }
+                        )
+                    }
                 }
             }
         }
@@ -107,18 +226,29 @@ fun RecurringBillsScreen(
         if (showAddDialog || editingBill != null) {
             BillEditDialog(
                 bill = editingBill,
+                defaultIsCreditCard = selectedTab == 1,
                 onDismiss = {
                     showAddDialog = false
                     editingBill = null
                 },
-                onSave = { name, purpose, category, app, amount, day, notes ->
-                    if (editingBill != null) {
-                        onUpdateBill(editingBill!!.copy(
-                            name = name, purpose = purpose,
-                            category = category, appName = app, amount = amount, dayOfMonth = day, notes = notes
-                        ))
+                onSave = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4 ->
+                    val currentEditing = editingBill
+                    if (currentEditing != null) {
+                        onUpdateBill(
+                            currentEditing.copy(
+                                name = name,
+                                purpose = purpose,
+                                category = category,
+                                appName = app,
+                                amount = amount,
+                                dayOfMonth = day,
+                                notes = notes,
+                                isCreditCard = isCreditCard,
+                                cardLast4 = cardLast4
+                            )
+                        )
                     } else {
-                        onAddBill(name, purpose, category, app, amount, day, notes)
+                        onAddBill(name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4)
                     }
                     showAddDialog = false
                     editingBill = null
@@ -131,78 +261,119 @@ fun RecurringBillsScreen(
 @Composable
 fun RecurringBillItem(
     bill: RecurringBill,
-    onEdit: (RecurringBill) -> Unit,
-    onDelete: (RecurringBill) -> Unit
+    onClick: () -> Unit,
+    modifier: Modifier = Modifier
 ) {
-    val accent = APP_COLOR_BY_NAME[bill.appName] ?: MaterialTheme.colorScheme.primary
+    val accent = APP_COLOR_BY_NAME[bill.appName]
+        ?: APP_PRESETS.find { it.displayName.equals(bill.appName, ignoreCase = true) }?.color
+        ?: MaterialTheme.colorScheme.primary
+
     val daysUntil = remember(bill.dayOfMonth) { daysUntilDue(bill.dayOfMonth) }
     val dueLabel = when {
         daysUntil == 0 -> "Due today"
         daysUntil == 1 -> "Due tomorrow"
         daysUntil <= 5 -> "Due in $daysUntil days"
-        else -> "Due ${bill.dayOfMonth}${getDaySuffix(bill.dayOfMonth)}"
+        else -> "Due on ${bill.dayOfMonth}${getDaySuffix(bill.dayOfMonth)}"
     }
     val dueColor = if (daysUntil <= 5) MaterialTheme.colorScheme.error
                    else MaterialTheme.colorScheme.onSurfaceVariant
 
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer)
+    Surface(
+        onClick = onClick,
+        modifier = modifier.fillMaxWidth(),
+        color = Color.Transparent,
+        shape = RoundedCornerShape(Radius.md)
     ) {
         Row(
-            modifier = Modifier.padding(14.dp),
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(horizontal = Spacing.sm, vertical = Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            // Day-of-month badge in the app's brand color
-            Box(
-                modifier = Modifier
-                    .size(46.dp)
-                    .background(accent.copy(alpha = 0.15f), RoundedCornerShape(14.dp)),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(horizontalAlignment = Alignment.CenterHorizontally) {
-                    Text(
-                        text = bill.dayOfMonth.toString(),
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                        color = accent
-                    )
-                    Text(
-                        text = getDaySuffix(bill.dayOfMonth),
-                        style = MaterialTheme.typography.labelSmall.copy(fontSize = 8.sp),
-                        color = accent.copy(alpha = 0.8f)
+            if (bill.isCreditCardBill) {
+                Box(
+                    modifier = Modifier
+                        .size(40.dp)
+                        .background(accent.copy(alpha = 0.12f), CircleShape),
+                    contentAlignment = Alignment.Center
+                ) {
+                    Icon(
+                        Icons.Rounded.CreditCard,
+                        contentDescription = null,
+                        tint = accent,
+                        modifier = Modifier.size(20.dp)
                     )
                 }
+            } else {
+                AppIconImage(
+                    appName = bill.appName,
+                    fallbackColor = accent,
+                    modifier = Modifier.size(38.dp)
+                )
             }
-            Spacer(modifier = Modifier.width(12.dp))
+
+            Spacer(modifier = Modifier.width(Spacing.md))
+
             Column(modifier = Modifier.weight(1f)) {
                 Text(
-                    bill.name,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    text = bill.name,
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface,
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                Text(bill.appName, style = MaterialTheme.typography.labelMedium, color = accent)
-                Text(
-                    dueLabel,
-                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
-                    color = dueColor
-                )
+                Spacer(modifier = Modifier.height(2.dp))
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    if (bill.isCreditCardBill && bill.cardLast4.isNotBlank()) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
+                            shape = RoundedCornerShape(Radius.xxs)
+                        ) {
+                            Text(
+                                text = "•••• ${bill.cardLast4}",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    } else if (!bill.isCreditCardBill && bill.appName.isNotBlank()) {
+                        Text(
+                            text = bill.appName,
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    }
+
+                    Text(
+                        text = dueLabel,
+                        style = MaterialTheme.typography.bodySmall.copy(
+                            fontWeight = if (daysUntil <= 5) FontWeight.SemiBold else FontWeight.Normal
+                        ),
+                        color = dueColor
+                    )
+                }
             }
+
             if (bill.amount > 0) {
+                Spacer(modifier = Modifier.width(Spacing.sm))
                 Text(
-                    "₹${formatCurrency(bill.amount)}",
+                    text = "₹${formatCurrency(bill.amount)}",
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
-                Spacer(modifier = Modifier.width(4.dp))
-            }
-            IconButton(onClick = { onEdit(bill) }) {
-                Icon(Icons.Rounded.Edit, contentDescription = "Edit", modifier = Modifier.size(20.dp))
-            }
-            IconButton(onClick = { onDelete(bill) }) {
-                Icon(Icons.Rounded.Delete, contentDescription = "Delete", modifier = Modifier.size(20.dp), tint = MaterialTheme.colorScheme.error)
             }
         }
     }
@@ -210,9 +381,9 @@ fun RecurringBillItem(
 
 /** Approximate days until the next occurrence of [dayOfMonth] (for a "due soon" hint). */
 private fun daysUntilDue(dayOfMonth: Int): Int {
-    val cal = java.util.Calendar.getInstance()
-    val todayDay = cal.get(java.util.Calendar.DAY_OF_MONTH)
-    val maxDay = cal.getActualMaximum(java.util.Calendar.DAY_OF_MONTH)
+    val cal = Calendar.getInstance()
+    val todayDay = cal.get(Calendar.DAY_OF_MONTH)
+    val maxDay = cal.getActualMaximum(Calendar.DAY_OF_MONTH)
     val target = dayOfMonth.coerceIn(1, maxDay)
     return if (target >= todayDay) target - todayDay else (maxDay - todayDay) + target
 }
@@ -221,15 +392,49 @@ private fun daysUntilDue(dayOfMonth: Int): Int {
 @Composable
 fun BillEditDialog(
     bill: RecurringBill?,
+    defaultIsCreditCard: Boolean = false,
     onDismiss: () -> Unit,
-    onSave: (String, String, String, String, Double, Int, String) -> Unit
+    onSave: (
+        name: String,
+        purpose: String,
+        category: String,
+        appName: String,
+        amount: Double,
+        day: Int,
+        notes: String,
+        isCreditCard: Boolean,
+        cardLast4: String
+    ) -> Unit
 ) {
-    var name by remember { mutableStateOf(bill?.name ?: "") }
-    var purpose by remember { mutableStateOf(bill?.purpose ?: PURPOSE_PRESETS.first()) }
-    var appName by remember { mutableStateOf(bill?.appName ?: APP_PRESETS.first().displayName) }
-    var amount by remember { mutableStateOf(bill?.amount?.toString() ?: "") }
-    var day by remember { mutableStateOf(bill?.dayOfMonth?.toString() ?: "1") }
-    var notes by remember { mutableStateOf(bill?.notes ?: "") }
+    val purposeOptions = remember {
+        listOf(
+            "Credit Card Bill",
+            "Rent & Utilities",
+            "Subscription & Leisure",
+            "Groceries & Food",
+            "Shopping & Apparels",
+            "Travel & Commute",
+            "Healthcare & Medical",
+            "Others"
+        )
+    }
+
+    var purpose by remember(bill, defaultIsCreditCard) {
+        mutableStateOf(
+            bill?.purpose.takeIf { !it.isNullOrBlank() }
+                ?: if (defaultIsCreditCard || bill?.isCreditCardBill == true) "Credit Card Bill" else "Rent & Utilities"
+        )
+    }
+    var isCreditCardMode by remember(purpose, defaultIsCreditCard) {
+        mutableStateOf(purpose.contains("Credit Card", ignoreCase = true) || defaultIsCreditCard || bill?.isCreditCardBill == true)
+    }
+
+    var name by remember(bill) { mutableStateOf(bill?.name ?: "") }
+    var cardLast4 by remember(bill) { mutableStateOf(bill?.cardLast4 ?: "") }
+    var appName by remember(bill) { mutableStateOf(bill?.appName ?: APP_PRESETS.first().displayName) }
+    var amount by remember(bill) { mutableStateOf(bill?.amount?.takeIf { it > 0 }?.toString() ?: "") }
+    var day by remember(bill) { mutableStateOf(bill?.dayOfMonth?.toString() ?: "1") }
+    var notes by remember(bill) { mutableStateOf(bill?.notes ?: "") }
 
     val cleanTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
@@ -244,73 +449,29 @@ fun BillEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (bill == null) "Add Recurring Bill" else "Edit Bill") },
+        title = { Text(if (bill == null) (if (isCreditCardMode) "Add Credit Card" else "Add Bill / Subscription") else "Edit Item") },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                OutlinedTextField(
-                    value = name,
-                    onValueChange = { name = it },
-                    label = { Text("Bill Name") },
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = cleanTextFieldColors
-                )
-                
-                OutlinedTextField(
-                    value = amount,
-                    onValueChange = { if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) amount = it },
-                    label = { Text("Amount (Optional)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = cleanTextFieldColors
-                )
-
-                var appExpanded by remember { mutableStateOf(false) }
-                ExposedDropdownMenuBox(expanded = appExpanded, onExpandedChange = { appExpanded = it }) {
-                    OutlinedTextField(
-                        value = appName,
-                        onValueChange = {},
-                        readOnly = true,
-                        label = { Text("Default App") },
-                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = appExpanded) },
-                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
-                        shape = RoundedCornerShape(14.dp),
-                        colors = cleanTextFieldColors
-                    )
-                    ExposedDropdownMenu(expanded = appExpanded, onDismissRequest = { appExpanded = false }) {
-                        APP_PRESETS.forEach { preset ->
-                            DropdownMenuItem(
-                                text = { Text(preset.displayName) },
-                                onClick = {
-                                    appName = preset.displayName
-                                    appExpanded = false
-                                }
-                            )
-                        }
-                    }
-                }
-
+                // 1. Purpose Dropdown shown first
                 var purposeExpanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(expanded = purposeExpanded, onExpandedChange = { purposeExpanded = it }) {
                     OutlinedTextField(
                         value = purpose,
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Purpose") },
+                        label = { Text("Purpose / Category") },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = purposeExpanded) },
                         modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
                         colors = cleanTextFieldColors
                     )
                     ExposedDropdownMenu(expanded = purposeExpanded, onDismissRequest = { purposeExpanded = false }) {
-                        PURPOSE_PRESETS.forEach { p ->
+                        purposeOptions.forEach { p ->
                             DropdownMenuItem(
                                 text = { Text(p) },
                                 onClick = {
                                     purpose = p
+                                    isCreditCardMode = p.contains("Credit Card", ignoreCase = true)
                                     purposeExpanded = false
                                 }
                             )
@@ -318,16 +479,136 @@ fun BillEditDialog(
                     }
                 }
 
-                OutlinedTextField(
-                    value = day,
-                    onValueChange = { if (it.isEmpty() || (it.toIntOrNull() in 1..31)) day = it },
-                    label = { Text("Day of Month (1-31)") },
-                    keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                    singleLine = true,
-                    modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    colors = cleanTextFieldColors
-                )
+                if (isCreditCardMode) {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Card Name / Bank") },
+                        placeholder = { Text("e.g. HDFC Regalia, ICICI Amazon") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
+                    )
+
+                    OutlinedTextField(
+                        value = cardLast4,
+                        onValueChange = { if (it.length <= 4 && it.all { char -> char.isDigit() }) cardLast4 = it },
+                        label = { Text("Last 4 Digits") },
+                        placeholder = { Text("e.g. 4321") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
+                    )
+
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) amount = it },
+                        label = { Text("Statement / Bill Amount (Optional)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
+                    )
+
+                    var appExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(expanded = appExpanded, onExpandedChange = { appExpanded = it }) {
+                        OutlinedTextField(
+                            value = appName,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Default Payment App") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = appExpanded) },
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = cleanTextFieldColors
+                        )
+                        ExposedDropdownMenu(expanded = appExpanded, onDismissRequest = { appExpanded = false }) {
+                            APP_PRESETS.forEach { preset ->
+                                DropdownMenuItem(
+                                    text = { Text(preset.displayName) },
+                                    onClick = {
+                                        appName = preset.displayName
+                                        appExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = day,
+                        onValueChange = { if (it.isEmpty() || (it.toIntOrNull() in 1..31)) day = it },
+                        label = { Text("Statement Due Day of Month (1-31)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
+                    )
+                } else {
+                    OutlinedTextField(
+                        value = name,
+                        onValueChange = { name = it },
+                        label = { Text("Bill / Subscription Name") },
+                        placeholder = { Text("e.g. Rent, Maid, Driver, YouTube") },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
+                    )
+
+                    OutlinedTextField(
+                        value = amount,
+                        onValueChange = { if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) amount = it },
+                        label = { Text("Amount (Optional)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
+                    )
+
+                    var appExpanded by remember { mutableStateOf(false) }
+                    ExposedDropdownMenuBox(expanded = appExpanded, onExpandedChange = { appExpanded = it }) {
+                        OutlinedTextField(
+                            value = appName,
+                            onValueChange = {},
+                            readOnly = true,
+                            label = { Text("Default App") },
+                            trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = appExpanded) },
+                            modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                            shape = RoundedCornerShape(14.dp),
+                            colors = cleanTextFieldColors
+                        )
+                        ExposedDropdownMenu(expanded = appExpanded, onDismissRequest = { appExpanded = false }) {
+                            APP_PRESETS.forEach { preset ->
+                                DropdownMenuItem(
+                                    text = { Text(preset.displayName) },
+                                    onClick = {
+                                        appName = preset.displayName
+                                        appExpanded = false
+                                    }
+                                )
+                            }
+                        }
+                    }
+
+                    OutlinedTextField(
+                        value = day,
+                        onValueChange = { if (it.isEmpty() || (it.toIntOrNull() in 1..31)) day = it },
+                        label = { Text("Day of Month (1-31)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
+                    )
+                }
+
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
@@ -344,8 +625,10 @@ fun BillEditDialog(
                 onClick = {
                     val d = day.toIntOrNull() ?: 1
                     val a = amount.toDoubleOrNull() ?: 0.0
-                    val category = APP_PRESETS.find { it.displayName == appName }?.category ?: "Other"
-                    onSave(name, purpose, category, appName, a, d, notes)
+                    val isCard = isCreditCardMode || purpose.contains("Credit Card", ignoreCase = true) || cardLast4.isNotBlank() || defaultIsCreditCard
+                    val category = if (isCard) "Credit Card" else (APP_PRESETS.find { it.displayName == appName }?.category ?: "Other")
+                    val finalPurpose = if (isCard) "Credit Card Bill" else purpose
+                    onSave(name, finalPurpose, category, appName, a, d, notes, isCard, cardLast4)
                 },
                 enabled = name.isNotBlank() && day.isNotBlank()
             ) {

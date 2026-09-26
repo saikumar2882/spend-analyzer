@@ -7,6 +7,7 @@ import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.rounded.MicOff
@@ -33,67 +34,90 @@ fun VoiceInputOverlay(
     modifier: Modifier = Modifier
 ) {
     val context = LocalContext.current
-    var partialTranscript by remember { mutableStateOf("") }
+    var transcript by remember { mutableStateOf("") }
     var isListening by remember { mutableStateOf(true) }
+    var soundLevel by remember { mutableFloatStateOf(0f) }
     var speechErrorMessage by remember { mutableStateOf<String?>(null) }
+
+    fun createListener(): VoiceListener = object : VoiceListener {
+        override fun onPartialTranscript(text: String) {
+            if (text.isNotBlank()) {
+                transcript = text
+                speechErrorMessage = null
+            }
+        }
+
+        override fun onFinalTranscript(text: String) {
+            if (text.isNotBlank()) {
+                transcript = text
+                speechErrorMessage = null
+            }
+            isListening = false
+        }
+
+        override fun onError(errorMessage: String) {
+            isListening = false
+            // Don't obscure transcript with non-fatal errors if text was already captured
+            if (transcript.isBlank()) {
+                speechErrorMessage = errorMessage
+            }
+        }
+
+        override fun onRmsChanged(level: Float) {
+            soundLevel = level
+        }
+
+        override fun onListeningStateChanged(active: Boolean) {
+            isListening = active
+        }
+    }
 
     // Re-start recognition whenever selectedLanguage changes
     DisposableEffect(selectedLanguage) {
         isListening = true
         speechErrorMessage = null
-        partialTranscript = ""
+        soundLevel = 0f
 
-        val listener = object : VoiceListener {
-            override fun onPartialTranscript(text: String) {
-                partialTranscript = text
-                speechErrorMessage = null
-            }
-
-            override fun onFinalTranscript(text: String) {
-                isListening = false
-                partialTranscript = text
-                onFinalTranscript(text)
-            }
-
-            override fun onError(errorMessage: String) {
-                isListening = false
-                speechErrorMessage = errorMessage
-            }
-        }
-
-        VoiceInputHelper.startListening(context, selectedLanguage, listener)
+        VoiceInputHelper.startListening(context, selectedLanguage, createListener())
 
         onDispose {
             VoiceInputHelper.destroy()
         }
     }
 
-    // Pulsing animation for the listening mic
+    // Pulsing base animation for the mic
     val infiniteTransition = rememberInfiniteTransition(label = "mic_pulse")
     val pulseScale by infiniteTransition.animateFloat(
         initialValue = 1f,
-        targetValue = 1.25f,
+        targetValue = 1.18f,
         animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
+            animation = tween(1000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse_scale"
     )
     val pulseAlpha by infiniteTransition.animateFloat(
-        initialValue = 0.4f,
+        initialValue = 0.35f,
         targetValue = 0.08f,
         animationSpec = infiniteRepeatable(
-            animation = tween(900, easing = FastOutSlowInEasing),
+            animation = tween(1000, easing = FastOutSlowInEasing),
             repeatMode = RepeatMode.Reverse
         ),
         label = "pulse_alpha"
+    )
+
+    // Dynamic scale driven by speech audio level (0.0 .. 1.0)
+    val dynamicAudioScale by animateFloatAsState(
+        targetValue = 1f + (soundLevel * 0.4f),
+        animationSpec = tween(100, easing = LinearEasing),
+        label = "audio_level_scale"
     )
 
     Surface(
         modifier = modifier
             .fillMaxWidth()
             .padding(horizontal = 8.dp, vertical = 4.dp),
-        shape = RoundedCornerShape(20.dp),
+        shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow
     ) {
         Column(
@@ -155,17 +179,17 @@ fun VoiceInputOverlay(
 
             Spacer(modifier = Modifier.height(2.dp))
 
-            // Pulsing Mic Button Area
+            // Pulsing & Audio-reactive Mic Button Area
             Box(
                 contentAlignment = Alignment.Center,
-                modifier = Modifier.size(96.dp)
+                modifier = Modifier.size(100.dp)
             ) {
                 if (isListening) {
-                    // Outer pulsing aura
+                    // Outer pulsing audio aura
                     Box(
                         modifier = Modifier
-                            .size(84.dp)
-                            .scale(pulseScale)
+                            .size(86.dp)
+                            .scale(pulseScale * dynamicAudioScale)
                             .background(
                                 MaterialTheme.colorScheme.primary.copy(alpha = pulseAlpha),
                                 CircleShape
@@ -173,7 +197,7 @@ fun VoiceInputOverlay(
                     )
                 }
 
-                // Minimal Center Mic Button
+                // Center Mic Toggle Button
                 Box(
                     modifier = Modifier
                         .size(64.dp)
@@ -182,52 +206,35 @@ fun VoiceInputOverlay(
                             shape = CircleShape
                         )
                         .clickable {
-                            if (!isListening) {
+                            if (isListening) {
+                                VoiceInputHelper.stop()
+                                isListening = false
+                            } else {
                                 isListening = true
                                 speechErrorMessage = null
-                                VoiceInputHelper.startListening(
-                                    context,
-                                    selectedLanguage,
-                                    object : VoiceListener {
-                                        override fun onPartialTranscript(text: String) {
-                                            partialTranscript = text
-                                            speechErrorMessage = null
-                                        }
-
-                                        override fun onFinalTranscript(text: String) {
-                                            isListening = false
-                                            partialTranscript = text
-                                            onFinalTranscript(text)
-                                        }
-
-                                        override fun onError(errorMessage: String) {
-                                            isListening = false
-                                            speechErrorMessage = errorMessage
-                                        }
-                                    }
-                                )
+                                VoiceInputHelper.startListening(context, selectedLanguage, createListener())
                             }
                         },
                     contentAlignment = Alignment.Center
                 ) {
                     Icon(
                         imageVector = if (isListening) Icons.Rounded.Mic else Icons.Rounded.MicOff,
-                        contentDescription = if (isListening) "Listening" else "Tap to retry",
+                        contentDescription = if (isListening) "Listening" else "Tap to listen",
                         tint = if (isListening) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.size(30.dp)
                     )
                 }
             }
 
-            // Transcript text or Placeholder or Error
+            // Status message & Transcript Text Container
             Box(
                 modifier = Modifier
                     .fillMaxWidth()
-                    .heightIn(min = 44.dp),
+                    .heightIn(min = 48.dp),
                 contentAlignment = Alignment.Center
             ) {
                 when {
-                    speechErrorMessage != null -> {
+                    speechErrorMessage != null && transcript.isBlank() -> {
                         Column(horizontalAlignment = Alignment.CenterHorizontally) {
                             Text(
                                 text = speechErrorMessage!!,
@@ -238,57 +245,94 @@ fun VoiceInputOverlay(
                                 textAlign = TextAlign.Center
                             )
                             Text(
-                                text = "Tap mic to try again",
+                                text = "Tap mic to speak again",
                                 style = MaterialTheme.typography.labelSmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                                 textAlign = TextAlign.Center
                             )
                         }
                     }
-                    partialTranscript.isNotBlank() -> {
-                        Text(
-                            text = partialTranscript,
-                            style = MaterialTheme.typography.titleMedium.copy(
-                                fontWeight = FontWeight.Medium,
-                                fontSize = 18.sp
-                            ),
-                            color = MaterialTheme.colorScheme.onSurface,
-                            textAlign = TextAlign.Center,
-                            modifier = Modifier.padding(horizontal = 12.dp)
-                        )
+                    transcript.isNotBlank() -> {
+                        Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                            Text(
+                                text = transcript,
+                                style = MaterialTheme.typography.titleMedium.copy(
+                                    fontWeight = FontWeight.SemiBold,
+                                    fontSize = 18.sp
+                                ),
+                                color = MaterialTheme.colorScheme.onSurface,
+                                textAlign = TextAlign.Center,
+                                modifier = Modifier.padding(horizontal = 12.dp)
+                            )
+                            Spacer(modifier = Modifier.height(4.dp))
+                            Text(
+                                text = if (isListening) "Listening... Speak or tap Send when done" else "Tap mic to keep speaking, or tap Send",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                textAlign = TextAlign.Center
+                            )
+                        }
                     }
                     else -> {
                         val placeholder = when (selectedLanguage) {
-                            "te-IN" -> "వింటున్నాము... మాట్లాడండి"
-                            "te-en" -> "వింటున్నాము... speak now"
-                            else -> "Listening... Speak now"
+                            "te-IN" -> "వింటున్నాము... ఆలోచించి చెప్పండి"
+                            "te-en" -> "వింటున్నాము... Take your time & speak"
+                            else -> "Listening... Speak or take your time"
                         }
                         Text(
                             text = placeholder,
                             style = MaterialTheme.typography.bodyLarge.copy(
                                 fontWeight = FontWeight.Normal
                             ),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.75f),
                             textAlign = TextAlign.Center
                         )
                     }
                 }
             }
 
-            // Minimal Cancel Text Button
-            TextButton(
-                onClick = {
-                    VoiceInputHelper.destroy()
-                    onDismiss()
-                }
+            // Bottom Actions: Send button (if transcript is available) or Cancel
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.Center,
+                verticalAlignment = Alignment.CenterVertically
             ) {
-                Text(
-                    "Cancel",
-                    style = MaterialTheme.typography.labelMedium.copy(
-                        fontWeight = FontWeight.SemiBold
-                    ),
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
+                if (transcript.isNotBlank()) {
+                    Button(
+                        onClick = {
+                            VoiceInputHelper.destroy()
+                            onFinalTranscript(transcript)
+                        },
+                        shape = RoundedCornerShape(50),
+                        contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.AutoMirrored.Rounded.Send,
+                            contentDescription = "Send",
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            "Send",
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                } else {
+                    TextButton(
+                        onClick = {
+                            VoiceInputHelper.destroy()
+                            onDismiss()
+                        }
+                    ) {
+                        Text(
+                            "Cancel",
+                            style = MaterialTheme.typography.labelMedium.copy(
+                                fontWeight = FontWeight.SemiBold
+                            ),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
             }
         }
     }
