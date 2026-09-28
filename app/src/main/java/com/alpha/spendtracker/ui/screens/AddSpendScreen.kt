@@ -8,6 +8,7 @@ import android.app.DatePickerDialog
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.BoxWithConstraints
@@ -27,6 +28,7 @@ import androidx.compose.foundation.lazy.LazyRow
 import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
@@ -50,6 +52,8 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -78,9 +82,11 @@ import com.alpha.spendtracker.ui.components.AppPreset
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 import com.alpha.spendtracker.ui.components.PresetGridCard
+import com.alpha.spendtracker.ui.components.getLocalizedPresetName
 import com.alpha.spendtracker.ui.components.parseLendBorrowNotes
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.asMoney
+import com.alpha.spendtracker.ui.theme.rememberPressScale
 import com.alpha.spendtracker.util.findActivity
 import com.alpha.spendtracker.util.formatShortDate
 import com.alpha.spendtracker.util.isSameDay
@@ -182,7 +188,7 @@ fun AddSpendScreen(
             TopAppBar(
                 title = { 
                     Text(
-                        if (editingSpend != null) "Edit Transaction" else "Log a Transaction",
+                        if (editingSpend != null) stringResource(R.string.edit_transaction) else stringResource(R.string.log_transaction),
                         fontWeight = FontWeight.Bold
                     ) 
                 },
@@ -223,7 +229,7 @@ fun AddSpendScreen(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionTitle("Payment app / Wallet")
+                    SectionTitle(stringResource(R.string.select_payment_app))
                     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                         val gap = 12.dp
                         val cardWidth = (maxWidth - gap * 3) / 4
@@ -250,7 +256,7 @@ fun AddSpendScreen(
                             customAppNameInput = it
                             customAppError = null
                         },
-                        label = { Text("Enter App / Platform Name") },
+                        label = { Text(stringResource(R.string.enter_app_name)) },
                         placeholder = { Text("E.g. Cred, Jupiter, Cash, Bank Transfer...") },
                         leadingIcon = if (customAppNameInput.isNotBlank()) {
                             {
@@ -276,7 +282,7 @@ fun AddSpendScreen(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionTitle("Date & Time")
+                    SectionTitle(stringResource(R.string.date_and_time))
                     DateSelectorRow(
                         timestamp = transactionTimestamp,
                         onTimestampChange = { transactionTimestamp = it },
@@ -287,7 +293,7 @@ fun AddSpendScreen(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
-                    SectionTitle("Category")
+                    SectionTitle(stringResource(R.string.category))
                     PurposePresetGrid(
                         selected = purposeInput,
                         onSelect = { purposeInput = it }
@@ -317,7 +323,7 @@ fun AddSpendScreen(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionTitle("Notes (Optional)")
+                    SectionTitle(stringResource(R.string.note_detail_optional))
                     OutlinedTextField(
                         value = notesInput,
                         onValueChange = { notesInput = it },
@@ -386,7 +392,7 @@ fun AddSpendScreen(
                     Icon(Icons.Rounded.CheckCircle, contentDescription = null, modifier = Modifier.size(20.dp))
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "Save Transaction",
+                        stringResource(R.string.save),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                     )
                 }
@@ -514,19 +520,19 @@ private fun DateSelectorRow(
         modifier = Modifier.fillMaxWidth()
     ) {
         DateChip(
-            label = "Today",
+            label = stringResource(R.string.today),
             isSelected = isTodaySelected,
             weight = 1.0f,
             onClick = { onTimestampChange(System.currentTimeMillis()) }
         )
         DateChip(
-            label = "Yesterday",
+            label = stringResource(R.string.yesterday),
             isSelected = isYesterdaySelected,
             weight = 1.0f,
             onClick = { onTimestampChange(yesterdayMillis()) }
         )
         DateChip(
-            label = if (isCustomSelected) formatShortDate(timestamp) else "Choose date",
+            label = if (isCustomSelected) formatShortDate(timestamp) else stringResource(R.string.custom),
             isSelected = isCustomSelected,
             weight = 1.3f,
             icon = Icons.Rounded.Event,
@@ -563,13 +569,18 @@ private fun RowScope.DateChip(
     icon: ImageVector? = null,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     Surface(
         onClick = onClick,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(12.dp),
         color = if (isSelected) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceContainer,
         border = null,
-        modifier = Modifier.weight(weight)
+        modifier = Modifier
+            .weight(weight)
+            .scale(scale)
     ) {
         Box(
             modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
@@ -637,7 +648,7 @@ private fun PurposePresetGrid(
                         contentAlignment = Alignment.Center
                     ) {
                         Text(
-                            text = purpose,
+                            text = getLocalizedPresetName(purpose),
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
                                 fontSize = 11.sp

@@ -1,0 +1,281 @@
+<resources>
+    <string name="app_name">స్పెంట్లీ</string>
+
+    <!-- Navigation & Common -->
+    <string name="cancel">రద్దు చేయి</string>
+    <string name="apply">వర్తించు</string>
+    <string name="update">నవీకరించు</string>
+    <string name="back">వెనుకకు</string>
+    <string name="search_placeholder">శోధించండి...</string>
+    <string name="search_history_placeholder">ఖర్చులు, యాప్‌లు, గమనికలను శోధించండి...</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">సెట్టింగ్‌లు</string>
+    <string name="language_title">యాప్ భాష</string>
+    <string name="language_subtitle">మీకు ఇష్టమైన భాషను ఎంచుకోండి</string>
+    <string name="select_language">భాషను ఎంచుకోండి</string>
+    <string name="language_system">సిస్టమ్ డిఫాల్ట్</string>
+    <string name="language_english">English</string>
+    <string name="language_telugu">తెలుగు (Telugu)</string>
+    <string name="language_hindi">हिंदी (Hindi)</string>
+
+    <string name="theme_title">థీమ్</string>
+    <string name="theme_system">సిస్టమ్‌ను అనుసరించు</string>
+    <string name="theme_light">లైట్ మోడ్</string>
+    <string name="theme_dark">డార్క్ మోడ్</string>
+
+    <string name="biometric_title">బయోమెట్రిక్ లాక్</string>
+    <string name="biometric_subtitle">యాప్‌ను తెరవడానికి ప్రామాణీకరణ అవసరం</string>
+
+    <string name="account_security_title">ఖాతా భద్రత</string>
+    <string name="account_security_subtitle">పాస్‌వర్డ్‌ను మార్చండి లేదా రీసెట్ చేయండి</string>
+
+    <string name="app_defaults_title">యాప్ డిఫాల్ట్‌లు</string>
+
+    <string name="ai_assistant_title">AI హిస్టరీ అసిస్టెంట్</string>
+    <string name="ai_assistant_subtitle">మీ ఖర్చుల గురించి ప్రశ్నలు అడగండి</string>
+
+    <string name="recurring_bills_title">పునరావృత బిల్లులు</string>
+    <string name="recurring_bills_subtitle">సబ్‌స్క్రిప్షన్‌లు మరియు రిమైండర్‌లను నిర్వహించండి</string>
+
+    <string name="notes_title">గమనికలు</string>
+    <string name="notes_subtitle">లావాదేవీ ఎంట్రీల సేకరణ</string>
+
+    <string name="share_app_title">యాప్‌ను షేర్ చేయండి</string>
+    <string name="share_app_subtitle">Spendly గురించి మీ స్నేహితులకు చెప్పండి</string>
+
+    <string name="sign_out_title">సైన్ అవుట్</string>
+    <string name="sign_out_subtitle">మీ ఖాతా నుండి నిష్క్రమించండి</string>
+
+    <!-- Dashboard & Main Tabs -->
+    <string name="dashboard_tab">డాష్‌బోర్డ్</string>
+    <string name="history_tab">చరిత్ర</string>
+    <string name="lend_borrow_tab">అప్పులు &amp; ఇవ్వడాలు</string>
+    <string name="notes_tab">గమనికలు</string>
+
+    <!-- Date & Time Filters -->
+    <string name="today">ఈరోజు</string>
+    <string name="yesterday">నిన్న</string>
+    <string name="week">వారం</string>
+    <string name="month">నెల</string>
+    <string name="year">సంవత్సరం</string>
+    <string name="all">అన్నీ</string>
+    <string name="custom">కస్టమ్</string>
+
+    <!-- Dashboard -->
+    <string name="welcome_back">స్వాగతం 👋</string>
+    <string name="hi_user">హాయ్, %s 👋</string>
+    <string name="total_spent_today">ఈరోజు మొత్తం ఖర్చు</string>
+    <string name="total_spent_this_week">ఈ వారం మొత్తం ఖర్చు</string>
+    <string name="total_spent_this_month">ఈ నెల మొత్తం ఖర్చు</string>
+    <string name="total_spent_this_year">ఈ సంవత్సరం మొత్తం ఖర్చు</string>
+    <string name="total_spent_all_time">మొత్తం కాలం ఖర్చు</string>
+    <string name="total_spent_in_range">ఎంచుకున్న వ్యవధిలో ఖర్చు</string>
+    <string name="transactions_count">%d లావాదేవీలు</string>
+    <string name="view_details">వివరాలు చూడండి ></string>
+    <string name="recent_activity">ఇటీవలి కార్యకలాపాలు</string>
+    <string name="see_all">అన్నీ చూడండి</string>
+    <string name="daily_avg">రోజువారీ సగటు</string>
+    <string name="top_category">అగ్ర వర్గం</string>
+    <string name="transactions">లావాదేవీలు</string>
+    <string name="where_it_went">ఎక్కడ ఖర్చయింది</string>
+    <string name="no_transactions_yet">ఇంకా లావాదేవీలు లేవు</string>
+    <string name="add_first_expense">ప్రారంభించడానికి మీ మొదటి ఖర్చును జోడించండి</string>
+    <string name="vs_last_period">గత వ్యవధితో పోలిస్తే</string>
+    <string name="projected_spend">అంచనా ఖర్చు</string>
+    <string name="top_channel">అగ్ర ఛానెల్</string>
+    <string name="spending_breakdown">ఖర్చుల వివరాలు</string>
+    <string name="payment_apps_tab">పేమెంట్ యాప్‌లు</string>
+    <string name="purpose_tab">ఉద్దేశ్యం</string>
+    <string name="trend_tab">ట్రెండ్</string>
+    <string name="total">మొత్తం</string>
+    <string name="view_all">అన్నీ చూడండి ></string>
+
+    <!-- Dues / Lend & Borrow -->
+    <string name="you_lent">మీరు ఇచ్చినవి</string>
+    <string name="you_borrowed">మీరు తీసుకున్నవి</string>
+    <string name="total_outstanding_to_you">మీకు రావాల్సిన మొత్తం</string>
+    <string name="total_outstanding_by_you">మీరు చెల్లించాల్సిన మొత్తం</string>
+    <string name="across_people">%d మంది వ్యక్తుల్లో</string>
+
+    <!-- History Screen -->
+    <string name="history_title">చరిత్ర</string>
+    <string name="total_spend">మొత్తం ఖర్చు</string>
+
+    <!-- Notes Screen -->
+    <string name="subtotal">ఉప మొత్తం</string>
+    <string name="entries_count">%d నమోదులు</string>
+    <string name="untitled">శీర్షిక లేదు</string>
+
+    <!-- Speed Dial FAB Actions -->
+    <string name="ai_log">AI లాగ్</string>
+    <string name="voice">వాయిస్</string>
+    <string name="manual">మాన్యువల్</string>
+
+    <!-- AI Assistant & Sheets -->
+    <string name="ai_assistant_header">AI అసిస్టెంట్</string>
+    <string name="ask_ai_placeholder">మీ ఖర్చుల గురించి ఏమైనా అడగండి...</string>
+    <string name="thinking">ఆలోచిస్తోంది...</string>
+    <string name="ask_button">అడగండి</string>
+    <string name="ai_input_title">AI ద్వారా శీఘ్ర లాగ్</string>
+    <string name="ai_input_placeholder">ఉదా. Swiggy లో భోజనం కోసం 250 చెల్లించాను...</string>
+    <string name="ai_input_hint">మీ ఖర్చు వివరాలను టైప్ చేయండి లేదా పేస్ట్ చేయండి...</string>
+    <string name="review_transaction">లావాదేవీని సమీక్షించండి</string>
+    <string name="confirm_and_save">నిర్ధారించి సేవ్ చేయండి</string>
+    <string name="edit_details">వివరాలను సవరించండి</string>
+
+    <!-- Voice Input Overlay -->
+    <string name="voice_input_title">వాయిస్ ఇన్‌పుట్</string>
+    <string name="listening">వింటోంది...</string>
+    <string name="speak_now">ఇప్పుడు మాట్లాడండి, ఉదా., \'గూగుల్ పే లో పెట్రోల్ కోసం 150 ఖర్చు చేశాను\'</string>
+    <string name="processing_voice">వాయిస్ ప్రాసెస్ అవుతోంది...</string>
+    <string name="try_again">మళ్లీ ప్రయత్నించండి</string>
+
+    <!-- Add Expense Form -->
+    <string name="add_expense">ఖర్చును జోడించండి</string>
+    <string name="log_transaction">లావాదేవీని నమోదు చేయండి</string>
+    <string name="edit_transaction">లావాదేవీని సవరించండి</string>
+    <string name="amount">మొత్తం</string>
+    <string name="enter_amount">మొత్తాన్ని నమోదు చేయండి</string>
+    <string name="category">వర్గం</string>
+    <string name="purpose">ఉద్దేశ్యం</string>
+    <string name="payment_app">పేమెంట్ యాప్</string>
+    <string name="select_payment_app">పేమెంట్ యాప్ / వ్యాలెట్</string>
+    <string name="enter_app_name">యాప్ / ప్లాట్‌ఫారమ్ పేరు నమోదు చేయండి</string>
+    <string name="date_and_time">తేదీ &amp; సమయం</string>
+    <string name="note_detail_optional">గమనికలు / వివరాలు (ఐచ్ఛికం)</string>
+    <string name="save">సేవ్ చేయి</string>
+
+    <!-- Auth / Login / Register -->
+    <string name="login_title">సైన్ ఇన్</string>
+    <string name="login_subtitle">తిరిగి స్వాగతం! దయచేసి మీ వివరాలను నమోదు చేయండి.</string>
+    <string name="register_title">ఖాతాను సృష్టించండి</string>
+    <string name="register_subtitle">మీ ఆర్థిక వ్యవహారాలను సులభంగా ట్రాక్ చేయడానికి సైన్ అప్ చేయండి.</string>
+    <string name="email">ఈమెయిల్</string>
+    <string name="password">పాస్‌వర్డ్</string>
+    <string name="confirm_password">పాస్‌వర్డ్‌ను నిర్ధారించండి</string>
+    <string name="full_name">పూర్తి పేరు</string>
+    <string name="sign_in">సైన్ ఇన్</string>
+    <string name="sign_up">సైన్ అప్</string>
+    <string name="or_continue_with">లేదా దీనితో కొనసాగించండి</string>
+    <string name="google_sign_in">Google తో సైన్ ఇన్ చేయండి</string>
+    <string name="dont_have_account">ఖాతా లేదా?</string>
+    <string name="already_have_account">ఇప్పటికే ఖాతా ఉందా?</string>
+    <string name="forgot_password">పాస్‌వర్డ్ మర్చిపోయారా?</string>
+
+    <!-- PDF Export & Reports -->
+    <string name="pdf_report_title">లావాదేవీల చరిత్ర నివేదిక</string>
+    <string name="share_pdf">PDF షేర్ చేయండి</string>
+    <string name="save_pdf">PDF సేవ్ చేయండి</string>
+    <string name="no_transactions_to_export">ఎగుమతి చేయడానికి లావాదేవీలు లేవు</string>
+    <string name="generated_on">%s న రూపొందించబడింది</string>
+    <string name="total_amount_capital">మొత్తం సొమ్ము</string>
+    <string name="end_of_report">* నివేదిక ముగిసింది *</string>
+    <string name="pdf_saved_to_downloads">PDF నివేదిక డౌన్‌లోడ్‌లలో సేవ్ చేయబడింది</string>
+    <string name="pdf_save_failed">PDF సేవ్ చేయడం విఫలమైంది</string>
+    <string name="pdf_export_failed">PDF ఎగుమతి విఫలమైంది: %s</string>
+    <string name="share_pdf_chooser">PDF నివేదికను షేర్ చేయండి</string>
+    <string name="app_or_platform">యాప్ / ప్లాట్‌ఫారమ్</string>
+    <string name="purpose_or_notes">ఉద్దేశ్యం / గమనికలు</string>
+
+    <!-- Filters & Search -->
+    <string name="apply_filters">ఫిల్టర్‌లను వర్తింపజేయండి</string>
+    <string name="min_max_amount">కనీస &amp; గరిష్ట మొత్తం</string>
+    <string name="reset">రీసెట్</string>
+    <string name="max">గరిష్టం</string>
+    <string name="filter_by_app">యాప్ ద్వారా ఫిల్టర్ చేయండి</string>
+
+    <!-- Recycle Bin & History Trash -->
+    <string name="recycle_bin">రీసైకిల్ బిన్</string>
+    <string name="update_history">నవీకరణ చరిత్ర</string>
+    <string name="notes_history">గమనికల చరిత్ర</string>
+    <string name="dues_history">అప్పుల చరిత్ర</string>
+    <string name="empty_recycle_bin_title">రీసైకిల్ బిన్ ఖాళీ చేయాలా?</string>
+    <string name="clear_update_history_title">నవీకరణ చరిత్రను తుడిచివేయాలా?</string>
+    <string name="empty_recycle_bin_message">ఇది రీసైకిల్ బిన్‌లోని అన్ని రికార్డులను శాశ్వతంగా తొలగిస్తుంది. ఈ చర్యను రద్దు చేయలేరు.</string>
+    <string name="clear_update_history_message">ఇది ట్రాక్ చేసిన అన్ని మార్పులను శాశ్వతంగా తొలగిస్తుంది. ఈ చర్యను రద్దు చేయలేరు.</string>
+    <string name="delete_all">అన్నీ తొలగించు</string>
+    <string name="empty_trash">చెత్త బుట్టను ఖాళీ చేయి</string>
+    <string name="clear_all">అన్నీ క్లియర్ చేయి</string>
+    <string name="trash_retention_notice">తొలగించిన అంశాలు శాశ్వతంగా తొలగించే ముందు 30 రోజులు ఉంచబడతాయి.</string>
+    <string name="trash_empty">మీ ట్రాష్ ఖాళీగా ఉంది</string>
+    <string name="no_modifications_tracked">ఇంకా ఎలాంటి మార్పులు నమోదు కాలేదు</string>
+    <string name="expires_today">ఈరోజే గడువు ముగుస్తుంది</string>
+    <string name="days_left">%d రోజులు మిగిలి ఉన్నాయి</string>
+    <string name="delete_transaction_title">లావాదేవీని తొలగించాలా?</string>
+    <string name="delete_transaction_message">మీరు ఖచ్చితంగా ఈ లావాదేవీని తొలగించాలనుకుంటున్నారా?</string>
+    <string name="delete">తొలగించు</string>
+
+    <!-- AI Assistant Examples & AI Input -->
+    <string name="ai_example_1">ఈ నెల నా ఖర్చులను సంగ్రహించండి</string>
+    <string name="ai_example_2">ప్రస్తుతం నేను ఎవరికి డబ్బు ఇవ్వాలి?</string>
+    <string name="ai_example_3">ఈ వారం ఆహారం కోసం ఎంత ఖర్చు చేశాను?</string>
+    <string name="ai_example_4">గత నెలలోని టాప్ 3 కేటగిరీలు</string>
+    <string name="ai_example_5">మే మరియు ఏప్రిల్ ఖర్చులను పోల్చండి</string>
+    <string name="ai_example_6">నా అప్పులన్నింటినీ వ్యక్తుల వారీగా చూపించు</string>
+    <string name="requests_left">%d మిగిలి ఉన్నాయి</string>
+    <string name="try_asking">ఉదాహరణలు / ప్రశ్నలు</string>
+
+    <!-- Notes Screen & History -->
+    <string name="new_note">కొత్త గమనిక</string>
+    <string name="edit_note">గమనికను సవరించండి</string>
+    <string name="delete_note_title">గమనికను తొలగించాలా?</string>
+    <string name="delete_note_message">\'%s\' మరియు దానిలోని అన్ని ఎంట్రీలను తొలగించాలా? దీనిని రద్దు చేయలేరు.</string>
+    <string name="delete_entry_title">ఎంట్రీని తొలగించాలా?</string>
+    <string name="delete_entry_message">\'%s\' ను తొలగించాలా?</string>
+    <string name="add_entry">ఎంట్రీని జోడించండి</string>
+    <string name="edit_entry">ఎంట్రీని సవరించండి</string>
+    <string name="note_title_label">శీర్షిక</string>
+    <string name="note_color_label">రంగు</string>
+    <string name="entry_name_label">పేరు</string>
+    <string name="entry_date_label">తేదీ</string>
+    <string name="entry_amount_optional">మొత్తం (ఐచ్ఛికం)</string>
+    <string name="entry_note_optional">గమనిక (ఐచ్ఛికం)</string>
+    <string name="add_field">ఫీల్డ్‌ను జోడించు</string>
+    <string name="field_title">శీర్షిక</string>
+    <string name="field_value">విలువ</string>
+    <string name="log_as_transaction">లావాదేవీగా నమోదు చేయి</string>
+
+    <!-- Recurring Bills & Subscriptions -->
+    <string name="bills_and_subscriptions">బిల్లులు &amp; సబ్‌స్క్రిప్షన్‌లు</string>
+    <string name="credit_cards">క్రెడిట్ కార్డ్‌లు</string>
+    <string name="add_recurring_bill">పునరావృత బిల్లును జోడించండి</string>
+    <string name="edit_recurring_bill">పునరావృత బిల్లును సవరించండి</string>
+    <string name="bill_name">బిల్లు / సబ్‌స్క్రిప్షన్ పేరు</string>
+    <string name="card_name">కార్డ్ పేరు</string>
+    <string name="last_4_digits">చివరి 4 అంకెలు</string>
+    <string name="due_day_of_month">నెలవారీ చెల్లింపు తేదీ</string>
+    <string name="no_bills_tracked">ఇంకా పునరావృత బిల్లులు లేవు</string>
+    <string name="add_bill_hint">సబ్‌స్క్రిప్షన్ లేదా క్రెడిట్ కార్డ్ బిల్లును జోడించడానికి + నొక్కండి</string>
+    <string name="due_today">ఈరోజే చెల్లించాలి</string>
+    <string name="due_in_days">%d రోజుల్లో చెల్లించాలి</string>
+    <string name="overdue_by_days">%d రోజులు ఆలస్యమైంది</string>
+
+    <!-- Biometric & Lock -->
+    <string name="app_lock_title">యాప్ లాక్</string>
+    <string name="unlock_spendly">స్పెంట్లీని అన్‌లాక్ చేయండి</string>
+    <string name="biometric_prompt_subtitle">మీ ఆర్థిక డేటాను యాక్సెస్ చేయడానికి ప్రామాణీకరించండి</string>
+    <string name="biometric_not_available">ఈ పరికరంలో బయోమెట్రిక్ ప్రామాణీకరణ అందుబాటులో లేదు</string>
+
+    <!-- Account Security -->
+    <string name="change_password">పాస్‌వర్డ్ మార్చండి</string>
+    <string name="current_password">ప్రస్తుత పాస్‌వర్డ్</string>
+    <string name="new_password">కొత్త పాస్‌వర్డ్</string>
+    <string name="passwords_do_not_match">పాస్‌వర్డ్‌లు సరిపోలలేదు</string>
+    <string name="password_updated">పాస్‌వర్డ్ విజయవంతంగా నవీకరించబడింది</string>
+
+    <!-- Share App -->
+    <string name="share_app_text">Spendly - సులభమైన ఖర్చుల ట్రాకర్ యాప్‌ను పరిశీలించండి! మీ ఖర్చులు, అప్పులు మరియు బిల్లులను సులభంగా ట్రాక్ చేయండి.</string>
+    <string name="share_app_chooser">Spendly ని దీని ద్వారా షేర్ చేయండి</string>
+
+    <!-- AI App Defaults -->
+    <string name="default_payment_app">డిఫాల్ట్ పేమెంట్ యాప్</string>
+    <string name="default_app_subtitle">లావాదేవీలను నమోదు చేసేటప్పుడు కేటాయించే డిఫాల్ట్ యాప్‌ను ఎంచుకోండి</string>
+
+    <!-- Profile Dialog -->
+    <string name="your_profile">మీ ప్రొఫైల్</string>
+    <string name="greeting_hint">యాప్‌లో స్వాగత పలుకుల కోసం ఉపయోగించబడుతుంది</string>
+    <string name="google_photo_loaded">మీ Google ఖాతా నుండి ప్రొఫైల్ ఫోటో లోడ్ చేయబడింది.</string>
+    <string name="google_photo_hint">మీ Google ప్రొఫైల్ ఫోటోను ఉపయోగించడానికి Google తో సైన్ ఇన్ చేయండి.</string>
+    <string name="close">మూసివేయి</string>
+</resources>

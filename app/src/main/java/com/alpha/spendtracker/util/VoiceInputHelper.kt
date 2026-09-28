@@ -1,9 +1,11 @@
 package com.alpha.spendtracker.util
 
-import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
+import android.os.Build
 import android.os.Bundle
+import android.os.Handler
+import android.os.Looper
 import android.speech.RecognitionListener
 import android.speech.RecognizerIntent
 import android.speech.SpeechRecognizer
@@ -24,8 +26,19 @@ object VoiceInputHelper {
     private var currentLanguage: String = "te-IN"
     private var autoRestartCount = 0
     private const val MAX_AUTO_RESTARTS = 3
+    private const val RESTART_DELAY_MS = 250L
     private var isExplicitlyStopped = false
     private var accumulatedText = ""
+    private var forceStandardRecognizer = false
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var pendingRestartRunnable: Runnable? = null
+
+    // SpeechRecognizer error codes
+    private const val ERROR_TOO_MANY_REQUESTS_CODE = 10
+    private const val ERROR_SERVER_DISCONNECTED_CODE = 11
+    private const val ERROR_LANGUAGE_NOT_SUPPORTED_CODE = 12
+    private const val ERROR_LANGUAGE_UNAVAILABLE_CODE = 13
+    private const val ERROR_CANNOT_CHECK_SUPPORT_CODE = 14
 
     /**
      * Checks if Speech Recognition is available on this device.
@@ -36,7 +49,6 @@ object VoiceInputHelper {
 
     /**
      * Starts speech recognition with the given language code ("te-IN", "en-IN", or "te-en").
-     * Uses Google Speech Recognition service if present for better noise suppression and accuracy.
      */
     fun startListening(
         context: Context,
@@ -46,6 +58,7 @@ object VoiceInputHelper {
         destroy()
         isExplicitlyStopped = false
         autoRestartCount = 0
+        forceStandardRecognizer = false
         accumulatedText = ""
         currentLanguage = languageCode
 
@@ -54,7 +67,12 @@ object VoiceInputHelper {
             return
         }
 
-        internalStartListening(context, listener)
+        // Give previous recognizer session a brief window to unbind before starting a new session
+        mainHandler.postDelayed({
+            if (!isExplicitlyStopped) {
+                internalStartListening(context, listener)
+            }
+        }, 100L)
     }
 
     private fun internalStartListening(
@@ -62,6 +80,7 @@ object VoiceInputHelper {
         listener: VoiceListener
     ) {
         try {
+            destroyRecognizerOnly()
             val recognizer = createSpeechRecognizer(context)
             speechRecognizer = recognizer
 
@@ -75,12 +94,16 @@ object VoiceInputHelper {
 
                 override fun onBeginningOfSpeech() {
                     Log.d(TAG, "onBeginningOfSpeech")
+                    autoRestartCount = 0
                     listener.onListeningStateChanged(true)
                 }
 
                 override fun onRmsChanged(rmsdB: Float) {
                     // Convert decibels (typically -2f to +12f) to 0.0f .. 1.0f range
                     val normalized = ((rmsdB + 2f) / 14f).coerceIn(0f, 1f)
+                    if (normalized > 0.3f) {
+                        autoRestartCount = 0
+                    }
                     listener.onRmsChanged(normalized)
                 }
 
@@ -93,13 +116,18 @@ object VoiceInputHelper {
                 override fun onError(error: Int) {
                     val userFriendlyMessage = when (error) {
                         SpeechRecognizer.ERROR_NO_MATCH -> "Didn't catch that, try speaking again"
-                        SpeechRecognizer.ERROR_NETWORK,
-                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Need internet connection for voice recognition"
+                        SpeechRecognizer.ERROR_NETWORK -> "Network error, please check internet connection"
+                        SpeechRecognizer.ERROR_NETWORK_TIMEOUT -> "Network timeout, please try again"
                         SpeechRecognizer.ERROR_INSUFFICIENT_PERMISSIONS -> "Voice input needs microphone access"
                         SpeechRecognizer.ERROR_AUDIO -> "Audio recording error, please try again"
                         SpeechRecognizer.ERROR_SERVER -> "Server error, please try again"
                         SpeechRecognizer.ERROR_SPEECH_TIMEOUT -> "No speech detected"
-                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice recognizer is busy"
+                        SpeechRecognizer.ERROR_RECOGNIZER_BUSY -> "Voice recognizer is busy, retrying..."
+                        SpeechRecognizer.ERROR_CLIENT -> "Speech recognition client error, retrying..."
+                        ERROR_TOO_MANY_REQUESTS_CODE -> "Speech service is busy or rate limited, retrying..."
+                        ERROR_SERVER_DISCONNECTED_CODE -> "Speech server disconnected, please try again"
+                        ERROR_LANGUAGE_NOT_SUPPORTED_CODE, ERROR_LANGUAGE_UNAVAILABLE_CODE -> "Language model not supported offline, switching to online recognition..."
+                        ERROR_CANNOT_CHECK_SUPPORT_CODE -> "Speech service status unknown, try again"
                         else -> "Speech recognition error ($error)"
                     }
                     Log.d(TAG, "SpeechRecognizer onError: code=$error msg=$userFriendlyMessage (explicitStop=$isExplicitlyStopped, restarts=$autoRestartCount)")
@@ -109,19 +137,42 @@ object VoiceInputHelper {
                         return
                     }
 
-                    // Transient timeout handling while user is thinking
-                    if ((error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT || error == SpeechRecognizer.ERROR_NO_MATCH) &&
-                        autoRestartCount < MAX_AUTO_RESTARTS
-                    ) {
-                        autoRestartCount++
-                        Log.d(TAG, "Silence timeout during user thinking; auto-restarting speech listener ($autoRestartCount/$MAX_AUTO_RESTARTS)...")
-                        // Destroy current recognizer and restart
-                        destroyRecognizerOnly()
-                        internalStartListening(context, listener)
+                    // Fallback to online system recognizer if on-device language model is unavailable
+                    val isLanguageModelError = (error == ERROR_LANGUAGE_NOT_SUPPORTED_CODE) ||
+                            (error == ERROR_LANGUAGE_UNAVAILABLE_CODE) ||
+                            (error == ERROR_CANNOT_CHECK_SUPPORT_CODE)
+
+                    if (isLanguageModelError && !forceStandardRecognizer) {
+                        Log.d(TAG, "Language model unavailable on-device for $currentLanguage; falling back to online speech recognizer...")
+                        forceStandardRecognizer = true
+                        scheduleDelayedRestart(context, listener)
                         return
                     }
 
-                    // If we have accumulated text despite a timeout error, pass the result!
+                    // Silence timeout / no match when user is thinking before or between speech:
+                    // Continuously re-arm the listener so voice input doesn't prematurely close
+                    val isSilenceTimeout = (error == SpeechRecognizer.ERROR_SPEECH_TIMEOUT) ||
+                            (error == SpeechRecognizer.ERROR_NO_MATCH)
+
+                    if (isSilenceTimeout) {
+                        Log.d(TAG, "Silence timeout / no speech match; re-arming speech listener to keep listening...")
+                        scheduleDelayedRestart(context, listener)
+                        return
+                    }
+
+                    // Transient errors (busy, client error, rate limited) attempt auto-restart up to MAX_AUTO_RESTARTS
+                    val isTransientError = (error == SpeechRecognizer.ERROR_RECOGNIZER_BUSY) ||
+                            (error == SpeechRecognizer.ERROR_CLIENT) ||
+                            (error == ERROR_TOO_MANY_REQUESTS_CODE)
+
+                    if (isTransientError && autoRestartCount < MAX_AUTO_RESTARTS) {
+                        autoRestartCount++
+                        Log.d(TAG, "Transient error ($error); auto-restarting speech listener ($autoRestartCount/$MAX_AUTO_RESTARTS)...")
+                        scheduleDelayedRestart(context, listener)
+                        return
+                    }
+
+                    // If we captured any transcript before the error occurred, deliver it!
                     if (accumulatedText.isNotBlank()) {
                         listener.onListeningStateChanged(false)
                         listener.onFinalTranscript(accumulatedText)
@@ -147,10 +198,10 @@ object VoiceInputHelper {
                     if (finalText.isNotBlank()) {
                         accumulatedText = finalText
                         listener.onFinalTranscript(finalText)
-                    } else if (!isExplicitlyStopped && autoRestartCount < MAX_AUTO_RESTARTS) {
-                        autoRestartCount++
-                        destroyRecognizerOnly()
-                        internalStartListening(context, listener)
+                    } else if (!isExplicitlyStopped) {
+                        // Silence on results with empty text; re-arm listener continuously
+                        Log.d(TAG, "Empty speech results; re-arming listener...")
+                        scheduleDelayedRestart(context, listener)
                     } else {
                         listener.onError("Didn't catch that, please try again")
                     }
@@ -160,6 +211,7 @@ object VoiceInputHelper {
                     val matches = partialResults?.getStringArrayList(SpeechRecognizer.RESULTS_RECOGNITION)
                     val transcript = matches?.firstOrNull()?.trim() ?: ""
                     if (transcript.isNotBlank()) {
+                        autoRestartCount = 0
                         val currentCombined = if (accumulatedText.isNotBlank() && !transcript.startsWith(accumulatedText, ignoreCase = true)) {
                             "$accumulatedText $transcript".trim()
                         } else {
@@ -177,9 +229,8 @@ object VoiceInputHelper {
                 putExtra(RecognizerIntent.EXTRA_PARTIAL_RESULTS, true)
                 putExtra(RecognizerIntent.EXTRA_MAX_RESULTS, 5)
 
-                // Extended silence timeouts to allow thinking without cut-off
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 12000L)
-                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 12000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_COMPLETE_SILENCE_LENGTH_MILLIS, 10000L)
+                putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_POSSIBLY_COMPLETE_SILENCE_LENGTH_MILLIS, 10000L)
                 putExtra(RecognizerIntent.EXTRA_SPEECH_INPUT_MINIMUM_LENGTH_MILLIS, 5000L)
                 putExtra("android.speech.extra.DICTATION_MODE", true)
 
@@ -189,18 +240,15 @@ object VoiceInputHelper {
                         putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "te-IN")
                         putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("en-IN", "te-IN"))
                         putExtra("android.speech.extra.LANGUAGE_SWITCH_INITIAL_ACTIVE_LANGUAGES", arrayOf("te-IN", "en-IN"))
-                        putExtra("android.speech.extra.BILINGUAL_RECOGNITION", true)
                     }
                     "te-IN" -> {
                         putExtra(RecognizerIntent.EXTRA_LANGUAGE, "te-IN")
                         putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, "te-IN")
                         putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf("te-IN", "en-IN"))
-                        putExtra("android.speech.extra.LANGUAGE_SWITCH_INITIAL_ACTIVE_LANGUAGES", arrayOf("te-IN", "en-IN"))
                     }
                     else -> {
                         putExtra(RecognizerIntent.EXTRA_LANGUAGE, currentLanguage)
                         putExtra(RecognizerIntent.EXTRA_LANGUAGE_PREFERENCE, currentLanguage)
-                        putExtra("android.speech.extra.EXTRA_ADDITIONAL_LANGUAGES", arrayOf(currentLanguage, "te-IN", "en-IN"))
                     }
                 }
             }
@@ -213,20 +261,38 @@ object VoiceInputHelper {
         }
     }
 
+    private fun scheduleDelayedRestart(context: Context, listener: VoiceListener) {
+        cancelPendingRestart()
+        val runnable = Runnable {
+            if (!isExplicitlyStopped) {
+                internalStartListening(context, listener)
+            }
+        }
+        pendingRestartRunnable = runnable
+        mainHandler.postDelayed(runnable, RESTART_DELAY_MS)
+    }
+
+    private fun cancelPendingRestart() {
+        pendingRestartRunnable?.let { mainHandler.removeCallbacks(it) }
+        pendingRestartRunnable = null
+    }
+
     private fun createSpeechRecognizer(context: Context): SpeechRecognizer {
-        val googleComponent = ComponentName(
-            "com.google.android.googlequicksearchbox",
-            "com.google.android.voicesearch.service.SpeechRecognitionService"
-        )
+        val appContext = context.applicationContext
+        val isTeluguOrBilingual = currentLanguage.startsWith("te")
+
         return try {
-            if (SpeechRecognizer.isRecognitionAvailable(context)) {
-                SpeechRecognizer.createSpeechRecognizer(context, googleComponent)
+            // Regional languages like Telugu are processed via online cloud SpeechRecognizer unless forced
+            if (!forceStandardRecognizer && !isTeluguOrBilingual && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S && SpeechRecognizer.isOnDeviceRecognitionAvailable(appContext)) {
+                Log.d(TAG, "Using On-Device SpeechRecognizer")
+                SpeechRecognizer.createOnDeviceSpeechRecognizer(appContext)
             } else {
-                SpeechRecognizer.createSpeechRecognizer(context.applicationContext)
+                Log.d(TAG, "Using System Default Online SpeechRecognizer")
+                SpeechRecognizer.createSpeechRecognizer(appContext)
             }
         } catch (e: Exception) {
-            Log.w(TAG, "Google Speech Recognition service unavailable, falling back to default", e)
-            SpeechRecognizer.createSpeechRecognizer(context.applicationContext)
+            Log.w(TAG, "Failed to create preferred SpeechRecognizer, falling back to default", e)
+            SpeechRecognizer.createSpeechRecognizer(appContext)
         }
     }
 
@@ -235,6 +301,7 @@ object VoiceInputHelper {
      */
     fun stop() {
         isExplicitlyStopped = true
+        cancelPendingRestart()
         try {
             speechRecognizer?.stopListening()
         } catch (e: Exception) {
@@ -243,6 +310,7 @@ object VoiceInputHelper {
     }
 
     private fun destroyRecognizerOnly() {
+        cancelPendingRestart()
         try {
             speechRecognizer?.stopListening()
             speechRecognizer?.cancel()
@@ -259,8 +327,10 @@ object VoiceInputHelper {
      */
     fun destroy() {
         isExplicitlyStopped = true
+        cancelPendingRestart()
         destroyRecognizerOnly()
         accumulatedText = ""
         autoRestartCount = 0
     }
 }
+

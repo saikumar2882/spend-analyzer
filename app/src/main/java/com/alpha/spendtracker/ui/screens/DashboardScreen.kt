@@ -10,6 +10,7 @@ import androidx.compose.animation.slideInVertically
 import androidx.compose.animation.slideOutVertically
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -59,10 +60,12 @@ import com.alpha.spendtracker.ui.components.TimeFilterSelectorRow
 import com.alpha.spendtracker.ui.components.TotalSpentHeroCard
 import com.alpha.spendtracker.ui.components.WhereItWentCard
 import com.alpha.spendtracker.ui.icons.AppIcons
+import androidx.compose.ui.draw.scale
 import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.Sizes
 import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.ThemePreference
+import com.alpha.spendtracker.ui.theme.rememberPressScale
 import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.google.firebase.auth.FirebaseAuth
@@ -246,9 +249,9 @@ fun DashboardScreen(
                         horizontalArrangement = Arrangement.SpaceBetween,
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        SectionHeader(title = "Recent Activity")
+                        SectionHeader(title = stringResource(R.string.recent_activity))
                         TextButton(onClick = onShowAllClick) {
-                            Text("See all", style = MaterialTheme.typography.labelLarge)
+                            Text(stringResource(R.string.see_all), style = MaterialTheme.typography.labelLarge)
                             Spacer(modifier = Modifier.width(Spacing.xs))
                             Icon(
                                 AppIcons.History,
@@ -455,11 +458,16 @@ private fun HeaderActionButton(
     tint: Color = MaterialTheme.colorScheme.onSurfaceVariant,
     background: Color = MaterialTheme.colorScheme.surfaceContainerHigh
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     Surface(
         onClick = onClick,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(Radius.md),
         color = background,
-        modifier = Modifier.size(Sizes.minTouchTarget)
+        modifier = Modifier
+            .size(Sizes.minTouchTarget)
+            .scale(scale)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(

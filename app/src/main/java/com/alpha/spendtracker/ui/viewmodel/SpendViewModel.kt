@@ -8,6 +8,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alpha.spendtracker.data.*
+import com.alpha.spendtracker.util.activeAppLocale
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import com.google.firebase.auth.FirebaseAuth
@@ -63,9 +64,7 @@ class SpendViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "SpendViewModel"
-        // Single source of truth for the Gemini fallback model so the two call sites can't drift.
         private const val GEMINI_MODEL = "gemini-3.5-flash"
-
         private const val DAY_MS = 24L * 60 * 60 * 1000
 
         /**
@@ -592,11 +591,19 @@ class SpendViewModel @Inject constructor(
                 try {
                     val groqKey = remoteConfig.getString("groq_api_key")
 
+                    val currentAppLocale = activeAppLocale
+                    val targetLangName = when (currentAppLocale.language) {
+                        "te" -> "Telugu (తెలుగు)"
+                        "hi" -> "Hindi (हिंदी)"
+                        else -> "English"
+                    }
+
                     val systemPrompt = """
                         You are a smart, concise Expense Tracker Assistant. Today is $today.
                         
                         USER PREFERENCE:
                         - Default Currency: $currency
+                        - Language: Respond in $targetLangName. All explanatory text, summaries, and bullet points MUST be written in $targetLangName.
                         
                         CRITICAL:
                         - All monetary amounts in your response MUST be prefixed with the user's currency: **$currency**.

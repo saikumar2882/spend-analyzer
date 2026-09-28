@@ -16,8 +16,8 @@ android {
     applicationId = "com.alpha.spendtracker"
     minSdk = 24
     targetSdk = 37
-    versionCode = 19
-    versionName = "2.3.1"
+    versionCode = 20
+    versionName = "2.3.2"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -89,6 +89,8 @@ dependencies {
   implementation(libs.firebase.crashlytics)
   implementation(libs.play.app.update)
   implementation(libs.play.app.update.ktx)
+  implementation(libs.androidx.appcompat)
+  implementation(libs.mlkit.translate)
   implementation(libs.androidx.core.splashscreen)
   implementation(libs.play.services.auth)
   // implementation(libs.accompanist.permissions)

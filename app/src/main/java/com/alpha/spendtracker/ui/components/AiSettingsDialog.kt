@@ -6,7 +6,9 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.AiPreferences
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -21,32 +23,29 @@ fun AiSettingsDialog(
     var purpose by remember { mutableStateOf(currentPrefs.defaultPurpose) }
 
     val currencies = listOf("₹", "$", "€", "£")
-    // Must be drawn from the canonical presets: the AI confirmation screen resolves the
-    // default back to an APP_PRESET / PURPOSE_PRESET, so an off-list value would silently
-    // fall back to "Other Platform" / "Others" instead of what the user picked.
     val apps = APP_PRESETS.map { it.displayName }
     val purposes = PURPOSE_PRESETS.filter { it != "Lending" && it != "Borrowing" }
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text("AI Default Settings") },
+        title = { Text(stringResource(R.string.app_defaults_title)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(16.dp)) {
-                Text("These values will be used when they are missing from your AI input.")
+                Text(stringResource(R.string.default_app_subtitle))
                 
-                DropdownField(label = "Default Currency", options = currencies, selected = currency) { currency = it }
-                DropdownField(label = "Default Payment App", options = apps, selected = app) { app = it }
-                DropdownField(label = "Default Purpose", options = purposes, selected = purpose) { purpose = it }
+                DropdownField(label = "Currency", options = currencies, selected = currency) { currency = it }
+                DropdownField(label = stringResource(R.string.default_payment_app), options = apps, selected = app, isAppOrPurpose = true) { app = it }
+                DropdownField(label = stringResource(R.string.purpose), options = purposes, selected = purpose, isAppOrPurpose = true) { purpose = it }
             }
         },
         confirmButton = {
             Button(onClick = { onSave(currency, app, purpose) }) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text("Cancel")
+                Text(stringResource(R.string.cancel))
             }
         }
     )
@@ -58,6 +57,7 @@ private fun DropdownField(
     label: String,
     options: List<String>,
     selected: String,
+    isAppOrPurpose: Boolean = false,
     onSelect: (String) -> Unit
 ) {
     var expanded by remember { mutableStateOf(false) }
@@ -67,7 +67,7 @@ private fun DropdownField(
         onExpandedChange = { expanded = !expanded }
     ) {
         OutlinedTextField(
-            value = selected,
+            value = if (isAppOrPurpose) getLocalizedPresetName(selected) else selected,
             onValueChange = {},
             readOnly = true,
             label = { Text(label) },
@@ -91,7 +91,7 @@ private fun DropdownField(
         ) {
             options.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option) },
+                    text = { Text(if (isAppOrPurpose) getLocalizedPresetName(option) else option) },
                     onClick = {
                         onSelect(option)
                         expanded = false

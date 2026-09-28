@@ -38,6 +38,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
+import com.alpha.spendtracker.util.rememberTranslatedText
 import com.alpha.spendtracker.data.Note
 import com.alpha.spendtracker.data.NoteEntry
 import com.alpha.spendtracker.data.NoteField
@@ -115,7 +118,7 @@ fun NotesScreen(
             TopAppBar(
                 title = {
                     Text(
-                        if (selectedNote != null) selectedNote.title else "Notes",
+                        if (selectedNote != null) selectedNote.title else stringResource(R.string.notes_title),
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
@@ -276,8 +279,8 @@ fun NotesScreen(
             val target = noteToDelete!!
             AlertDialog(
                 onDismissRequest = { noteToDelete = null },
-                title = { Text("Delete Note") },
-                text = { Text("Delete '${target.title}' and all of its entries? This can't be undone.") },
+                title = { Text(stringResource(R.string.delete_note_title)) },
+                text = { Text(stringResource(R.string.delete_note_message, target.title)) },
                 confirmButton = {
                     TextButton(
                         onClick = {
@@ -286,9 +289,9 @@ fun NotesScreen(
                             noteToDelete = null
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Delete") }
+                    ) { Text(stringResource(R.string.delete)) }
                 },
-                dismissButton = { TextButton(onClick = { noteToDelete = null }) { Text("Cancel") } }
+                dismissButton = { TextButton(onClick = { noteToDelete = null }) { Text(stringResource(R.string.cancel)) } }
             )
         }
 
@@ -296,15 +299,15 @@ fun NotesScreen(
             val target = entryToDelete!!
             AlertDialog(
                 onDismissRequest = { entryToDelete = null },
-                title = { Text("Delete Entry") },
-                text = { Text("Delete '${target.label.ifBlank { "this entry" }}'?") },
+                title = { Text(stringResource(R.string.delete_entry_title)) },
+                text = { Text(stringResource(R.string.delete_entry_message, target.label.ifBlank { "this entry" })) },
                 confirmButton = {
                     TextButton(
                         onClick = { onDeleteEntry(target); entryToDelete = null },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Delete") }
+                    ) { Text(stringResource(R.string.delete)) }
                 },
-                dismissButton = { TextButton(onClick = { entryToDelete = null }) { Text("Cancel") } }
+                dismissButton = { TextButton(onClick = { entryToDelete = null }) { Text(stringResource(R.string.cancel)) } }
             )
         }
     }
@@ -347,6 +350,7 @@ private fun NoteTile(
     val accent = noteColor(note.colorIndex)
     var menuOpen by remember { mutableStateOf(false) }
     val isDark = isAppInDarkTheme
+    val displayTitle by rememberTranslatedText(note.title)
 
     Card(
         modifier = Modifier
@@ -374,7 +378,7 @@ private fun NoteTile(
                 ) {
                     Column(modifier = Modifier.weight(1f)) {
                         Text(
-                            text = note.title.ifBlank { "Untitled" },
+                            text = displayTitle.ifBlank { "Untitled" },
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -508,17 +512,17 @@ private fun NoteTileDropdownMenu(
 ) {
     DropdownMenu(expanded = expanded, onDismissRequest = onDismiss) {
         DropdownMenuItem(
-            text = { Text("Log as transaction") },
+            text = { Text(stringResource(R.string.log_as_transaction)) },
             leadingIcon = { Icon(Icons.AutoMirrored.Rounded.ReceiptLong, null) },
             onClick = { onDismiss(); onLogAsTransaction() }
         )
         DropdownMenuItem(
-            text = { Text("Edit") },
+            text = { Text(stringResource(R.string.edit_details)) },
             leadingIcon = { Icon(Icons.Rounded.Edit, null) },
             onClick = { onDismiss(); onEdit() }
         )
         DropdownMenuItem(
-            text = { Text("Delete", color = MaterialTheme.colorScheme.error) },
+            text = { Text(stringResource(R.string.delete), color = MaterialTheme.colorScheme.error) },
             leadingIcon = { Icon(Icons.Rounded.Delete, null, tint = MaterialTheme.colorScheme.error) },
             onClick = { onDismiss(); onDelete() }
         )
@@ -539,7 +543,7 @@ private fun NoteSummaryHeader(accent: Color, itemCount: Int, subtotal: Double, c
             verticalAlignment = Alignment.CenterVertically
         ) {
             Column(modifier = Modifier.weight(1f)) {
-                Text("Subtotal", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.subtotal), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 Spacer(modifier = Modifier.height(2.dp))
                 Text(
                     "$currencySymbol${formatCurrency(subtotal)}",
@@ -548,7 +552,7 @@ private fun NoteSummaryHeader(accent: Color, itemCount: Int, subtotal: Double, c
                 )
             }
             Text(
-                if (itemCount == 1) "1 entry" else "$itemCount entries",
+                stringResource(R.string.entries_count, itemCount),
                 style = MaterialTheme.typography.labelLarge,
                 color = MaterialTheme.colorScheme.onSurfaceVariant
             )
@@ -565,6 +569,12 @@ private fun NoteEntryCard(
     onClick: () -> Unit
 ) {
     val isDark = isAppInDarkTheme
+    val displayLabel by rememberTranslatedText(entry.label)
+    val rawNoteText = entry.detail?.takeIf { it.isNotBlank() }
+        ?: entry.customFields.firstOrNull { it.value.isNotBlank() }?.let {
+            if (it.name.isNotBlank()) "${it.name}: ${it.value}" else it.value
+        }
+    val displayNoteText by rememberTranslatedText(rawNoteText.orEmpty())
 
     Card(
         modifier = Modifier
@@ -595,7 +605,7 @@ private fun NoteEntryCard(
                     )
                     Spacer(modifier = Modifier.width(6.dp))
                     Text(
-                        text = entry.label.ifBlank { "Untitled" },
+                        text = displayLabel.ifBlank { stringResource(R.string.untitled) },
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -604,15 +614,9 @@ private fun NoteEntryCard(
                     )
                 }
 
-                // Middle: Detail or Custom field note preview (if available)
-                val noteText = entry.detail?.takeIf { it.isNotBlank() }
-                    ?: entry.customFields.firstOrNull { it.value.isNotBlank() }?.let {
-                        if (it.name.isNotBlank()) "${it.name}: ${it.value}" else it.value
-                    }
-
-                if (!noteText.isNullOrBlank()) {
+                if (displayNoteText.isNotBlank()) {
                     Text(
-                        text = noteText,
+                        text = displayNoteText,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -760,19 +764,19 @@ private fun NoteEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (note == null) "New Note" else "Edit Note") },
+        title = { Text(if (note == null) stringResource(R.string.new_note) else stringResource(R.string.edit_note)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(14.dp)) {
                 OutlinedTextField(
                     value = title,
                     onValueChange = { title = it },
-                    label = { Text("Title") },
+                    label = { Text(stringResource(R.string.note_title_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
                     colors = cleanTextFieldColors
                 )
-                Text("Color", style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                Text(stringResource(R.string.note_color_label), style = MaterialTheme.typography.labelMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
                 ColorPicker(selectedIndex = colorIndex, onSelect = { colorIndex = it })
             }
         },
@@ -780,9 +784,9 @@ private fun NoteEditDialog(
             Button(
                 onClick = { onSave(title.trim(), colorIndex) },
                 enabled = title.isNotBlank()
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
         },
-        dismissButton = { TextButton(onClick = onDismiss) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) } }
     )
 }
 
@@ -822,7 +826,7 @@ private fun EntryEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (entry == null) "Add Entry" else "Edit Entry") },
+        title = { Text(if (entry == null) stringResource(R.string.add_entry) else stringResource(R.string.edit_entry)) },
         text = {
             Column(
                 modifier = Modifier.verticalScroll(rememberScrollState()),
@@ -831,7 +835,7 @@ private fun EntryEditDialog(
                 OutlinedTextField(
                     value = label,
                     onValueChange = { label = it },
-                    label = { Text("Name") },
+                    label = { Text(stringResource(R.string.entry_name_label)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -843,7 +847,7 @@ private fun EntryEditDialog(
                         value = entryDateFormat.format(date),
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Date") },
+                        label = { Text(stringResource(R.string.entry_date_label)) },
                         trailingIcon = { Icon(Icons.Rounded.CalendarMonth, contentDescription = null) },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
@@ -854,7 +858,7 @@ private fun EntryEditDialog(
                 OutlinedTextField(
                     value = amount,
                     onValueChange = { if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) amount = it },
-                    label = { Text("Amount (Optional)") },
+                    label = { Text(stringResource(R.string.entry_amount_optional)) },
                     keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
@@ -864,7 +868,7 @@ private fun EntryEditDialog(
                 OutlinedTextField(
                     value = detail,
                     onValueChange = { detail = it },
-                    label = { Text("Note (Optional)") },
+                    label = { Text(stringResource(R.string.entry_note_optional)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -876,7 +880,7 @@ private fun EntryEditDialog(
                         OutlinedTextField(
                             value = draft.name,
                             onValueChange = { draft.name = it },
-                            label = { Text("Title") },
+                            label = { Text(stringResource(R.string.field_title)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp),
@@ -885,7 +889,7 @@ private fun EntryEditDialog(
                         OutlinedTextField(
                             value = draft.value,
                             onValueChange = { draft.value = it },
-                            label = { Text("Value") },
+                            label = { Text(stringResource(R.string.field_value)) },
                             singleLine = true,
                             modifier = Modifier.weight(1f),
                             shape = RoundedCornerShape(14.dp),
@@ -902,7 +906,7 @@ private fun EntryEditDialog(
                 ) {
                     Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text("Add field")
+                    Text(stringResource(R.string.add_field))
                 }
             }
         },
@@ -915,9 +919,9 @@ private fun EntryEditDialog(
                     onSave(label.trim(), amount.toDoubleOrNull() ?: 0.0, date, detail.trim().ifBlank { null }, customFields)
                 },
                 enabled = label.isNotBlank()
-            ) { Text("Save") }
+            ) { Text(stringResource(R.string.save)) }
         },
-        dismissButton = { TextButton(onClick = { onDismiss() }) { Text("Cancel") } }
+        dismissButton = { TextButton(onClick = { onDismiss() }) { Text(stringResource(R.string.cancel)) } }
     )
 
     if (showDatePicker) {
@@ -930,7 +934,7 @@ private fun EntryEditDialog(
                     showDatePicker = false
                 }) { Text("OK") }
             },
-            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text("Cancel") } }
+            dismissButton = { TextButton(onClick = { showDatePicker = false }) { Text(stringResource(R.string.cancel)) } }
         ) {
             DatePicker(state = datePickerState)
         }

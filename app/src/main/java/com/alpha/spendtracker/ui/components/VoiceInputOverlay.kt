@@ -3,6 +3,7 @@ package com.alpha.spendtracker.ui.components
 import androidx.compose.animation.core.*
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
@@ -22,6 +23,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alpha.spendtracker.ui.theme.rememberPressScale
+import com.alpha.spendtracker.util.TeluguTranslator
 import com.alpha.spendtracker.util.VoiceInputHelper
 import com.alpha.spendtracker.util.VoiceListener
 
@@ -42,14 +45,20 @@ fun VoiceInputOverlay(
     fun createListener(): VoiceListener = object : VoiceListener {
         override fun onPartialTranscript(text: String) {
             if (text.isNotBlank()) {
-                transcript = text
+                val processed = if (selectedLanguage == "te-IN" || selectedLanguage == "te-en" || text.any { it in '\u0C00'..'\u0C7F' }) {
+                    TeluguTranslator.translateToEnglish(text)
+                } else text
+                transcript = processed.ifBlank { text }
                 speechErrorMessage = null
             }
         }
 
         override fun onFinalTranscript(text: String) {
             if (text.isNotBlank()) {
-                transcript = text
+                val processed = if (selectedLanguage == "te-IN" || selectedLanguage == "te-en" || text.any { it in '\u0C00'..'\u0C7F' }) {
+                    TeluguTranslator.translateToEnglish(text)
+                } else text
+                transcript = processed.ifBlank { text }
                 speechErrorMessage = null
             }
             isListening = false
@@ -301,7 +310,10 @@ fun VoiceInputOverlay(
                     Button(
                         onClick = {
                             VoiceInputHelper.destroy()
-                            onFinalTranscript(transcript)
+                            val finalEnglish = if (selectedLanguage == "te-IN" || selectedLanguage == "te-en" || transcript.any { it in '\u0C00'..'\u0C7F' }) {
+                                TeluguTranslator.translateToEnglish(transcript)
+                            } else transcript
+                            onFinalTranscript(finalEnglish.ifBlank { transcript })
                         },
                         shape = RoundedCornerShape(50),
                         contentPadding = PaddingValues(horizontal = 24.dp, vertical = 12.dp)
@@ -344,11 +356,15 @@ private fun LanguageChip(
     selected: Boolean,
     onClick: () -> Unit
 ) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     Surface(
         onClick = onClick,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(50),
         color = if (selected) MaterialTheme.colorScheme.primary else Color.Transparent,
-        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant
+        contentColor = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurfaceVariant,
+        modifier = Modifier.scale(scale)
     ) {
         Text(
             text = label,

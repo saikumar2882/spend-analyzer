@@ -11,6 +11,7 @@ import androidx.compose.animation.*
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.LazyRow
@@ -27,6 +28,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.layer.drawLayer
@@ -41,9 +43,13 @@ import androidx.compose.ui.unit.sp
 import androidx.core.content.FileProvider
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.data.SpendHistory
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
+import com.alpha.spendtracker.util.rememberTranslatedText
 import com.alpha.spendtracker.ui.components.*
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.asMoney
+import com.alpha.spendtracker.ui.theme.rememberPressScale
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.alpha.spendtracker.util.PdfExporter
 import com.alpha.spendtracker.util.formatMonth
@@ -70,7 +76,7 @@ fun LendBorrowScreen(
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
-    val mainTabs = listOf("You lent", "You borrowed")
+    val mainTabs = listOf(stringResource(R.string.you_lent), stringResource(R.string.you_borrowed))
     var spendToDelete by remember { mutableStateOf<Spend?>(null) }
 
     var searchQuery by rememberSaveable { mutableStateOf("") }
@@ -244,14 +250,19 @@ fun LendBorrowScreen(
 
             FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
 
+            val exportInteraction = remember { MutableInteractionSource() }
+            val exportScale = rememberPressScale(exportInteraction)
             Surface(
                 onClick = {
                     exportSpends = filteredSpends
                     showExportPreview = true
                 },
+                interactionSource = exportInteraction,
                 shape = RoundedCornerShape(12.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.size(44.dp)
+                modifier = Modifier
+                    .size(44.dp)
+                    .scale(exportScale)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -481,8 +492,8 @@ private fun SummaryHeroCard(
     totalAmount: Double,
     peopleCount: Int
 ) {
-    val labelText = if (isLending) "Total outstanding (to you)" else "Total owed (by you)"
-    val peopleText = if (peopleCount == 1) "Across 1 person" else "Across $peopleCount people"
+    val labelText = if (isLending) stringResource(R.string.total_outstanding_to_you) else stringResource(R.string.total_outstanding_by_you)
+    val peopleText = stringResource(R.string.across_people, peopleCount)
     val cardBg = if (isLending) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f) else MaterialTheme.colorScheme.errorContainer
     val contentFg = if (isLending) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onErrorContainer
 
@@ -548,6 +559,8 @@ private fun DuesSpendCard(
     modifier: Modifier = Modifier
 ) {
     val (title, subtitle) = resolveTitleAndSubtitle(spend)
+    val displayTitle by rememberTranslatedText(title)
+    val displaySubtitle by rememberTranslatedText(subtitle)
     val amountFg = MaterialTheme.colorScheme.onSurface
 
     Row(
@@ -563,7 +576,7 @@ private fun DuesSpendCard(
             modifier = Modifier.weight(1f)
         ) {
             PersonInitialAvatar(
-                personName = title,
+                personName = displayTitle,
                 backgroundColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                 modifier = Modifier.size(42.dp)
             )
@@ -572,7 +585,7 @@ private fun DuesSpendCard(
 
             Column {
                 Text(
-                    text = title,
+                    text = displayTitle,
                     style = MaterialTheme.typography.titleMedium.copy(
                         fontWeight = FontWeight.SemiBold
                     ),
@@ -580,10 +593,10 @@ private fun DuesSpendCard(
                     maxLines = 1,
                     overflow = TextOverflow.Ellipsis
                 )
-                if (subtitle.isNotBlank()) {
+                if (displaySubtitle.isNotBlank()) {
                     Spacer(modifier = Modifier.height(2.dp))
                     Text(
-                        text = subtitle,
+                        text = displaySubtitle,
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         maxLines = 1,
@@ -641,12 +654,17 @@ private fun formatDayMonth(millis: Long): String {
 
 @Composable
 private fun HistoryIconButton(count: Int, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     Box {
         Surface(
             onClick = onClick,
+            interactionSource = interactionSource,
             shape = RoundedCornerShape(12.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
-            modifier = Modifier.size(44.dp)
+            modifier = Modifier
+                .size(44.dp)
+                .scale(scale)
         ) {
             Box(contentAlignment = Alignment.Center) {
                 Icon(
@@ -726,14 +744,19 @@ private fun SegmentedTabs(
                 val isSelected = index == selectedIndex
                 val activeBg = if (index == 0) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f) else MaterialTheme.colorScheme.errorContainer
                 val activeFg = if (index == 0) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onErrorContainer
+                val tabInteraction = remember { MutableInteractionSource() }
+                val tabScale = rememberPressScale(tabInteraction)
 
                 Surface(
                     onClick = { onSelect(index) },
+                    interactionSource = tabInteraction,
                     shape = CircleShape,
                     color = if (isSelected) activeBg else Color.Transparent,
                     border = null,
                     shadowElevation = if (isSelected) 1.dp else 0.dp,
-                    modifier = Modifier.weight(1f)
+                    modifier = Modifier
+                        .weight(1f)
+                        .scale(tabScale)
                 ) {
                     Box(
                         modifier = Modifier.padding(vertical = 12.dp),
@@ -757,12 +780,17 @@ private fun SegmentedTabs(
 
 @Composable
 private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     Surface(
         onClick = onClick,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(12.dp),
         color = if (active) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.size(44.dp)
+        modifier = Modifier
+            .size(44.dp)
+            .scale(scale)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -806,13 +834,13 @@ private fun DeleteConfirmationDialog(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = spend.appName,
+                            text = getLocalizedPresetName(spend.appName),
                             style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "₹${formatCurrency(spend.amount)} • ${spend.purpose}",
+                            text = "₹${formatCurrency(spend.amount)} • ${getLocalizedPresetName(spend.purpose)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -921,8 +949,8 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
         spends.forEach { spend ->
             val (personName, detailsNotes) = parseLendBorrowNotes(spend.notes, spend.appName)
             val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
-            val appOrPerson = if (isLendBorrow) personName.ifBlank { spend.appName } else spend.appName
-            val detailText = if (isLendBorrow) detailsNotes.ifBlank { spend.purpose } else spend.notes.ifBlank { spend.purpose }
+            val appOrPerson = if (isLendBorrow) personName.ifBlank { getLocalizedPresetName(spend.appName) } else getLocalizedPresetName(spend.appName)
+            val detailText = if (isLendBorrow) detailsNotes.ifBlank { getLocalizedPresetName(spend.purpose) } else spend.notes.ifBlank { getLocalizedPresetName(spend.purpose) }
 
             Row(
                 modifier = Modifier

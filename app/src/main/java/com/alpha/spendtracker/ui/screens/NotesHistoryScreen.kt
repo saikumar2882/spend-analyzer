@@ -26,6 +26,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.HistoryType
 import com.alpha.spendtracker.data.NoteHistory
 import com.alpha.spendtracker.data.NoteItemType
@@ -51,7 +53,7 @@ fun NotesHistoryScreen(
     var showClearConfirmation by rememberSaveable { mutableStateOf(false) }
 
     val isDeletedView = selectedTab == 0
-    val tabs = listOf("Recycle Bin", "Update History")
+    val tabs = listOf(stringResource(R.string.recycle_bin), stringResource(R.string.update_history))
 
     BackHandler(onBack = onBack)
 
@@ -60,14 +62,14 @@ fun NotesHistoryScreen(
             onDismissRequest = { showClearConfirmation = false },
             title = {
                 Text(
-                    text = if (isDeletedView) "Empty Recycle Bin?" else "Clear Update History?",
+                    text = if (isDeletedView) stringResource(R.string.empty_recycle_bin_title) else stringResource(R.string.clear_update_history_title),
                     fontWeight = FontWeight.Bold
                 )
             },
             text = {
                 Text(
-                    text = if (isDeletedView) "This will permanently delete all notes in the Recycle Bin. This action cannot be undone."
-                    else "This will permanently remove all tracked modifications. This action cannot be undone."
+                    text = if (isDeletedView) stringResource(R.string.empty_recycle_bin_message)
+                    else stringResource(R.string.clear_update_history_message)
                 )
             },
             confirmButton = {
@@ -77,10 +79,10 @@ fun NotesHistoryScreen(
                         showClearConfirmation = false
                     },
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                ) { Text("Delete All", fontWeight = FontWeight.Bold) }
+                ) { Text(stringResource(R.string.delete_all), fontWeight = FontWeight.Bold) }
             },
             dismissButton = {
-                TextButton(onClick = { showClearConfirmation = false }) { Text("Cancel") }
+                TextButton(onClick = { showClearConfirmation = false }) { Text(stringResource(R.string.cancel)) }
             }
         )
     }
@@ -91,10 +93,10 @@ fun NotesHistoryScreen(
             verticalAlignment = Alignment.CenterVertically
         ) {
             IconButton(onClick = onBack) {
-                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.back))
             }
             Text(
-                text = "Notes History",
+                text = stringResource(R.string.notes_history),
                 style = MaterialTheme.typography.titleLarge,
                 fontWeight = FontWeight.Bold,
                 modifier = Modifier.padding(start = 8.dp)
@@ -113,13 +115,13 @@ fun NotesHistoryScreen(
             },
             divider = {}
         ) {
-            tabs.forEachIndexed { index, title ->
+            tabs.forEachIndexed { index, titleText ->
                 Tab(
                     selected = selectedTab == index,
                     onClick = { selectedTab = index },
                     text = {
                         Row(verticalAlignment = Alignment.CenterVertically) {
-                            Text(title, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal)
+                            Text(titleText, fontWeight = if (selectedTab == index) FontWeight.Bold else FontWeight.Normal)
                             val count = if (index == 0) deletedHistory.size else updatedHistory.size
                             if (count > 0) {
                                 Spacer(modifier = Modifier.width(6.dp))
@@ -162,7 +164,7 @@ fun NotesHistoryScreen(
                 ) {
                     Icon(Icons.Rounded.DeleteSweep, contentDescription = null, modifier = Modifier.size(18.dp))
                     Spacer(modifier = Modifier.width(4.dp))
-                    Text(if (isDeletedView) "Empty Trash" else "Clear All")
+                    Text(if (isDeletedView) stringResource(R.string.empty_trash) else stringResource(R.string.clear_all))
                 }
             }
         }
@@ -177,7 +179,7 @@ fun NotesHistoryScreen(
                     Icon(Icons.Rounded.Info, contentDescription = null, modifier = Modifier.size(16.dp), tint = MaterialTheme.colorScheme.error)
                     Spacer(modifier = Modifier.width(8.dp))
                     Text(
-                        "Deleted items are kept for 30 days before permanent removal.",
+                        stringResource(R.string.trash_retention_notice),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onErrorContainer
                     )
@@ -196,7 +198,7 @@ fun NotesHistoryScreen(
                     )
                     Spacer(modifier = Modifier.height(12.dp))
                     Text(
-                        text = if (isDeletedView) "Your trash is empty" else "No modifications tracked yet",
+                        text = if (isDeletedView) stringResource(R.string.trash_empty) else stringResource(R.string.no_modifications_tracked),
                         style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )

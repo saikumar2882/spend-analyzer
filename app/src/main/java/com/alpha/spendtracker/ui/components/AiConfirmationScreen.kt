@@ -26,6 +26,8 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.AiTransactionResponse
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.screens.NewSpend
@@ -111,7 +113,7 @@ fun AiConfirmationScreen(
                 }
                 Spacer(Modifier.width(8.dp))
                 Text(
-                    text = "Review AI Details",
+                    text = stringResource(R.string.review_transaction),
                     style = MaterialTheme.typography.titleMedium,
                     fontWeight = FontWeight.Bold
                 )
@@ -153,7 +155,7 @@ fun AiConfirmationScreen(
             onValueChange = { input ->
                 if (input.matches(Regex("""^\d*\.?\d*$"""))) amount = input
             },
-            label = { Text("Amount") },
+            label = { Text(stringResource(R.string.amount)) },
             leadingIcon = { Icon(Icons.Rounded.Payments, contentDescription = null, modifier = Modifier.size(18.dp)) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -172,7 +174,7 @@ fun AiConfirmationScreen(
             OutlinedTextField(
                 value = customAppName,
                 onValueChange = { customAppName = it },
-                label = { Text("Custom App / Platform") },
+                label = { Text(stringResource(R.string.enter_app_name)) },
                 leadingIcon = if (customAppName.isNotBlank()) {
                     {
                         AppIconImage(
@@ -200,7 +202,7 @@ fun AiConfirmationScreen(
         OutlinedTextField(
             value = notes,
             onValueChange = { notes = it },
-            label = { Text("Description / Notes") },
+            label = { Text(stringResource(R.string.note_detail_optional)) },
             leadingIcon = { Icon(Icons.Rounded.Description, contentDescription = null, modifier = Modifier.size(18.dp)) },
             placeholder = { Text("e.g. Biryani, Uber ride") },
             modifier = Modifier.fillMaxWidth(),
@@ -224,7 +226,7 @@ fun AiConfirmationScreen(
                 onClick = onCancel,
                 modifier = Modifier.weight(1f).height(44.dp),
                 shape = RoundedCornerShape(12.dp)
-            ) { Text("Cancel") }
+            ) { Text(stringResource(R.string.cancel)) }
 
             Button(
                 onClick = {
@@ -244,7 +246,7 @@ fun AiConfirmationScreen(
                 shape = RoundedCornerShape(12.dp),
                 enabled = amount.toDoubleOrNull()?.let { it > 0 } == true &&
                           (selectedPreset.id != "other" || customAppName.isNotBlank())
-            ) { Text("Confirm & Save", fontWeight = FontWeight.SemiBold) }
+            ) { Text(stringResource(R.string.confirm_and_save), fontWeight = FontWeight.SemiBold) }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -288,7 +290,7 @@ private fun ExtractedSummaryCard(
                         modifier = Modifier.size(14.dp)
                     )
                     Text(
-                        text = appName,
+                        text = getLocalizedPresetName(appName),
                         style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurface
                     )

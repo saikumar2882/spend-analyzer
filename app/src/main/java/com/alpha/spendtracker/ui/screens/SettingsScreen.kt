@@ -3,6 +3,13 @@
  */
 package com.alpha.spendtracker.ui.screens
 
+import android.app.Activity
+import androidx.compose.ui.platform.LocalContext
+import androidx.appcompat.app.AppCompatDelegate
+import androidx.core.os.LocaleListCompat
+import androidx.compose.ui.res.stringResource
+import androidx.compose.material.icons.rounded.Language
+import com.alpha.spendtracker.R
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -72,6 +79,18 @@ fun SettingsScreen(
     var showPasswordUpdateDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
     var showAiSettingsDialog by remember { mutableStateOf(false) }
+    var showLanguageDialog by remember { mutableStateOf(false) }
+
+    val context = LocalContext.current
+    val currentLocales = AppCompatDelegate.getApplicationLocales()
+    val currentLangTag = if (!currentLocales.isEmpty) currentLocales[0]?.language.orEmpty() else ""
+
+    val currentLanguageDisplay = when (currentLangTag) {
+        "te" -> stringResource(R.string.language_telugu)
+        "hi" -> stringResource(R.string.language_hindi)
+        "en" -> stringResource(R.string.language_english)
+        else -> stringResource(R.string.language_system)
+    }
 
     val auth = FirebaseAuth.getInstance()
     var displayName by remember { mutableStateOf(auth.currentUser?.displayName.orEmpty()) }
@@ -136,13 +155,13 @@ fun SettingsScreen(
     if (showSecurityOptions) {
         AlertDialog(
             onDismissRequest = { showSecurityOptions = false },
-            title = { Text("Account Security") },
-            text = { Text("Would you like to update your password or receive a reset link via email?") },
+            title = { Text(stringResource(R.string.account_security_title)) },
+            text = { Text(stringResource(R.string.account_security_subtitle)) },
             confirmButton = {
                 TextButton(onClick = {
                     showSecurityOptions = false
                     showPasswordUpdateDialog = true
-                }) { Text("Update Password") }
+                }) { Text(stringResource(R.string.change_password)) }
             },
             dismissButton = {
                 TextButton(onClick = {
@@ -157,7 +176,7 @@ fun SettingsScreen(
                                 }
                             }
                     }
-                }) { Text("Forgot Password") }
+                }) { Text(stringResource(R.string.forgot_password)) }
             }
         )
     }
@@ -169,15 +188,13 @@ fun SettingsScreen(
 
         AlertDialog(
             onDismissRequest = { if (!isUpdating) showPasswordUpdateDialog = false },
-            title = { Text("Update Password") },
+            title = { Text(stringResource(R.string.change_password)) },
             text = {
                 Column {
-                    Text("Enter your new password below:", style = MaterialTheme.typography.bodyMedium)
-                    Spacer(modifier = Modifier.height(16.dp))
                     OutlinedTextField(
                         value = newPassword,
                         onValueChange = { newPassword = it },
-                        label = { Text("New Password") },
+                        label = { Text(stringResource(R.string.new_password)) },
                         visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
                         trailingIcon = {
                             IconButton(onClick = { passwordVisible = !passwordVisible }) {
@@ -225,12 +242,12 @@ fun SettingsScreen(
                     enabled = newPassword.isNotEmpty() && !isUpdating
                 ) {
                     if (isUpdating) CircularProgressIndicator(modifier = Modifier.size(20.dp), strokeWidth = 2.dp)
-                    else Text("Update")
+                    else Text(stringResource(R.string.update))
                 }
             },
             dismissButton = {
                 TextButton(onClick = { showPasswordUpdateDialog = false }, enabled = !isUpdating) {
-                    Text("Cancel")
+                    Text(stringResource(R.string.cancel))
                 }
             }
         )
@@ -248,13 +265,64 @@ fun SettingsScreen(
         )
     }
 
+    if (showLanguageDialog) {
+        val languages = listOf(
+            "" to stringResource(R.string.language_system),
+            "en" to stringResource(R.string.language_english),
+            "te" to stringResource(R.string.language_telugu),
+            "hi" to stringResource(R.string.language_hindi)
+        )
+        AlertDialog(
+            onDismissRequest = { showLanguageDialog = false },
+            title = { Text(stringResource(R.string.select_language), fontWeight = FontWeight.Bold) },
+            text = {
+                Column {
+                    languages.forEach { (code, name) ->
+                        Row(
+                            modifier = Modifier
+                                .fillMaxWidth()
+                                .clickable {
+                                    showLanguageDialog = false
+                                    val localeList = if (code.isBlank()) {
+                                        LocaleListCompat.getEmptyLocaleList()
+                                    } else {
+                                        LocaleListCompat.forLanguageTags(code)
+                                    }
+                                    AppCompatDelegate.setApplicationLocales(localeList)
+                                    (context as? Activity)?.recreate()
+                                }
+                                .padding(vertical = 12.dp, horizontal = 8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            RadioButton(
+                                selected = (currentLangTag == code),
+                                onClick = null
+                            )
+                            Spacer(modifier = Modifier.width(12.dp))
+                            Text(
+                                text = name,
+                                style = MaterialTheme.typography.bodyLarge,
+                                fontWeight = if (currentLangTag == code) FontWeight.Bold else FontWeight.Normal
+                            )
+                        }
+                    }
+                }
+            },
+            confirmButton = {
+                TextButton(onClick = { showLanguageDialog = false }) {
+                    Text(stringResource(R.string.cancel))
+                }
+            }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Settings", fontWeight = FontWeight.Bold) },
+                title = { Text(stringResource(R.string.settings_title), fontWeight = FontWeight.Bold) },
                 navigationIcon = {
                     IconButton(onClick = onBack) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = stringResource(R.string.back))
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
@@ -325,7 +393,7 @@ fun SettingsScreen(
                 }
             }
 
-            // Appearance & Security Section
+            // Language, Theme & Biometrics Section
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -336,24 +404,31 @@ fun SettingsScreen(
                 ) {
                     Column {
                         SettingsRow(
+                            icon = Icons.Rounded.Language,
+                            title = stringResource(R.string.language_title),
+                            subtitle = currentLanguageDisplay,
+                            onClick = { showLanguageDialog = true }
+                        )
+                        SettingsDivider()
+                        SettingsRow(
                             icon = when (themePreference) {
                                 ThemePreference.SYSTEM -> AppIcons.ThemeAuto
                                 ThemePreference.LIGHT -> AppIcons.ThemeLight
                                 ThemePreference.DARK -> AppIcons.ThemeDark
                             },
-                            title = "Theme",
+                            title = stringResource(R.string.theme_title),
                             subtitle = when (themePreference) {
-                                ThemePreference.SYSTEM -> "Follow system"
-                                ThemePreference.LIGHT -> "Light mode"
-                                ThemePreference.DARK -> "Dark mode"
+                                ThemePreference.SYSTEM -> stringResource(R.string.theme_system)
+                                ThemePreference.LIGHT -> stringResource(R.string.theme_light)
+                                ThemePreference.DARK -> stringResource(R.string.theme_dark)
                             },
                             onClick = onCycleTheme
                         )
                         SettingsDivider()
                         SettingsRow(
                             icon = Icons.Rounded.Fingerprint,
-                            title = "Biometric Lock",
-                            subtitle = "Require authentication to open the app",
+                            title = stringResource(R.string.biometric_title),
+                            subtitle = stringResource(R.string.biometric_subtitle),
                             onClick = { onToggleBiometrics(!aiPreferences.isBiometricEnabled) },
                             trailing = {
                                 Switch(
@@ -362,18 +437,11 @@ fun SettingsScreen(
                                 )
                             }
                         )
-                        SettingsDivider()
-                        SettingsRow(
-                            icon = Icons.Rounded.Password,
-                            title = "Account Security",
-                            subtitle = "Change or reset your password",
-                            onClick = { showSecurityOptions = true }
-                        )
                     }
                 }
             }
 
-            // Preferences & Features Section
+            // Features & Preferences Section
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -384,37 +452,37 @@ fun SettingsScreen(
                 ) {
                     Column {
                         SettingsRow(
-                            icon = Icons.Rounded.Tune,
-                            title = "App Defaults",
-                            subtitle = "${aiPreferences.defaultCurrency} · ${aiPreferences.defaultApp} · ${aiPreferences.defaultPurpose}",
-                            onClick = { showAiSettingsDialog = true }
-                        )
-                        SettingsDivider()
-                        SettingsRow(
-                            icon = AppIcons.Ai,
-                            title = "AI History Assistant",
-                            subtitle = "Ask questions about your spending",
-                            onClick = onAiAssistantClick
-                        )
-                        SettingsDivider()
-                        SettingsRow(
                             icon = Icons.AutoMirrored.Rounded.ReceiptLong,
-                            title = "Recurring Bills",
-                            subtitle = "Manage subscriptions and bill reminders",
+                            title = stringResource(R.string.recurring_bills_title),
+                            subtitle = stringResource(R.string.recurring_bills_subtitle),
                             onClick = onRecurringBillsClick
                         )
                         SettingsDivider()
                         SettingsRow(
                             icon = AppIcons.Notes,
-                            title = "Notes",
-                            subtitle = "Custom collections of transaction entries",
+                            title = stringResource(R.string.notes_title),
+                            subtitle = stringResource(R.string.notes_subtitle),
                             onClick = onNotesClick
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = AppIcons.Ai,
+                            title = stringResource(R.string.ai_assistant_title),
+                            subtitle = stringResource(R.string.ai_assistant_subtitle),
+                            onClick = onAiAssistantClick
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = Icons.Rounded.Tune,
+                            title = stringResource(R.string.app_defaults_title),
+                            subtitle = "${aiPreferences.defaultCurrency} · ${aiPreferences.defaultApp} · ${aiPreferences.defaultPurpose}",
+                            onClick = { showAiSettingsDialog = true }
                         )
                     }
                 }
             }
 
-            // Account & Sign Out Section
+            // Account, Security & Sign Out Section
             item {
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -425,16 +493,23 @@ fun SettingsScreen(
                 ) {
                     Column {
                         SettingsRow(
+                            icon = Icons.Rounded.Password,
+                            title = stringResource(R.string.account_security_title),
+                            subtitle = stringResource(R.string.account_security_subtitle),
+                            onClick = { showSecurityOptions = true }
+                        )
+                        SettingsDivider()
+                        SettingsRow(
                             icon = Icons.Rounded.Share,
-                            title = "Share App",
-                            subtitle = "Tell your friends about Spendly",
+                            title = stringResource(R.string.share_app_title),
+                            subtitle = stringResource(R.string.share_app_subtitle),
                             onClick = onShareApp
                         )
                         SettingsDivider()
                         SettingsRow(
                             icon = Icons.AutoMirrored.Rounded.Logout,
-                            title = "Sign Out",
-                            subtitle = "Log out of your account",
+                            title = stringResource(R.string.sign_out_title),
+                            subtitle = stringResource(R.string.sign_out_subtitle),
                             iconTint = MaterialTheme.colorScheme.error,
                             titleColor = MaterialTheme.colorScheme.error,
                             containerColor = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.25f),

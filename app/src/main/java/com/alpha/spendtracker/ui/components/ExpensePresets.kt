@@ -32,6 +32,7 @@ import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import com.alpha.spendtracker.ui.theme.isAppInDarkTheme
 import coil.request.ImageRequest
+import com.alpha.spendtracker.util.activeAppLocale
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
 import java.util.concurrent.ConcurrentHashMap
@@ -86,6 +87,200 @@ val PURPOSE_PRESETS = listOf(
     "Healthcare & Medical",
     "Others"
 )
+
+private val TELUGU_PRESET_MAP = mapOf(
+    // Apps & Payment Platforms
+    "Google Pay" to "గూగుల్ పే",
+    "GPay" to "గూగుల్ పే",
+    "gpay" to "గూగుల్ పే",
+    "google pay" to "గూగుల్ పే",
+    "PhonePe" to "ఫోన్‌పే",
+    "Phone Pe" to "ఫోన్‌పే",
+    "phonepe" to "ఫోన్‌పే",
+    "Paytm" to "పేటీఎమ్",
+    "paytm" to "పేటీఎమ్",
+    "Swiggy" to "స్విగ్గీ",
+    "swiggy" to "స్విగ్గీ",
+    "Zomato" to "జొమాటో",
+    "zomato" to "జొమాటో",
+    "Zepto" to "జెప్టో",
+    "zepto" to "జెప్టో",
+    "Blinkit" to "బ్లింకిట్",
+    "blinkit" to "బ్లింకిట్",
+    "Amazon" to "అమెజాన్",
+    "amazon" to "అమెజాన్",
+    "Flipkart" to "ఫ్లిప్‌కార్ట్",
+    "flipkart" to "ఫ్లిప్‌కార్ట్",
+    "Myntra" to "మింత్రా",
+    "myntra" to "మింత్రా",
+    "Ajio" to "అజియో",
+    "ajio" to "అజియో",
+    "ICICI Bank" to "ఐసిఐసిఐ బ్యాంక్",
+    "icici bank" to "ఐసిఐసిఐ బ్యాంక్",
+    "Yono SBI" to "యోనో ఎస్బిఐ",
+    "yono sbi" to "యోనో ఎస్బిఐ",
+    "SBI" to "ఎస్బిఐ",
+    "sbi" to "ఎస్బిఐ",
+    "CRED" to "క్రెడ్",
+    "Cred" to "క్రెడ్",
+    "cred" to "క్రెడ్",
+    "HDFC Bank" to "హెచ్‌డిఎఫ్‌సి బ్యాంక్",
+    "HDFC" to "హెచ్‌డిఎఫ్‌సి",
+    "hdfc" to "హెచ్‌డిఎఫ్‌సి",
+    "PayZapp" to "పేజాప్",
+    "payzapp" to "పేజాప్",
+    "Axis Bank" to "యాక్సిస్ బ్యాంక్",
+    "axis bank" to "యాక్సిస్ బ్యాంక్",
+    "Uber" to "ఊబర్",
+    "uber" to "ఊబర్",
+    "Ola" to "ఓలా",
+    "ola" to "ఓలా",
+    "Rapido" to "ర్యాపిడో",
+    "rapido" to "ర్యాపిడో",
+    "Netflix" to "నెట్‌ఫ్లిక్స్",
+    "netflix" to "నెట్‌ఫ్లిక్స్",
+    "Spotify" to "స్పాటిఫై",
+    "spotify" to "స్పాటిఫై",
+    "Jupiter" to "జుపిటర్",
+    "jupiter" to "జుపిటర్",
+    "Bank Transfer" to "బ్యాంక్ ట్రాన్స్‌ఫర్",
+    "Other Platform" to "ఇతర ప్లాట్‌ఫారమ్",
+    "Other" to "ఇతరములు",
+    "Cash" to "నగదు",
+    "cash" to "నగదు",
+
+    // Categories
+    "UPI Apps" to "యుపిఐ యాప్‌లు",
+    "Quick Commerce" to "క్విక్ కామర్స్",
+    "E-Commerce" to "ఈ-కామర్స్",
+    "Banking & Cards" to "బ్యాంకింగ్ & కార్డ్‌లు",
+
+    // Purposes
+    "Groceries & Food" to "కిరాణా & ఆహారం",
+    "Shopping & Apparels" to "షాపింగ్ & దుస్తులు",
+    "Lending" to "అప్పు ఇవ్వడం",
+    "Borrowing" to "అప్పు తీసుకోవడం",
+    "Credit Card Bill" to "క్రెడిట్ కార్డ్ బిల్లు",
+    "Rent & Utilities" to "అద్దె & బిల్లులు",
+    "Travel & Commute" to "ప్రయాణం & రవాణా",
+    "Subscription & Leisure" to "సబ్‌స్క్రిప్షన్‌లు & వినోదం",
+    "Healthcare & Medical" to "ఆరోగ్యం & వైద్యం",
+    "Others" to "ఇతరములు"
+)
+
+private val HINDI_PRESET_MAP = mapOf(
+    // Apps & Payment Platforms
+    "Google Pay" to "गूगल पे",
+    "GPay" to "गूगल पे",
+    "gpay" to "गूगल पे",
+    "google pay" to "गूगल पे",
+    "PhonePe" to "फोनपे",
+    "Phone Pe" to "फोनपे",
+    "phonepe" to "फोनपे",
+    "Paytm" to "पेटीएम",
+    "paytm" to "पेटीएम",
+    "Swiggy" to "स्वीगी",
+    "swiggy" to "स्वीगी",
+    "Zomato" to "ज़ोमैटो",
+    "zomato" to "ज़ोमैटो",
+    "Zepto" to "ज़ेप्टो",
+    "zepto" to "ज़ेप्टो",
+    "Blinkit" to "ब्लिंकिट",
+    "blinkit" to "ब्लिंकिट",
+    "Amazon" to "अमेज़न",
+    "amazon" to "अमेज़न",
+    "Flipkart" to "फ्लिपकार्ट",
+    "flipkart" to "फ्लिपकार्ट",
+    "Myntra" to "मिंत्रा",
+    "myntra" to "मिंत्रा",
+    "Ajio" to "अजियो",
+    "ajio" to "अजियो",
+    "ICICI Bank" to "आईसीआईसीआई बैंक",
+    "icici bank" to "आईसीआईसीआई बैंक",
+    "Yono SBI" to "योनो एसबीआई",
+    "yono sbi" to "योनो एसबीआई",
+    "SBI" to "एसबीआई",
+    "sbi" to "एसबीआई",
+    "CRED" to "क्रेड",
+    "Cred" to "क्रेड",
+    "cred" to "क्रेड",
+    "HDFC Bank" to "एचडीएफसी बैंक",
+    "HDFC" to "एचडीएफसी",
+    "hdfc" to "एचडीएफसी",
+    "PayZapp" to "पेज़ैप",
+    "payzapp" to "पेज़ैप",
+    "Axis Bank" to "एक्सिस बैंक",
+    "axis bank" to "एक्सिस बैंक",
+    "Uber" to "उबर",
+    "uber" to "उबर",
+    "Ola" to "ओला",
+    "ola" to "ओला",
+    "Rapido" to "रैपिडो",
+    "rapido" to "रैपिडो",
+    "Netflix" to "नेटफ्लिक्स",
+    "netflix" to "नेटफ्लिक्स",
+    "Spotify" to "स्पॉटिफ़ाई",
+    "spotify" to "स्पॉटिफ़ाई",
+    "Jupiter" to "जुपिटर",
+    "jupiter" to "जुपिटर",
+    "Bank Transfer" to "बैंक ट्रांसफर",
+    "Other Platform" to "अन्य प्लेटफॉर्म",
+    "Other" to "अन्य",
+    "Cash" to "नकद",
+    "cash" to "नकद",
+
+    // Categories
+    "UPI Apps" to "यूपीआई ऐप",
+    "Quick Commerce" to "क्विक कॉमर्स",
+    "E-Commerce" to "ई-कॉमर्स",
+    "Banking & Cards" to "बैंकिंग और कार्ड",
+
+    // Purposes
+    "Groceries & Food" to "किराना और भोजन",
+    "Shopping & Apparels" to "खरीदारी और कपड़े",
+    "Lending" to "उधार देना",
+    "Borrowing" to "उधार लेना",
+    "Credit Card Bill" to "क्रेडिट कार्ड बिल",
+    "Rent & Utilities" to "किराया और उपयोगिताएं",
+    "Travel & Commute" to "यात्रा और आवागमन",
+    "Subscription & Leisure" to "सदस्यता और मनोरंजन",
+    "Healthcare & Medical" to "स्वास्थ्य और चिकित्सा",
+    "Others" to "अन्य"
+)
+
+fun getLocalizedPresetName(text: String): String {
+    if (text.isBlank()) return text
+    val locale = activeAppLocale
+    val trimmed = text.trim()
+    return when (locale.language) {
+        "te" -> TELUGU_PRESET_MAP[trimmed]
+            ?: TELUGU_PRESET_MAP.entries.firstOrNull { it.key.equals(trimmed, ignoreCase = true) }?.value
+            ?: text
+        "hi" -> HINDI_PRESET_MAP[trimmed]
+            ?: HINDI_PRESET_MAP.entries.firstOrNull { it.key.equals(trimmed, ignoreCase = true) }?.value
+            ?: text
+        else -> text
+    }
+}
+
+fun isPresetOrLocalized(text: String): Boolean {
+    if (text.isBlank()) return false
+    val trimmed = text.trim()
+    if (TELUGU_PRESET_MAP.containsKey(trimmed) || HINDI_PRESET_MAP.containsKey(trimmed)) return true
+    if (TELUGU_PRESET_MAP.containsValue(trimmed) || HINDI_PRESET_MAP.containsValue(trimmed)) return true
+    return TELUGU_PRESET_MAP.entries.any { it.key.equals(trimmed, ignoreCase = true) || it.value.equals(trimmed, ignoreCase = true) } ||
+           HINDI_PRESET_MAP.entries.any { it.key.equals(trimmed, ignoreCase = true) || it.value.equals(trimmed, ignoreCase = true) }
+}
+
+fun containsIndicScript(text: String): Boolean {
+    for (ch in text) {
+        val block = Character.UnicodeBlock.of(ch)
+        if (block == Character.UnicodeBlock.TELUGU || block == Character.UnicodeBlock.DEVANAGARI) {
+            return true
+        }
+    }
+    return false
+}
 
 fun normalizeName(name: String): String {
     return name.lowercase().replace(Regex("[^a-z0-9]"), "")

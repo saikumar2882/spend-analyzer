@@ -191,10 +191,11 @@ class AiTransactionProcessor @Inject constructor(
             Default (nothing clearly matches) → use the user's default purpose above: "${prefs.defaultPurpose}"
 
             FIELD RULES:
+            - LANGUAGE TRANSLATION: The input may be in English, Telugu (e.g., "భోజనం కోసం 500 ఖర్చు చేశాను"), or Teluglish/Bilingual (e.g., "500 dinner ki karchu chesa"). ALWAYS translate Telugu words and context into clear, concise ENGLISH for `notes` and `purpose`. NEVER output Telugu script or unparsed Teluglish in JSON fields.
             - amount: largest monetary number found; null if absent.
             - appName: canonical platform name from the mapping above.
             - purpose: exact string from the purpose mapping above.
-            - notes: 1-4 Title Case words describing WHAT. Exclude amount, app name, and verbs ("spent","paid","bought"). For lending/borrowing include the person name: "Lent to Rahul", "From Mom". Empty string if nothing identifiable.
+            - notes: 1-4 Title Case words describing WHAT in ENGLISH. Exclude amount, app name, and verbs ("spent","paid","bought"). For lending/borrowing include the person name: "Lent to Rahul", "From Mom". Empty string if nothing identifiable.
             - date: YYYY-MM-DD relative to today ($todayStr). "yesterday" → today−1; "last friday" → most recent past Friday; partial date with no year → this year, shift back 1 year if result is in the future. No date → today.
             - needsAmount: true only when amount is null.
 

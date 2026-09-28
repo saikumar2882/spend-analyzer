@@ -12,9 +12,11 @@ import android.os.Environment
 import android.provider.MediaStore
 import android.text.TextPaint
 import androidx.core.content.FileProvider
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.formatCurrency
+import com.alpha.spendtracker.ui.components.getLocalizedPresetName
 import java.io.File
 import java.io.FileOutputStream
 import java.text.SimpleDateFormat
@@ -29,13 +31,13 @@ object PdfExporter {
     fun exportToPdf(
         context: Context,
         spends: List<Spend>,
-        reportTitle: String = "Transaction History Report",
+        reportTitle: String = context.getString(R.string.pdf_report_title),
         filePrefix: String = "spend_report",
         share: Boolean = false,
         onShowNotification: (String, NotificationType) -> Unit
     ) {
         if (spends.isEmpty()) {
-            onShowNotification("No transactions to export", NotificationType.INFO)
+            onShowNotification(context.getString(R.string.no_transactions_to_export), NotificationType.INFO)
             return
         }
 
@@ -71,7 +73,6 @@ object PdfExporter {
             val boldTextPaint = TextPaint().apply {
                 isAntiAlias = true
                 textSize = 9f
-                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
                 color = Color.BLACK
             }
             val notesPaint = TextPaint().apply {
@@ -80,7 +81,7 @@ object PdfExporter {
                 color = Color.GRAY
             }
 
-            val locale = context.resources.configuration.locales[0]
+            val locale = activeAppLocale
             val sdf = SimpleDateFormat("dd MMM yy", locale)
             val generatedDate = SimpleDateFormat("dd MMM yyyy, hh:mm a", locale).format(Date())
             val totalAmount = spends.sumOf { it.amount }
@@ -97,15 +98,15 @@ object PdfExporter {
                 canvas.drawText(reportTitle, margin, y + 16f, titlePaint)
                 y += 22f
 
-                canvas.drawText("Generated on $generatedDate", margin, y + 8f, subtitlePaint)
+                canvas.drawText(context.getString(R.string.generated_on, generatedDate), margin, y + 8f, subtitlePaint)
                 y += 20f
 
                 // Clean Summary Row (No heavy background fill boxes or heavy borders)
-                canvas.drawText("TOTAL AMOUNT", margin, y + 10f, notesPaint)
+                canvas.drawText(context.getString(R.string.total_amount_capital), margin, y + 10f, notesPaint)
                 val formattedTotal = "₹${formatCurrency(totalAmount)}"
                 canvas.drawText(formattedTotal, margin, y + 28f, titlePaint)
 
-                val txCountText = "${spends.size} Transactions"
+                val txCountText = context.getString(R.string.transactions_count, spends.size)
                 val txWidth = boldTextPaint.measureText(txCountText)
                 canvas.drawText(txCountText, pageWidth - margin - txWidth, y + 24f, boldTextPaint)
 
@@ -124,11 +125,11 @@ object PdfExporter {
                 val colPurpose = margin + 180f
                 val colAmount = pageWidth - margin - 4f
 
-                canvas.drawText("Date", colDate, y + 12f, headerPaint)
-                canvas.drawText("App / Platform", colApp, y + 12f, headerPaint)
-                canvas.drawText("Purpose / Notes", colPurpose, y + 12f, headerPaint)
+                canvas.drawText(context.getString(R.string.entry_date_label), colDate, y + 12f, headerPaint)
+                canvas.drawText(context.getString(R.string.app_or_platform), colApp, y + 12f, headerPaint)
+                canvas.drawText(context.getString(R.string.purpose_or_notes), colPurpose, y + 12f, headerPaint)
 
-                val amtHeader = "Amount"
+                val amtHeader = context.getString(R.string.amount)
                 canvas.drawText(amtHeader, colAmount - headerPaint.measureText(amtHeader), y + 12f, headerPaint)
 
                 y += 18f
@@ -170,8 +171,8 @@ object PdfExporter {
                 }
 
                 val dateStr = sdf.format(Date(spend.timestamp))
-                val appStr = spend.appName.take(16)
-                val purposeStr = spend.purpose.take(28)
+                val appStr = getLocalizedPresetName(spend.appName).take(16)
+                val purposeStr = getLocalizedPresetName(spend.purpose).take(28)
                 val amtStr = "₹${formatCurrency(spend.amount)}"
 
                 canvas.drawText(dateStr, colDate, y + 12f, textPaint)
@@ -195,7 +196,7 @@ object PdfExporter {
             // End of Report footer
             y += 16f
             if (y + 16f <= pageHeight - margin) {
-                val endText = "* End of Report *"
+                val endText = context.getString(R.string.end_of_report)
                 canvas.drawText(
                     endText,
                     (pageWidth / 2 - subtitlePaint.measureText(endText) / 2),
@@ -227,7 +228,7 @@ object PdfExporter {
                     putExtra(Intent.EXTRA_SUBJECT, reportTitle)
                     addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
                 }
-                context.startActivity(Intent.createChooser(intent, "Share PDF Report"))
+                context.startActivity(Intent.createChooser(intent, context.getString(R.string.share_pdf_chooser)))
             } else {
                 val resolver = context.contentResolver
                 val contentValues = ContentValues().apply {
@@ -247,14 +248,14 @@ object PdfExporter {
                 uri?.let {
                     resolver.openOutputStream(it)?.use { os -> pdfDocument.writeTo(os) }
                     pdfDocument.close()
-                    onShowNotification("PDF Report saved to Downloads", NotificationType.SUCCESS)
+                    onShowNotification(context.getString(R.string.pdf_saved_to_downloads), NotificationType.SUCCESS)
                 } ?: run {
                     pdfDocument.close()
-                    onShowNotification("Failed to save PDF", NotificationType.ERROR)
+                    onShowNotification(context.getString(R.string.pdf_save_failed), NotificationType.ERROR)
                 }
             }
         } catch (e: Exception) {
-            onShowNotification("Failed to export PDF: ${e.message}", NotificationType.ERROR)
+            onShowNotification(context.getString(R.string.pdf_export_failed, e.message ?: ""), NotificationType.ERROR)
         }
     }
 }

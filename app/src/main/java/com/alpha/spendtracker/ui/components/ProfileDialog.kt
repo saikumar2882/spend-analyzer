@@ -39,6 +39,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.ui.theme.Spacing
 
 @Composable
@@ -74,7 +76,7 @@ fun ProfileDialog(
         containerColor = MaterialTheme.colorScheme.surfaceContainer,
         title = {
             Text(
-                text = "Your Profile",
+                text = stringResource(R.string.your_profile),
                 style = MaterialTheme.typography.titleLarge.copy(fontWeight = FontWeight.SemiBold),
                 color = MaterialTheme.colorScheme.onSurface
             )
@@ -144,7 +146,7 @@ fun ProfileDialog(
                     OutlinedTextField(
                         value = nameInput,
                         onValueChange = { if (it.length <= 60) nameInput = it },
-                        label = { Text("Full name") },
+                        label = { Text(stringResource(R.string.full_name)) },
                         placeholder = { Text(fallbackFromEmail.ifBlank { "e.g., Tsai Kumar" }) },
                         singleLine = true,
                         enabled = !isSaving,
@@ -165,7 +167,7 @@ fun ProfileDialog(
                     Spacer(modifier = Modifier.height(Spacing.xs))
 
                     Text(
-                        text = "Used for greetings across the app",
+                        text = stringResource(R.string.greeting_hint),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant,
                         modifier = Modifier.padding(start = 4.dp, top = 2.dp)
@@ -175,9 +177,9 @@ fun ProfileDialog(
 
                     Text(
                         text = if (!photoUrl.isNullOrBlank()) {
-                            "Profile photo loaded from your Google account."
+                            stringResource(R.string.google_photo_loaded)
                         } else {
-                            "Sign in with Google to use your Google profile photo."
+                            stringResource(R.string.google_photo_hint)
                         },
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
@@ -216,7 +218,7 @@ fun ProfileDialog(
                     )
                 } else {
                     Text(
-                        text = "Save",
+                        text = stringResource(R.string.save),
                         style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
                     )
                 }
@@ -228,7 +230,7 @@ fun ProfileDialog(
                 shape = CircleShape
             ) {
                 Text(
-                    text = "Close",
+                    text = stringResource(R.string.close),
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.primary
                 )

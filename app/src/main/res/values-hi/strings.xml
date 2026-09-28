@@ -1,0 +1,283 @@
+<resources>
+    <string name="app_name">स्पेंडली</string>
+    <string name="default_web_client_id">460156966019-r2qrfdrc2ucgn6bq177smm7o9fkb20gi.apps.googleusercontent.com</string>
+    <string name="voice_privacy_notice">आवाज़ Google की वाक् सेवा द्वारा संसाधित की जाती है</string>
+
+    <!-- Navigation & Common -->
+    <string name="cancel">रद्द करें</string>
+    <string name="apply">लागू करें</string>
+    <string name="update">अद्यतन करें</string>
+    <string name="back">वापस</string>
+    <string name="search_placeholder">खोजें...</string>
+    <string name="search_history_placeholder">खर्च, ऐप, नोट्स खोजें...</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">सेटिंग्स</string>
+    <string name="language_title">ऐप की भाषा</string>
+    <string name="language_subtitle">अपनी पसंदीदा भाषा चुनें</string>
+    <string name="select_language">भाषा चुनें</string>
+    <string name="language_system">सिस्टम डिफ़ॉल्ट</string>
+    <string name="language_english">English</string>
+    <string name="language_telugu">తెలుగు (Telugu)</string>
+    <string name="language_hindi">हिंदी (Hindi)</string>
+
+    <string name="theme_title">थीम</string>
+    <string name="theme_system">सिस्टम का पालन करें</string>
+    <string name="theme_light">लाइट मोड</string>
+    <string name="theme_dark">डार्क मोड</string>
+
+    <string name="biometric_title">बायोमेट्रिक लॉक</string>
+    <string name="biometric_subtitle">ऐप खोलने के लिए प्रमाणीकरण आवश्यक है</string>
+
+    <string name="account_security_title">खाता सुरक्षा</string>
+    <string name="account_security_subtitle">अपना पासवर्ड बदलें या रीसेट करें</string>
+
+    <string name="app_defaults_title">ऐप डिफ़ॉल्ट</string>
+
+    <string name="ai_assistant_title">एआई हिस्ट्री असिस्टेंट</string>
+    <string name="ai_assistant_subtitle">अपने खर्चों के बारे में प्रश्न पूछें</string>
+
+    <string name="recurring_bills_title">आवर्ती बिल</string>
+    <string name="recurring_bills_subtitle">सदस्यता और बिल रिमाइंडर प्रबंधित करें</string>
+
+    <string name="notes_title">नोट्स</string>
+    <string name="notes_subtitle">लेनदेन प्रविष्टियों का संग्रह</string>
+
+    <string name="share_app_title">ऐप शेयर करें</string>
+    <string name="share_app_subtitle">अपने दोस्तों को Spendly के बारे में बताएं</string>
+
+    <string name="sign_out_title">साइन आउट</string>
+    <string name="sign_out_subtitle">अपने खाते से लॉग आउट करें</string>
+
+    <!-- Dashboard & Main Tabs -->
+    <string name="dashboard_tab">डैशबोर्ड</string>
+    <string name="history_tab">इतिहास</string>
+    <string name="lend_borrow_tab">उधार व देना</string>
+    <string name="notes_tab">नोट्स</string>
+
+    <!-- Date & Time Filters -->
+    <string name="today">आज</string>
+    <string name="yesterday">कल</string>
+    <string name="week">सप्ताह</string>
+    <string name="month">महीना</string>
+    <string name="year">वर्ष</string>
+    <string name="all">सभी</string>
+    <string name="custom">कस्टम</string>
+
+    <!-- Dashboard -->
+    <string name="welcome_back">वापसी पर स्वागत है 👋</string>
+    <string name="hi_user">नमस्ते, %s 👋</string>
+    <string name="total_spent_today">आज का कुल खर्च</string>
+    <string name="total_spent_this_week">इस सप्ताह का कुल खर्च</string>
+    <string name="total_spent_this_month">इस महीने का कुल खर्च</string>
+    <string name="total_spent_this_year">इस वर्ष का कुल खर्च</string>
+    <string name="total_spent_all_time">कुल समय का खर्च</string>
+    <string name="total_spent_in_range">चयनित सीमा में कुल खर्च</string>
+    <string name="transactions_count">%d लेनदेन</string>
+    <string name="view_details">विवरण देखें ></string>
+    <string name="recent_activity">हाल की गतिविधि</string>
+    <string name="see_all">सभी देखें</string>
+    <string name="daily_avg">दैनिक औसत</string>
+    <string name="top_category">शीर्ष श्रेणी</string>
+    <string name="transactions">लेनदेन</string>
+    <string name="where_it_went">पैसा कहाँ गया</string>
+    <string name="no_transactions_yet">अभी कोई लेनदेन नहीं है</string>
+    <string name="add_first_expense">शुरू करने के लिए अपना पहला खर्च जोड़ें</string>
+    <string name="vs_last_period">पिछली अवधि की तुलना में</string>
+    <string name="projected_spend">अनुमानित खर्च</string>
+    <string name="top_channel">शीर्ष चैनल</string>
+    <string name="spending_breakdown">खर्च का विश्लेषण</string>
+    <string name="payment_apps_tab">भुगतान ऐप</string>
+    <string name="purpose_tab">उद्देश्य</string>
+    <string name="trend_tab">ट्रेंड</string>
+    <string name="total">कुल</string>
+    <string name="view_all">सभी देखें ></string>
+
+    <!-- Dues / Lend & Borrow -->
+    <string name="you_lent">आपने उधार दिया</string>
+    <string name="you_borrowed">आपने उधार लिया</string>
+    <string name="total_outstanding_to_you">आपको मिलने वाली कुल राशि</string>
+    <string name="total_outstanding_by_you">आपको देनी कुल राशि</string>
+    <string name="across_people">%d लोगों के बीच</string>
+
+    <!-- History Screen -->
+    <string name="history_title">इतिहास</string>
+    <string name="total_spend">कुल खर्च</string>
+
+    <!-- Notes Screen -->
+    <string name="subtotal">उप-कुल</string>
+    <string name="entries_count">%d प्रविष्टियां</string>
+    <string name="untitled">बिना शीर्षक</string>
+
+    <!-- Speed Dial FAB Actions -->
+    <string name="ai_log">एआई लॉग</string>
+    <string name="voice">वॉइस</string>
+    <string name="manual">मैनुअल</string>
+
+    <!-- AI Assistant & Sheets -->
+    <string name="ai_assistant_header">एआई असिस्टेंट</string>
+    <string name="ask_ai_placeholder">अपने खर्चों के बारे में कुछ भी पूछें...</string>
+    <string name="thinking">सोच रहा है...</string>
+    <string name="ask_button">पूछें</string>
+    <string name="ai_input_title">एआई के साथ त्वरित लॉग</string>
+    <string name="ai_input_placeholder">जैसे Swiggy पर दोपहर के भोजन के लिए 250 का भुगतान किया...</string>
+    <string name="ai_input_hint">अपने खर्च का विवरण टाइप या पेस्ट करें...</string>
+    <string name="review_transaction">लेनदेन की समीक्षा करें</string>
+    <string name="confirm_and_save">पुष्टि करें और सहेजें</string>
+    <string name="edit_details">विवरण संपादित करें</string>
+
+    <!-- Voice Input Overlay -->
+    <string name="voice_input_title">वॉइस इनपुट</string>
+    <string name="listening">सुन रहा है...</string>
+    <string name="speak_now">अब बोलें, जैसे \'Google Pay पर पेट्रोल के लिए 150 खर्च किए\'</string>
+    <string name="processing_voice">आवाज़ संसाधित हो रही है...</string>
+    <string name="try_again">पुनः प्रयास करें</string>
+
+    <!-- Add Expense Form -->
+    <string name="add_expense">खर्च जोड़ें</string>
+    <string name="log_transaction">लेनदेन दर्ज करें</string>
+    <string name="edit_transaction">लेनदेन संपादित करें</string>
+    <string name="amount">राशि</string>
+    <string name="enter_amount">राशि दर्ज करें</string>
+    <string name="category">श्रेणी</string>
+    <string name="purpose">उद्देश्य</string>
+    <string name="payment_app">भुगतान ऐप</string>
+    <string name="select_payment_app">भुगतान ऐप / वॉलेट</string>
+    <string name="enter_app_name">ऐप / प्लेटफॉर्म का नाम दर्ज करें</string>
+    <string name="date_and_time">दिनांक और समय</string>
+    <string name="note_detail_optional">नोट्स / विवरण (वैकल्पिक)</string>
+    <string name="save">सहेजें</string>
+
+    <!-- Auth / Login / Register -->
+    <string name="login_title">साइन इन करें</string>
+    <string name="login_subtitle">वापसी पर स्वागत है! कृपया अपना विवरण दर्ज करें।</string>
+    <string name="register_title">खाता बनाएं</string>
+    <string name="register_subtitle">आसानी से अपने वित्त को ट्रैक करने के लिए साइन अप करें।</string>
+    <string name="email">ईमेल</string>
+    <string name="password">पासवर्ड</string>
+    <string name="confirm_password">पासवर्ड की पुष्टि करें</string>
+    <string name="full_name">पूरा नाम</string>
+    <string name="sign_in">साइन इन करें</string>
+    <string name="sign_up">साइन अप करें</string>
+    <string name="or_continue_with">या इसके साथ जारी रखें</string>
+    <string name="google_sign_in">Google के साथ साइन इन करें</string>
+    <string name="dont_have_account">खाता नहीं है?</string>
+    <string name="already_have_account">पहले से ही खाता है?</string>
+    <string name="forgot_password">पासवर्ड भूल गए?</string>
+
+    <!-- PDF Export & Reports -->
+    <string name="pdf_report_title">लेनदेन इतिहास रिपोर्ट</string>
+    <string name="share_pdf">PDF शेयर करें</string>
+    <string name="save_pdf">PDF सहेजें</string>
+    <string name="no_transactions_to_export">निर्यात करने के लिए कोई लेनदेन नहीं है</string>
+    <string name="generated_on">%s को तैयार किया गया</string>
+    <string name="total_amount_capital">कुल राशि</string>
+    <string name="end_of_report">* रिपोर्ट समाप्त *</string>
+    <string name="pdf_saved_to_downloads">PDF रिपोर्ट डाउनलोड में सहेजी गई</string>
+    <string name="pdf_save_failed">PDF सहेजना विफल रहा</string>
+    <string name="pdf_export_failed">PDF निर्यात विफल: %s</string>
+    <string name="share_pdf_chooser">PDF रिपोर्ट शेयर करें</string>
+    <string name="app_or_platform">ऐप / प्लेटफॉर्म</string>
+    <string name="purpose_or_notes">उद्देश्य / नोट्स</string>
+
+    <!-- Filters & Search -->
+    <string name="apply_filters">फ़िल्टर लागू करें</string>
+    <string name="min_max_amount">न्यूनतम और अधिकतम राशि</string>
+    <string name="reset">रीसेट</string>
+    <string name="max">अधिकतम</string>
+    <string name="filter_by_app">ऐप द्वारा फ़िल्टर करें</string>
+
+    <!-- Recycle Bin & History Trash -->
+    <string name="recycle_bin">रीसायकल बिन</string>
+    <string name="update_history">अद्यतन इतिहास</string>
+    <string name="notes_history">नोट्स इतिहास</string>
+    <string name="dues_history">बकाया इतिहास</string>
+    <string name="empty_recycle_bin_title">रीसायकल बिन खाली करें?</string>
+    <string name="clear_update_history_title">अद्यतन इतिहास साफ करें?</string>
+    <string name="empty_recycle_bin_message">यह रीसायकल बिन के सभी रिकॉर्ड को स्थायी रूप से हटा देगा। इस कार्रवाई को पूर्ववत नहीं किया जा सकता है।</string>
+    <string name="clear_update_history_message">यह सभी ट्रैक किए गए परिवर्तनों को स्थायी रूप से हटा देगा। इस कार्रवाई को पूर्ववत नहीं किया जा सकता है।</string>
+    <string name="delete_all">सभी हटाएं</string>
+    <string name="empty_trash">ट्रैश खाली करें</string>
+    <string name="clear_all">सभी साफ करें</string>
+    <string name="trash_retention_notice">हटाई गई वस्तुएं स्थायी रूप से हटाने से पहले 30 दिनों तक रखी जाती हैं।</string>
+    <string name="trash_empty">आपका ट्रैश खाली है</string>
+    <string name="no_modifications_tracked">अभी तक कोई संशोधन ट्रैक नहीं किया गया</string>
+    <string name="expires_today">आज ही समाप्त हो रहा है</string>
+    <string name="days_left">%d दिन शेष</string>
+    <string name="delete_transaction_title">लेनदेन हटाएं?</string>
+    <string name="delete_transaction_message">क्या आप निश्चित रूप से इस लेनदेन को हटाना चाहते हैं?</string>
+    <string name="delete">हटाएं</string>
+
+    <!-- AI Assistant Examples & AI Input -->
+    <string name="ai_example_1">इस महीने के मेरे खर्चों का सारांश दें</string>
+    <string name="ai_example_2">अभी मुझे किसे पैसे देने हैं?</string>
+    <string name="ai_example_3">इस सप्ताह मैंने भोजन पर क्या खर्च किया?</string>
+    <string name="ai_example_4">पिछले महीने की शीर्ष 3 श्रेणियां</string>
+    <string name="ai_example_5">मई बनाम अप्रैल के खर्चों की तुलना करें</string>
+    <string name="ai_example_6">व्यक्ति के अनुसार मेरे सभी उधार दिखाएं</string>
+    <string name="requests_left">%d शेष</string>
+    <string name="try_asking">उदाहरण / प्रश्न</string>
+
+    <!-- Notes Screen & History -->
+    <string name="new_note">नया नोट</string>
+    <string name="edit_note">नोट संपादित करें</string>
+    <string name="delete_note_title">नोट हटाएं?</string>
+    <string name="delete_note_message">\'%s\' और उसकी सभी प्रविष्टियों को हटाएं? इसे पूर्ववत नहीं किया जा सकता।</string>
+    <string name="delete_entry_title">प्रविष्टि हटाएं?</string>
+    <string name="delete_entry_message">\'%s\' को हटाएं?</string>
+    <string name="add_entry">प्रविष्टि जोड़ें</string>
+    <string name="edit_entry">प्रविष्टि संपादित करें</string>
+    <string name="note_title_label">शीर्षक</string>
+    <string name="note_color_label">रंग</string>
+    <string name="entry_name_label">नाम</string>
+    <string name="entry_date_label">दिनांक</string>
+    <string name="entry_amount_optional">राशि (वैकल्पिक)</string>
+    <string name="entry_note_optional">नोट (वैकल्पिक)</string>
+    <string name="add_field">फ़ील्ड जोड़ें</string>
+    <string name="field_title">शीर्षक</string>
+    <string name="field_value">मान</string>
+    <string name="log_as_transaction">लेनदेन के रूप में दर्ज करें</string>
+
+    <!-- Recurring Bills & Subscriptions -->
+    <string name="bills_and_subscriptions">बिल और सदस्यता</string>
+    <string name="credit_cards">क्रेडिट कार्ड</string>
+    <string name="add_recurring_bill">आवर्ती बिल जोड़ें</string>
+    <string name="edit_recurring_bill">आवर्ती बिल संपादित करें</string>
+    <string name="bill_name">बिल / सदस्यता का नाम</string>
+    <string name="card_name">कार्ड का नाम</string>
+    <string name="last_4_digits">अंतिम 4 अंक</string>
+    <string name="due_day_of_month">भुगतान की तारीख</string>
+    <string name="no_bills_tracked">अभी तक कोई आवर्ती बिल नहीं है</string>
+    <string name="add_bill_hint">सदस्यता या क्रेडिट कार्ड बिल जोड़ने के लिए + दबाएं</string>
+    <string name="due_today">आज ही देय है</string>
+    <string name="due_in_days">%d दिनों में देय है</string>
+    <string name="overdue_by_days">%d दिन विलंबित</string>
+
+    <!-- Biometric & Lock -->
+    <string name="app_lock_title">ऐप लॉक</string>
+    <string name="unlock_spendly">स्पेंडली अनलॉक करें</string>
+    <string name="biometric_prompt_subtitle">अपने वित्तीय डेटा तक पहुंचने के लिए प्रमाणीकृत करें</string>
+    <string name="biometric_not_available">इस डिवाइस पर बायोमेट्रिक प्रमाणीकरण उपलब्ध नहीं है</string>
+
+    <!-- Account Security -->
+    <string name="change_password">पासवर्ड बदलें</string>
+    <string name="current_password">वर्तमान पासवर्ड</string>
+    <string name="new_password">नया पासवर्ड</string>
+    <string name="passwords_do_not_match">पासवर्ड मेल नहीं खाते</string>
+    <string name="password_updated">पासवर्ड सफलतापूर्वक अद्यतन किया गया</string>
+
+    <!-- Share App -->
+    <string name="share_app_text">Spendly - आसान खर्च ट्रैकर ऐप देखें! अपने खर्च, उधार और बिलों को आसानी से ट्रैक करें।</string>
+    <string name="share_app_chooser">Spendly को इसके माध्यम से शेयर करें</string>
+
+    <!-- AI App Defaults -->
+    <string name="default_payment_app">डिफ़ॉल्ट भुगतान ऐप</string>
+    <string name="default_app_subtitle">लेनदेन दर्ज करते समय असाइन किया जाने वाला डिफ़ॉल्ट ऐप चुनें</string>
+
+    <!-- Profile Dialog -->
+    <string name="your_profile">आपकी प्रोफ़ाइल</string>
+    <string name="greeting_hint">ऐप में शुभकामनाओं के लिए उपयोग किया जाता है</string>
+    <string name="google_photo_loaded">आपकी Google प्रोफ़ाइल फ़ोटो लोड की गई।</string>
+    <string name="google_photo_hint">अपनी Google फ़ोटो का उपयोग करने के लिए Google से साइन इन करें।</string>
+    <string name="close">बंद करें</string>
+</resources>

@@ -2,4 +2,282 @@
     <string name="app_name">Spendly</string>
     <string name="default_web_client_id">460156966019-r2qrfdrc2ucgn6bq177smm7o9fkb20gi.apps.googleusercontent.com</string>
     <string name="voice_privacy_notice">Voice is processed by Google\'s speech service</string>
+
+    <!-- Navigation & Common -->
+    <string name="cancel">Cancel</string>
+    <string name="apply">Apply</string>
+    <string name="update">Update</string>
+    <string name="back">Back</string>
+    <string name="search_placeholder">Search...</string>
+    <string name="search_history_placeholder">Search spends, apps, notes...</string>
+
+    <!-- Settings Screen -->
+    <string name="settings_title">Settings</string>
+    <string name="language_title">App Language</string>
+    <string name="language_subtitle">Select your preferred language</string>
+    <string name="select_language">Select Language</string>
+    <string name="language_system">System Default</string>
+    <string name="language_english">English</string>
+    <string name="language_telugu">తెలుగు (Telugu)</string>
+    <string name="language_hindi">हिंदी (Hindi)</string>
+
+    <string name="theme_title">Theme</string>
+    <string name="theme_system">Follow system</string>
+    <string name="theme_light">Light mode</string>
+    <string name="theme_dark">Dark mode</string>
+
+    <string name="biometric_title">Biometric Lock</string>
+    <string name="biometric_subtitle">Require authentication to open the app</string>
+
+    <string name="account_security_title">Account Security</string>
+    <string name="account_security_subtitle">Change or reset your password</string>
+
+    <string name="app_defaults_title">App Defaults</string>
+
+    <string name="ai_assistant_title">AI History Assistant</string>
+    <string name="ai_assistant_subtitle">Ask questions about your spending</string>
+
+    <string name="recurring_bills_title">Recurring Bills</string>
+    <string name="recurring_bills_subtitle">Manage subscriptions and bill reminders</string>
+
+    <string name="notes_title">Notes</string>
+    <string name="notes_subtitle">Custom collections of transaction entries</string>
+
+    <string name="share_app_title">Share App</string>
+    <string name="share_app_subtitle">Tell your friends about Spendly</string>
+
+    <string name="sign_out_title">Sign Out</string>
+    <string name="sign_out_subtitle">Log out of your account</string>
+
+    <!-- Dashboard & Main Tabs -->
+    <string name="dashboard_tab">Dashboard</string>
+    <string name="history_tab">History</string>
+    <string name="lend_borrow_tab">Lend &amp; Borrow</string>
+    <string name="notes_tab">Notes</string>
+
+    <!-- Date & Time Filters -->
+    <string name="today">Today</string>
+    <string name="yesterday">Yesterday</string>
+    <string name="week">Week</string>
+    <string name="month">Month</string>
+    <string name="year">Year</string>
+    <string name="all">All</string>
+    <string name="custom">Custom</string>
+
+    <!-- Dashboard -->
+    <string name="welcome_back">Welcome back 👋</string>
+    <string name="hi_user">Hi, %s 👋</string>
+    <string name="total_spent_today">Total spent today</string>
+    <string name="total_spent_this_week">Total spent this week</string>
+    <string name="total_spent_this_month">Total spent this month</string>
+    <string name="total_spent_this_year">Total spent this year</string>
+    <string name="total_spent_all_time">Total spent all time</string>
+    <string name="total_spent_in_range">Total spent in range</string>
+    <string name="transactions_count">%d transactions</string>
+    <string name="view_details">View details ></string>
+    <string name="recent_activity">Recent Activity</string>
+    <string name="see_all">See all</string>
+    <string name="daily_avg">Daily Avg</string>
+    <string name="top_category">Top Category</string>
+    <string name="transactions">Transactions</string>
+    <string name="where_it_went">Where It Went</string>
+    <string name="no_transactions_yet">No transactions yet</string>
+    <string name="add_first_expense">Add your first expense to get started</string>
+    <string name="vs_last_period">vs last period</string>
+    <string name="projected_spend">Projected spend</string>
+    <string name="top_channel">Top channel</string>
+    <string name="spending_breakdown">Spending Breakdown</string>
+    <string name="payment_apps_tab">Payment Apps</string>
+    <string name="purpose_tab">Purpose</string>
+    <string name="trend_tab">Trend</string>
+    <string name="total">Total</string>
+    <string name="view_all">View all ></string>
+
+    <!-- Dues / Lend & Borrow -->
+    <string name="you_lent">You lent</string>
+    <string name="you_borrowed">You borrowed</string>
+    <string name="total_outstanding_to_you">Total outstanding (to you)</string>
+    <string name="total_outstanding_by_you">Total outstanding (from you)</string>
+    <string name="across_people">Across %d people</string>
+
+    <!-- History Screen -->
+    <string name="history_title">History</string>
+    <string name="total_spend">Total Spend</string>
+
+    <!-- Notes Screen -->
+    <string name="subtotal">Subtotal</string>
+    <string name="entries_count">%d entries</string>
+    <string name="untitled">Untitled</string>
+
+    <!-- Speed Dial FAB Actions -->
+    <string name="ai_log">AI log</string>
+    <string name="voice">Voice</string>
+    <string name="manual">Manual</string>
+
+    <!-- AI Assistant & Sheets -->
+    <string name="ai_assistant_header">AI Assistant</string>
+    <string name="ask_ai_placeholder">Ask anything about your expenses...</string>
+    <string name="thinking">Thinking...</string>
+    <string name="ask_button">Ask</string>
+    <string name="ai_input_title">Quick Log with AI</string>
+    <string name="ai_input_placeholder">e.g. Paid 250 for lunch on Swiggy...</string>
+    <string name="ai_input_hint">Type or paste your expense details...</string>
+    <string name="review_transaction">Review Transaction</string>
+    <string name="confirm_and_save">Confirm &amp; Save</string>
+    <string name="edit_details">Edit Details</string>
+
+    <!-- Voice Input Overlay -->
+    <string name="voice_input_title">Voice Input</string>
+    <string name="listening">Listening...</string>
+    <string name="speak_now">Speak now, e.g., \'Spent 150 for petrol on Google Pay\'</string>
+    <string name="processing_voice">Processing voice...</string>
+    <string name="try_again">Try Again</string>
+
+    <!-- Add Expense Form -->
+    <string name="add_expense">Add Expense</string>
+    <string name="log_transaction">Log Transaction</string>
+    <string name="edit_transaction">Edit Transaction</string>
+    <string name="amount">Amount</string>
+    <string name="enter_amount">Enter Amount</string>
+    <string name="category">Category</string>
+    <string name="purpose">Purpose</string>
+    <string name="payment_app">Payment App</string>
+    <string name="select_payment_app">Payment App / Wallet</string>
+    <string name="enter_app_name">Enter App / Platform Name</string>
+    <string name="date_and_time">Date &amp; Time</string>
+    <string name="note_detail_optional">Notes / Details (Optional)</string>
+    <string name="save">Save</string>
+
+    <!-- Auth / Login / Register -->
+    <string name="login_title">Sign In</string>
+    <string name="login_subtitle">Welcome back! Please enter your details.</string>
+    <string name="register_title">Create Account</string>
+    <string name="register_subtitle">Sign up to track your finances effortlessly.</string>
+    <string name="email">Email</string>
+    <string name="password">Password</string>
+    <string name="confirm_password">Confirm Password</string>
+    <string name="full_name">Full Name</string>
+    <string name="sign_in">Sign In</string>
+    <string name="sign_up">Sign Up</string>
+    <string name="or_continue_with">Or continue with</string>
+    <string name="google_sign_in">Sign in with Google</string>
+    <string name="dont_have_account">Don\'t have an account?</string>
+    <string name="already_have_account">Already have an account?</string>
+    <string name="forgot_password">Forgot password?</string>
+
+    <!-- PDF Export & Reports -->
+    <string name="pdf_report_title">Transaction History Report</string>
+    <string name="share_pdf">Share PDF</string>
+    <string name="save_pdf">Save PDF</string>
+    <string name="no_transactions_to_export">No transactions to export</string>
+    <string name="generated_on">Generated on %s</string>
+    <string name="total_amount_capital">TOTAL AMOUNT</string>
+    <string name="end_of_report">* End of Report *</string>
+    <string name="pdf_saved_to_downloads">PDF Report saved to Downloads</string>
+    <string name="pdf_save_failed">Failed to save PDF</string>
+    <string name="pdf_export_failed">Failed to export PDF: %s</string>
+    <string name="share_pdf_chooser">Share PDF Report</string>
+    <string name="app_or_platform">App / Platform</string>
+    <string name="purpose_or_notes">Purpose / Notes</string>
+
+    <!-- Filters & Search -->
+    <string name="apply_filters">Apply Filters</string>
+    <string name="min_max_amount">Min &amp; Max Amount</string>
+    <string name="reset">Reset</string>
+    <string name="max">Max</string>
+    <string name="filter_by_app">Filter by App</string>
+
+    <!-- Recycle Bin & History Trash -->
+    <string name="recycle_bin">Recycle Bin</string>
+    <string name="update_history">Update History</string>
+    <string name="notes_history">Notes History</string>
+    <string name="dues_history">Dues History</string>
+    <string name="empty_recycle_bin_title">Empty Recycle Bin?</string>
+    <string name="clear_update_history_title">Clear Update History?</string>
+    <string name="empty_recycle_bin_message">This will permanently delete all records in the Recycle Bin. This action cannot be undone.</string>
+    <string name="clear_update_history_message">This will permanently remove all tracked modifications. This action cannot be undone.</string>
+    <string name="delete_all">Delete All</string>
+    <string name="empty_trash">Empty Trash</string>
+    <string name="clear_all">Clear All</string>
+    <string name="trash_retention_notice">Deleted items are kept for 30 days before permanent removal.</string>
+    <string name="trash_empty">Your trash is empty</string>
+    <string name="no_modifications_tracked">No modifications tracked yet</string>
+    <string name="expires_today">Expires today</string>
+    <string name="days_left">%d days left</string>
+    <string name="delete_transaction_title">Delete Transaction?</string>
+    <string name="delete_transaction_message">Are you sure you want to delete this transaction?</string>
+    <string name="delete">Delete</string>
+
+    <!-- AI Assistant Examples & AI Input -->
+    <string name="ai_example_1">Summarize my spending this month</string>
+    <string name="ai_example_2">Who do I owe money to right now?</string>
+    <string name="ai_example_3">What did I spend on food this week?</string>
+    <string name="ai_example_4">Top 3 categories of last month</string>
+    <string name="ai_example_5">Compare May vs April spending</string>
+    <string name="ai_example_6">Show all my lendings grouped by person</string>
+    <string name="requests_left">%d left</string>
+    <string name="try_asking">Examples / Prompts</string>
+
+    <!-- Notes Screen & History -->
+    <string name="new_note">New Note</string>
+    <string name="edit_note">Edit Note</string>
+    <string name="delete_note_title">Delete Note?</string>
+    <string name="delete_note_message">Delete \'%s\' and all of its entries? This can\'t be undone.</string>
+    <string name="delete_entry_title">Delete Entry?</string>
+    <string name="delete_entry_message">Delete \'%s\'?</string>
+    <string name="add_entry">Add Entry</string>
+    <string name="edit_entry">Edit Entry</string>
+    <string name="note_title_label">Title</string>
+    <string name="note_color_label">Color</string>
+    <string name="entry_name_label">Name</string>
+    <string name="entry_date_label">Date</string>
+    <string name="entry_amount_optional">Amount (Optional)</string>
+    <string name="entry_note_optional">Note (Optional)</string>
+    <string name="add_field">Add field</string>
+    <string name="field_title">Title</string>
+    <string name="field_value">Value</string>
+    <string name="log_as_transaction">Log as transaction</string>
+
+    <!-- Recurring Bills & Subscriptions -->
+    <string name="bills_and_subscriptions">Bills &amp; Subscriptions</string>
+    <string name="credit_cards">Credit Cards</string>
+    <string name="add_recurring_bill">Add Recurring Bill</string>
+    <string name="edit_recurring_bill">Edit Recurring Bill</string>
+    <string name="bill_name">Bill / Subscription Name</string>
+    <string name="card_name">Card Name</string>
+    <string name="last_4_digits">Last 4 Digits</string>
+    <string name="due_day_of_month">Due Day of Month</string>
+    <string name="no_bills_tracked">No recurring bills tracked yet</string>
+    <string name="add_bill_hint">Tap + to add a subscription or credit card bill</string>
+    <string name="due_today">Due today</string>
+    <string name="due_in_days">Due in %d days</string>
+    <string name="overdue_by_days">Overdue by %d days</string>
+
+    <!-- Biometric & Lock -->
+    <string name="app_lock_title">App Lock</string>
+    <string name="unlock_spendly">Unlock Spendly</string>
+    <string name="biometric_prompt_subtitle">Authenticate to access your spending data</string>
+    <string name="biometric_not_available">Biometric authentication not available on this device</string>
+
+    <!-- Account Security -->
+    <string name="change_password">Change Password</string>
+    <string name="current_password">Current Password</string>
+    <string name="new_password">New Password</string>
+    <string name="passwords_do_not_match">Passwords do not match</string>
+    <string name="password_updated">Password updated successfully</string>
+
+    <!-- Share App -->
+    <string name="share_app_text">Check out Spendly - the effortless expense tracker app! Track your spends, lendings, and bills easily.</string>
+    <string name="share_app_chooser">Share Spendly via</string>
+
+    <!-- AI App Defaults -->
+    <string name="default_payment_app">Default Payment App</string>
+    <string name="default_app_subtitle">Choose the default app assigned when logging transactions</string>
+
+    <!-- Profile Dialog -->
+    <string name="your_profile">Your Profile</string>
+    <string name="greeting_hint">Used for greetings across the app</string>
+    <string name="google_photo_loaded">Profile photo loaded from your Google account.</string>
+    <string name="google_photo_hint">Sign in with Google to use your Google profile photo.</string>
+    <string name="close">Close</string>
 </resources>

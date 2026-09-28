@@ -1,6 +1,7 @@
 package com.alpha.spendtracker.ui.screens
 
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
@@ -22,14 +23,19 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.RecurringBill
 import com.alpha.spendtracker.ui.components.APP_COLOR_BY_NAME
 import com.alpha.spendtracker.ui.components.APP_PRESETS
+import com.alpha.spendtracker.ui.components.getLocalizedPresetName
 import com.alpha.spendtracker.ui.components.AppIconImage
 import com.alpha.spendtracker.ui.components.SwipeableLogCard
 import com.alpha.spendtracker.ui.components.formatCurrency
+import androidx.compose.ui.draw.scale
 import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.Spacing
+import com.alpha.spendtracker.ui.theme.rememberPressScale
 import java.util.Calendar
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -120,12 +126,17 @@ fun RecurringBillsScreen(
                             val activeBg = if (index == 0) MaterialTheme.colorScheme.primaryContainer else MaterialTheme.colorScheme.tertiaryContainer
                             val activeFg = if (index == 0) MaterialTheme.colorScheme.onPrimaryContainer else MaterialTheme.colorScheme.onTertiaryContainer
 
+                            val tabInteraction = remember { MutableInteractionSource() }
+                            val tabScale = rememberPressScale(tabInteraction)
                             Surface(
                                 onClick = { selectedTab = index },
+                                interactionSource = tabInteraction,
                                 shape = CircleShape,
                                 color = if (isSelected) activeBg else Color.Transparent,
                                 border = null,
-                                modifier = Modifier.weight(1f)
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .scale(tabScale)
                             ) {
                                 Box(
                                     modifier = Modifier.padding(vertical = 10.dp),
@@ -164,13 +175,13 @@ fun RecurringBillsScreen(
                     )
                     Spacer(modifier = Modifier.height(Spacing.md))
                     Text(
-                        if (selectedTab == 1) "No credit cards added yet" else "No bills or subscriptions yet",
+                        if (selectedTab == 1) stringResource(R.string.no_bills_tracked) else stringResource(R.string.no_bills_tracked),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                         color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(Spacing.xs))
                     Text(
-                        if (selectedTab == 1) "Tap + to manage credit card bills & due dates." else "Tap + to add rent, utilities, driver, maid, or subscriptions.",
+                        stringResource(R.string.add_bill_hint),
                         style = MaterialTheme.typography.bodyMedium,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -206,20 +217,19 @@ fun RecurringBillsScreen(
         if (billToDelete != null) {
             AlertDialog(
                 onDismissRequest = { billToDelete = null },
-                title = { Text("Delete Recurring Bill") },
-                text = { Text("Are you sure you want to delete '${billToDelete?.name}'?") },
+                title = { Text(stringResource(R.string.delete_transaction_title)) },
+                text = { Text(stringResource(R.string.delete_entry_message, billToDelete?.name.orEmpty())) },
                 confirmButton = {
                     TextButton(
                         onClick = {
-                            billToDelete?.let { onDeleteBill(it) }
+                            val target = billToDelete
+                            if (target != null) onDeleteBill(target)
                             billToDelete = null
                         },
                         colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
-                    ) { Text("Delete") }
+                    ) { Text(stringResource(R.string.delete)) }
                 },
-                dismissButton = {
-                    TextButton(onClick = { billToDelete = null }) { Text("Cancel") }
-                }
+                dismissButton = { TextButton(onClick = { billToDelete = null }) { Text(stringResource(R.string.cancel)) } }
             )
         }
 
@@ -278,9 +288,14 @@ fun RecurringBillItem(
     val dueColor = if (daysUntil <= 5) MaterialTheme.colorScheme.error
                    else MaterialTheme.colorScheme.onSurfaceVariant
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     Surface(
         onClick = onClick,
-        modifier = modifier.fillMaxWidth(),
+        interactionSource = interactionSource,
+        modifier = modifier
+            .fillMaxWidth()
+            .scale(scale),
         color = Color.Transparent,
         shape = RoundedCornerShape(Radius.md)
     ) {
@@ -346,7 +361,7 @@ fun RecurringBillItem(
                         )
                     } else if (!bill.isCreditCardBill && bill.appName.isNotBlank()) {
                         Text(
-                            text = bill.appName,
+                            text = getLocalizedPresetName(bill.appName),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -449,17 +464,17 @@ fun BillEditDialog(
 
     AlertDialog(
         onDismissRequest = onDismiss,
-        title = { Text(if (bill == null) (if (isCreditCardMode) "Add Credit Card" else "Add Bill / Subscription") else "Edit Item") },
+        title = { Text(if (bill == null) (if (isCreditCardMode) stringResource(R.string.credit_cards) else stringResource(R.string.add_recurring_bill)) else stringResource(R.string.edit_recurring_bill)) },
         text = {
             Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
                 // 1. Purpose Dropdown shown first
                 var purposeExpanded by remember { mutableStateOf(false) }
                 ExposedDropdownMenuBox(expanded = purposeExpanded, onExpandedChange = { purposeExpanded = it }) {
                     OutlinedTextField(
-                        value = purpose,
+                        value = getLocalizedPresetName(purpose),
                         onValueChange = {},
                         readOnly = true,
-                        label = { Text("Purpose / Category") },
+                        label = { Text(stringResource(R.string.purpose)) },
                         trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = purposeExpanded) },
                         modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                         shape = RoundedCornerShape(14.dp),
@@ -468,7 +483,7 @@ fun BillEditDialog(
                     ExposedDropdownMenu(expanded = purposeExpanded, onDismissRequest = { purposeExpanded = false }) {
                         purposeOptions.forEach { p ->
                             DropdownMenuItem(
-                                text = { Text(p) },
+                                text = { Text(getLocalizedPresetName(p)) },
                                 onClick = {
                                     purpose = p
                                     isCreditCardMode = p.contains("Credit Card", ignoreCase = true)
@@ -483,7 +498,7 @@ fun BillEditDialog(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Card Name / Bank") },
+                        label = { Text(stringResource(R.string.card_name)) },
                         placeholder = { Text("e.g. HDFC Regalia, ICICI Amazon") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -494,7 +509,7 @@ fun BillEditDialog(
                     OutlinedTextField(
                         value = cardLast4,
                         onValueChange = { if (it.length <= 4 && it.all { char -> char.isDigit() }) cardLast4 = it },
-                        label = { Text("Last 4 Digits") },
+                        label = { Text(stringResource(R.string.last_4_digits)) },
                         placeholder = { Text("e.g. 4321") },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
@@ -506,7 +521,7 @@ fun BillEditDialog(
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) amount = it },
-                        label = { Text("Statement / Bill Amount (Optional)") },
+                        label = { Text(stringResource(R.string.entry_amount_optional)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -517,10 +532,10 @@ fun BillEditDialog(
                     var appExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(expanded = appExpanded, onExpandedChange = { appExpanded = it }) {
                         OutlinedTextField(
-                            value = appName,
+                            value = getLocalizedPresetName(appName),
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Default Payment App") },
+                            label = { Text(stringResource(R.string.default_payment_app)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = appExpanded) },
                             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
@@ -529,7 +544,7 @@ fun BillEditDialog(
                         ExposedDropdownMenu(expanded = appExpanded, onDismissRequest = { appExpanded = false }) {
                             APP_PRESETS.forEach { preset ->
                                 DropdownMenuItem(
-                                    text = { Text(preset.displayName) },
+                                    text = { Text(getLocalizedPresetName(preset.displayName)) },
                                     onClick = {
                                         appName = preset.displayName
                                         appExpanded = false
@@ -542,7 +557,7 @@ fun BillEditDialog(
                     OutlinedTextField(
                         value = day,
                         onValueChange = { if (it.isEmpty() || (it.toIntOrNull() in 1..31)) day = it },
-                        label = { Text("Statement Due Day of Month (1-31)") },
+                        label = { Text(stringResource(R.string.due_day_of_month)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -553,7 +568,7 @@ fun BillEditDialog(
                     OutlinedTextField(
                         value = name,
                         onValueChange = { name = it },
-                        label = { Text("Bill / Subscription Name") },
+                        label = { Text(stringResource(R.string.bill_name)) },
                         placeholder = { Text("e.g. Rent, Maid, Driver, YouTube") },
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -564,7 +579,7 @@ fun BillEditDialog(
                     OutlinedTextField(
                         value = amount,
                         onValueChange = { if (it.isEmpty() || it.matches(Regex("""^\d*\.?\d*$"""))) amount = it },
-                        label = { Text("Amount (Optional)") },
+                        label = { Text(stringResource(R.string.entry_amount_optional)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -575,10 +590,10 @@ fun BillEditDialog(
                     var appExpanded by remember { mutableStateOf(false) }
                     ExposedDropdownMenuBox(expanded = appExpanded, onExpandedChange = { appExpanded = it }) {
                         OutlinedTextField(
-                            value = appName,
+                            value = getLocalizedPresetName(appName),
                             onValueChange = {},
                             readOnly = true,
-                            label = { Text("Default App") },
+                            label = { Text(stringResource(R.string.payment_app)) },
                             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = appExpanded) },
                             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
                             shape = RoundedCornerShape(14.dp),
@@ -587,7 +602,7 @@ fun BillEditDialog(
                         ExposedDropdownMenu(expanded = appExpanded, onDismissRequest = { appExpanded = false }) {
                             APP_PRESETS.forEach { preset ->
                                 DropdownMenuItem(
-                                    text = { Text(preset.displayName) },
+                                    text = { Text(getLocalizedPresetName(preset.displayName)) },
                                     onClick = {
                                         appName = preset.displayName
                                         appExpanded = false
@@ -600,7 +615,7 @@ fun BillEditDialog(
                     OutlinedTextField(
                         value = day,
                         onValueChange = { if (it.isEmpty() || (it.toIntOrNull() in 1..31)) day = it },
-                        label = { Text("Day of Month (1-31)") },
+                        label = { Text(stringResource(R.string.due_day_of_month)) },
                         keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                         singleLine = true,
                         modifier = Modifier.fillMaxWidth(),
@@ -612,7 +627,7 @@ fun BillEditDialog(
                 OutlinedTextField(
                     value = notes,
                     onValueChange = { notes = it },
-                    label = { Text("Notes (Optional)") },
+                    label = { Text(stringResource(R.string.note_detail_optional)) },
                     singleLine = true,
                     modifier = Modifier.fillMaxWidth(),
                     shape = RoundedCornerShape(14.dp),
@@ -632,11 +647,13 @@ fun BillEditDialog(
                 },
                 enabled = name.isNotBlank() && day.isNotBlank()
             ) {
-                Text("Save")
+                Text(stringResource(R.string.save))
             }
         },
         dismissButton = {
-            TextButton(onClick = onDismiss) { Text("Cancel") }
+            TextButton(onClick = onDismiss) {
+                Text(stringResource(R.string.cancel))
+            }
         }
     )
 }

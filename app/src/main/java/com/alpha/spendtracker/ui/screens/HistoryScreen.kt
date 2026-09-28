@@ -47,6 +47,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.Immutable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,14 +58,18 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.CATEGORY_PRESETS
 import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.HistorySpendCard
+import com.alpha.spendtracker.ui.components.getLocalizedPresetName
 import androidx.compose.ui.text.style.TextOverflow
 import com.alpha.spendtracker.ui.components.SearchField
 import com.alpha.spendtracker.ui.components.formatCurrency
 import com.alpha.spendtracker.ui.theme.Sizes
+import com.alpha.spendtracker.ui.theme.rememberPressScale
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.alpha.spendtracker.util.formatMonth
 import com.alpha.spendtracker.util.formatShortDate
@@ -83,6 +88,7 @@ import com.alpha.spendtracker.util.PdfExporter
 import androidx.compose.material.icons.rounded.FileDownload
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.draw.scale
 import android.content.ContentValues
 import android.os.Build
 import android.os.Environment
@@ -309,14 +315,15 @@ fun HistoryScreen(
                     ) {
                         Icon(Icons.Rounded.Share, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Share PDF", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.share_pdf), fontWeight = FontWeight.SemiBold)
                     }
+                    val reportTitleText = stringResource(R.string.pdf_report_title)
                     Button(
                         onClick = {
                             PdfExporter.exportToPdf(
                                 context = context,
                                 spends = exportSpends,
-                                reportTitle = "Transaction History Report",
+                                reportTitle = reportTitleText,
                                 filePrefix = "spend_history",
                                 share = false,
                                 onShowNotification = onShowNotification
@@ -329,7 +336,7 @@ fun HistoryScreen(
                     ) {
                         Icon(Icons.Rounded.FileDownload, null, modifier = Modifier.size(18.dp))
                         Spacer(Modifier.width(8.dp))
-                        Text("Save PDF", fontWeight = FontWeight.SemiBold)
+                        Text(stringResource(R.string.save_pdf), fontWeight = FontWeight.SemiBold)
                     }
                 }
                 Spacer(modifier = Modifier.height(16.dp))
@@ -371,12 +378,12 @@ fun HistoryScreen(
                 SearchField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
-                    placeholder = "Search history...",
+                    placeholder = stringResource(R.string.search_history_placeholder),
                     modifier = Modifier.weight(1f)
                 )
             } else {
                 Text(
-                    text = "History",
+                    text = stringResource(R.string.history_title),
                     style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
@@ -395,14 +402,19 @@ fun HistoryScreen(
 
             FilterToggleButton(active = showFilters, onClick = { showFilters = !showFilters })
 
+            val exportInteraction = remember { MutableInteractionSource() }
+            val exportScale = rememberPressScale(exportInteraction)
             Surface(
                 onClick = {
                     exportSpends = filteredHistory
                     showExportPreview = true
                 },
+                interactionSource = exportInteraction,
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.size(Sizes.minTouchTarget)
+                modifier = Modifier
+                    .size(Sizes.minTouchTarget)
+                    .scale(exportScale)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -414,11 +426,16 @@ fun HistoryScreen(
                 }
             }
 
+            val trashInteraction = remember { MutableInteractionSource() }
+            val trashScale = rememberPressScale(trashInteraction)
             Surface(
                 onClick = onShowHistory,
+                interactionSource = trashInteraction,
                 shape = RoundedCornerShape(14.dp),
                 color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.size(Sizes.minTouchTarget)
+                modifier = Modifier
+                    .size(Sizes.minTouchTarget)
+                    .scale(trashScale)
             ) {
                 Box(contentAlignment = Alignment.Center) {
                     Icon(
@@ -545,14 +562,19 @@ fun HistoryScreen(
                                     color = MaterialTheme.colorScheme.primary
                                 )
                                 if (isAmountFilterActive) {
+                                    val resetInteraction = remember { MutableInteractionSource() }
+                                    val resetScale = rememberPressScale(resetInteraction)
                                     Surface(
-                                        onClick = { 
+                                        onClick = {
                                             minRangeProgress = 0f
                                             maxRangeProgress = 1f
                                         },
+                                        interactionSource = resetInteraction,
                                         shape = CircleShape,
                                         color = MaterialTheme.colorScheme.primary.copy(alpha = 0.1f),
-                                        modifier = Modifier.size(20.dp)
+                                        modifier = Modifier
+                                            .size(20.dp)
+                                            .scale(resetScale)
                                     ) {
                                         Box(contentAlignment = Alignment.Center) {
                                             Icon(Icons.Rounded.Clear, contentDescription = "Reset", tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(12.dp))
@@ -587,7 +609,7 @@ fun HistoryScreen(
                             .height(48.dp),
                         shape = RoundedCornerShape(12.dp)
                     ) {
-                        Text("Apply Filters", style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
+                        Text(stringResource(R.string.apply_filters), style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold))
                     }
 
                     Spacer(modifier = Modifier.height(24.dp))
@@ -673,12 +695,17 @@ fun HistoryScreen(
 
 @Composable
 private fun SearchLensButton(active: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     Surface(
         onClick = onClick,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(14.dp),
         color = if (active) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.size(Sizes.minTouchTarget)
+        modifier = Modifier
+            .size(Sizes.minTouchTarget)
+            .scale(scale)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -694,12 +721,17 @@ private fun SearchLensButton(active: Boolean, onClick: () -> Unit) {
 
 @Composable
 private fun FilterToggleButton(active: Boolean, onClick: () -> Unit) {
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
     Surface(
         onClick = onClick,
+        interactionSource = interactionSource,
         shape = RoundedCornerShape(14.dp),
         color = if (active) MaterialTheme.colorScheme.primaryContainer
                 else MaterialTheme.colorScheme.surfaceContainerHigh,
-        modifier = Modifier.size(Sizes.minTouchTarget)
+        modifier = Modifier
+            .size(Sizes.minTouchTarget)
+            .scale(scale)
     ) {
         Box(contentAlignment = Alignment.Center) {
             Icon(
@@ -735,7 +767,7 @@ private fun FilterSummaryBar(
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
-                    text = "Total Spend",
+                    text = stringResource(R.string.total_spend),
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
@@ -777,12 +809,12 @@ private fun DeleteConfirmationDialog(
                 ) {
                     Column(modifier = Modifier.padding(12.dp)) {
                         Text(
-                            text = spend.appName,
+                            text = getLocalizedPresetName(spend.appName),
                             style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "₹${formatCurrency(spend.amount)} - ${spend.purpose}",
+                            text = "₹${formatCurrency(spend.amount)} - ${getLocalizedPresetName(spend.purpose)}",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -921,10 +953,10 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
                 .padding(vertical = 4.dp, horizontal = 2.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
-            Text("Date", modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-            Text("App", modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-            Text("Purpose / Notes", modifier = Modifier.weight(2.5f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
-            Text("Amount", modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End)
+            Text(stringResource(R.string.entry_date_label), modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+            Text(stringResource(R.string.payment_app), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+            Text(stringResource(R.string.purpose_or_notes), modifier = Modifier.weight(2.5f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+            Text(stringResource(R.string.amount), modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface, textAlign = TextAlign.End)
         }
         HorizontalDivider(color = MaterialTheme.colorScheme.onSurface, thickness = 1.dp)
 
@@ -937,9 +969,9 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(sdf.format(spend.timestamp), modifier = Modifier.weight(1.2f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = MaterialTheme.colorScheme.onSurface)
-                Text(spend.appName, modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                Text(getLocalizedPresetName(spend.appName), modifier = Modifier.weight(1.5f), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
                 Column(modifier = Modifier.weight(2.5f)) {
-                    Text(spend.purpose, style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
+                    Text(getLocalizedPresetName(spend.purpose), style = MaterialTheme.typography.bodySmall.copy(fontSize = 11.sp, fontWeight = FontWeight.SemiBold), color = MaterialTheme.colorScheme.onSurface, maxLines = 1)
                     if (spend.notes.isNotBlank()) {
                         Text(spend.notes, style = MaterialTheme.typography.labelSmall.copy(fontSize = 10.sp), color = MaterialTheme.colorScheme.onSurfaceVariant, maxLines = 1)
                     }

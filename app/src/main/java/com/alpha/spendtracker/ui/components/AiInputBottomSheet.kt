@@ -19,6 +19,8 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import kotlinx.coroutines.delay
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.ui.icons.AppIcons
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -72,7 +74,7 @@ fun AiInputBottomSheet(
                     )
                     Spacer(modifier = Modifier.width(10.dp))
                     Text(
-                        text = "Quick AI Log",
+                        text = stringResource(R.string.ai_input_title),
                         style = MaterialTheme.typography.titleLarge.copy(
                             fontWeight = FontWeight.Bold,
                             letterSpacing = (-0.3).sp
@@ -100,7 +102,7 @@ fun AiInputBottomSheet(
                         )
                         Spacer(modifier = Modifier.width(3.dp))
                         Text(
-                            text = "$remainingRequests left",
+                            text = stringResource(R.string.requests_left, remainingRequests),
                             style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
                             color = chipColor
                         )
@@ -144,7 +146,7 @@ fun AiInputBottomSheet(
                 enabled = !isProcessing,
                 placeholder = {
                     Text(
-                        "e.g. Spent 420 on Swiggy biryani via GPay",
+                        stringResource(R.string.ai_input_placeholder),
                         style = MaterialTheme.typography.bodyLarge,
                         color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
                     )

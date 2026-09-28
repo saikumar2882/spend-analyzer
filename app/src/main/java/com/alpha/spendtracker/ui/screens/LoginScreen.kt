@@ -45,6 +45,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
@@ -245,15 +247,15 @@ fun LoginScreen(
     }
 
     AuthScaffold(
-        title = "Welcome back",
-        subtitle = "Sign in to continue managing your spending",
+        title = stringResource(R.string.login_title),
+        subtitle = stringResource(R.string.login_subtitle),
         footer = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Don't have an account?",
+                    text = stringResource(R.string.dont_have_account),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -263,7 +265,7 @@ fun LoginScreen(
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text(
-                        "Register",
+                        stringResource(R.string.sign_up),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -278,7 +280,7 @@ fun LoginScreen(
                 emailTouched = true
                 onEmailChange(it)
             },
-            label = { Text("Email Address") },
+            label = { Text(stringResource(R.string.email)) },
             leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -301,7 +303,7 @@ fun LoginScreen(
                 password = it
                 passwordTouched = true
             },
-            label = { Text("Password") },
+            label = { Text(stringResource(R.string.password)) },
             leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
@@ -361,7 +363,7 @@ fun LoginScreen(
                 colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
             ) {
                 Text(
-                    "Forgot Password?",
+                    stringResource(R.string.forgot_password),
                     style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold)
                 )
             }
@@ -385,7 +387,7 @@ fun LoginScreen(
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 1.dp)
             ) {
                 Text(
-                    "Sign In",
+                    stringResource(R.string.sign_in),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -401,7 +403,7 @@ fun LoginScreen(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
                 Text(
-                    text = "  OR  ",
+                    text = "  ${stringResource(R.string.or_continue_with)}  ",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

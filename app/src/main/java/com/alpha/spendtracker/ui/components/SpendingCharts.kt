@@ -3,6 +3,9 @@
  */
 package com.alpha.spendtracker.ui.components
 
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
+import com.alpha.spendtracker.util.rememberTranslatedText
 import android.annotation.SuppressLint
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -242,7 +245,7 @@ fun SpendingDonutChart(
             // Total spent label inside donut
             Column(horizontalAlignment = Alignment.CenterHorizontally) {
                 Text(
-                    text = "Total",
+                    text = stringResource(R.string.total),
                     style = MaterialTheme.typography.labelSmall,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -288,6 +291,7 @@ fun SpendingDonutChart(
  */
 @Composable
 private fun LegendRow(label: String, percent: Int, swatch: Color) {
+    val displayLabel by rememberTranslatedText(getLocalizedPresetName(label))
     Row(
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.SpaceBetween,
@@ -304,7 +308,7 @@ private fun LegendRow(label: String, percent: Int, swatch: Color) {
             )
             Spacer(modifier = Modifier.width(Spacing.sm))
             Text(
-                text = label,
+                text = displayLabel,
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurface,
                 maxLines = 1,

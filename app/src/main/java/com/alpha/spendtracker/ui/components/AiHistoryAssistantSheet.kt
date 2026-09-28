@@ -2,6 +2,7 @@ package com.alpha.spendtracker.ui.components
 
 import android.content.ClipData
 import androidx.compose.foundation.background
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
 import androidx.compose.foundation.shape.CircleShape
@@ -19,6 +20,7 @@ import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.layout.ContentScale
@@ -32,8 +34,11 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.ChatMessage
 import com.alpha.spendtracker.ui.icons.AppIcons
+import com.alpha.spendtracker.ui.theme.rememberPressScale
 import com.alpha.spendtracker.ui.viewmodel.AiErrorType
 import com.alpha.spendtracker.ui.viewmodel.AiHistoryStatus
 import com.google.firebase.auth.FirebaseAuth
@@ -61,16 +66,14 @@ fun AiHistoryAssistantSheet(
     } else 0
     val remainingMessages = (7 - userMessagesInCurrentSession).coerceAtLeast(0)
 
-    val examples = remember {
-        listOf(
-            "Summarize my spending this month",
-            "Who do I owe money to right now?",
-            "What did I spend on food this week?",
-            "Top 3 categories of last month",
-            "Compare May vs April spending",
-            "Show all my lendings grouped by person"
-        )
-    }
+    val examples = listOf(
+        stringResource(R.string.ai_example_1),
+        stringResource(R.string.ai_example_2),
+        stringResource(R.string.ai_example_3),
+        stringResource(R.string.ai_example_4),
+        stringResource(R.string.ai_example_5),
+        stringResource(R.string.ai_example_6)
+    )
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -116,7 +119,7 @@ fun AiHistoryAssistantSheet(
                     Spacer(modifier = Modifier.width(10.dp))
                     Column {
                         Text(
-                            text = "Spend Assistant",
+                            text = stringResource(R.string.ai_assistant_header),
                             style = MaterialTheme.typography.titleMedium.copy(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = (-0.2).sp
@@ -124,7 +127,7 @@ fun AiHistoryAssistantSheet(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "Ask anything about your history",
+                            text = stringResource(R.string.ai_assistant_subtitle),
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -183,10 +186,14 @@ fun AiHistoryAssistantSheet(
                     contentPadding = PaddingValues(horizontal = 2.dp)
                 ) {
                     items(examples) { example ->
+                        val interactionSource = remember { MutableInteractionSource() }
+                        val scale = rememberPressScale(interactionSource)
                         Surface(
                             onClick = { textInput = example },
+                            interactionSource = interactionSource,
                             shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainer
+                            color = MaterialTheme.colorScheme.surfaceContainer,
+                            modifier = Modifier.scale(scale)
                         ) {
                             Text(
                                 example,
@@ -204,7 +211,7 @@ fun AiHistoryAssistantSheet(
                     value = textInput,
                     onValueChange = { textInput = it },
                     modifier = Modifier.fillMaxWidth(),
-                    placeholder = { Text("Ask about your history…", style = MaterialTheme.typography.bodyMedium) },
+                    placeholder = { Text(stringResource(R.string.ask_ai_placeholder), style = MaterialTheme.typography.bodyMedium) },
                     trailingIcon = {
                         IconButton(
                             onClick = {
@@ -537,11 +544,16 @@ fun EmptyChatState(
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
             examples.forEach { example ->
+                val interactionSource = remember { MutableInteractionSource() }
+                val scale = rememberPressScale(interactionSource)
                 Surface(
                     onClick = { onExampleClick(example) },
+                    interactionSource = interactionSource,
                     shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
-                    modifier = Modifier.fillMaxWidth()
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .scale(scale)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),

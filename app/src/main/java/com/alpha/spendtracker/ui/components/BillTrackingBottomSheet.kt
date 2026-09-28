@@ -103,7 +103,7 @@ fun BillTrackingBottomSheet(
                                 modifier = Modifier.size(18.dp)
                             )
                             Text(
-                                text = displayApp,
+                                text = getLocalizedPresetName(displayApp),
                                 style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )

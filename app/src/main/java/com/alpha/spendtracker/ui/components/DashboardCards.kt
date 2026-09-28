@@ -4,6 +4,8 @@
  */
 package com.alpha.spendtracker.ui.components
 
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import androidx.compose.animation.AnimatedContent
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
@@ -13,8 +15,10 @@ import androidx.compose.animation.scaleIn
 import androidx.compose.animation.togetherWith
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.Canvas
+import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -46,6 +50,7 @@ import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Path
@@ -64,6 +69,7 @@ import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.asMoney
 import com.alpha.spendtracker.ui.theme.motionDuration
+import com.alpha.spendtracker.ui.theme.rememberPressScale
 import com.alpha.spendtracker.ui.theme.rememberReduceMotion
 import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
@@ -82,16 +88,14 @@ fun TimeFilterSelectorRow(
     modifier: Modifier = Modifier
 ) {
     val haptic = LocalHapticFeedback.current
-    val options = remember {
-        listOf(
-            TimeFilter.DAY to "Today",
-            TimeFilter.WEEK to "Week",
-            TimeFilter.MONTH to "Month",
-            TimeFilter.YEAR to "Year",
-            TimeFilter.ALL to "All",
-            TimeFilter.CUSTOM to "Custom"
-        )
-    }
+    val options = listOf(
+        TimeFilter.DAY to stringResource(R.string.today),
+        TimeFilter.WEEK to stringResource(R.string.week),
+        TimeFilter.MONTH to stringResource(R.string.month),
+        TimeFilter.YEAR to stringResource(R.string.year),
+        TimeFilter.ALL to stringResource(R.string.all),
+        TimeFilter.CUSTOM to stringResource(R.string.custom)
+    )
 
     Surface(
         modifier = modifier.fillMaxWidth(),
@@ -108,15 +112,19 @@ fun TimeFilterSelectorRow(
         ) {
             options.forEach { (type, label) ->
                 val isSelected = selected == type
+                val interactionSource = remember { MutableInteractionSource() }
+                val scale = rememberPressScale(interactionSource)
                 Surface(
                     onClick = {
                         runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
                         if (type == TimeFilter.CUSTOM) onCustomClick()
                         else onSelect(type)
                     },
+                    interactionSource = interactionSource,
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = SegmentedCellHeight),
+                        .heightIn(min = SegmentedCellHeight)
+                        .scale(scale),
                     shape = RoundedCornerShape(12.dp),
                     // Solid brand fill is the whole selected signal — no outline on top of it.
                     color = if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent,
@@ -159,12 +167,12 @@ fun TotalSpentHeroCard(
     onTransactionsClick: (() -> Unit)? = null
 ) {
     val titleText = when (filterType) {
-        TimeFilter.DAY -> "Total spent today"
-        TimeFilter.WEEK -> "Total spent this week"
-        TimeFilter.MONTH -> "Total spent this month"
-        TimeFilter.YEAR -> "Total spent this year"
-        TimeFilter.ALL -> "Total spent all time"
-        TimeFilter.CUSTOM -> "Total spent in range"
+        TimeFilter.DAY -> stringResource(R.string.total_spent_today)
+        TimeFilter.WEEK -> stringResource(R.string.total_spent_this_week)
+        TimeFilter.MONTH -> stringResource(R.string.total_spent_this_month)
+        TimeFilter.YEAR -> stringResource(R.string.total_spent_this_year)
+        TimeFilter.ALL -> stringResource(R.string.total_spent_all_time)
+        TimeFilter.CUSTOM -> stringResource(R.string.total_spent_in_range)
     }
 
     val subtitleText = if (filterType == TimeFilter.CUSTOM && dateRange != null) {
@@ -172,7 +180,7 @@ fun TotalSpentHeroCard(
         val sdf = remember(locale) { SimpleDateFormat("dd MMM", locale) }
         "${sdf.format(dateRange.first)} - ${sdf.format(dateRange.second)}"
     } else {
-        "$transactionCount transactions"
+        stringResource(R.string.transactions_count, transactionCount)
     }
 
     val reduceMotion = rememberReduceMotion()
@@ -263,18 +271,23 @@ fun TotalSpentHeroCard(
                     )
                 }
 
+                val viewDetailsInteraction = remember { MutableInteractionSource() }
+                val viewDetailsScale = rememberPressScale(viewDetailsInteraction)
                 Surface(
                     onClick = { onTransactionsClick?.invoke() },
+                    interactionSource = viewDetailsInteraction,
                     color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f),
                     shape = RoundedCornerShape(Radius.sm),
-                    modifier = Modifier.heightIn(min = 36.dp)
+                    modifier = Modifier
+                        .heightIn(min = 36.dp)
+                        .scale(viewDetailsScale)
                 ) {
                     Row(
                         verticalAlignment = Alignment.CenterVertically,
                         modifier = Modifier.padding(horizontal = Spacing.md, vertical = Spacing.xs)
                     ) {
                         Text(
-                            text = "View details >",
+                            text = stringResource(R.string.view_details),
                             style = MaterialTheme.typography.labelMedium.copy(
                                 fontWeight = FontWeight.SemiBold
                             ),
@@ -318,7 +331,7 @@ private fun HeroDeltaChip(deltaPct: Double) {
             )
             Spacer(modifier = Modifier.height(2.dp))
             Text(
-                text = "vs last period",
+                text = stringResource(R.string.vs_last_period),
                 style = MaterialTheme.typography.labelSmall.copy(
                     fontSize = 10.sp,
                     fontWeight = FontWeight.Medium
@@ -372,13 +385,13 @@ fun EmptyStateCard() {
             }
             Spacer(modifier = Modifier.height(Spacing.md))
             Text(
-                text = "No transactions in this period",
+                text = stringResource(R.string.no_transactions_yet),
                 style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                 color = MaterialTheme.colorScheme.onSurface
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
             Text(
-                text = "Tap + below to log a spend, or try changing your time horizon filter.",
+                text = stringResource(R.string.add_first_expense),
                 style = MaterialTheme.typography.bodySmall,
                 color = MaterialTheme.colorScheme.onSurfaceVariant,
                 textAlign = TextAlign.Center
@@ -402,27 +415,27 @@ fun QuickStatsRow(analytics: SpendingAnalytics, modifier: Modifier = Modifier) {
         StatTile(
             modifier = Modifier.weight(1f),
             value = "₹${formatCurrencyRounded(analytics.dailyAverage)}",
-            label = "Daily average",
+            label = stringResource(R.string.daily_avg),
             showSparkline = true
         )
         StatTile(
             modifier = Modifier.weight(1f),
-            value = analytics.topCategory?.first ?: "UPI Apps",
-            label = "Top channel",
+            value = getLocalizedPresetName(analytics.topCategory?.first ?: "UPI Apps"),
+            label = stringResource(R.string.top_category),
             showSparkline = false
         )
         if (analytics.projectedTotal != null) {
             StatTile(
                 modifier = Modifier.weight(1f),
                 value = "₹${formatCurrencyRounded(analytics.projectedTotal)}",
-                label = "Projected spend",
+                label = stringResource(R.string.projected_spend),
                 showSparkline = true
             )
         } else {
             StatTile(
                 modifier = Modifier.weight(1f),
                 value = analytics.transactionCount.toString(),
-                label = "Transactions",
+                label = stringResource(R.string.transactions),
                 showSparkline = false
             )
         }
@@ -573,17 +586,24 @@ fun WhereItWentCard(
                 verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = "Spending Breakdown",
+                    text = stringResource(R.string.spending_breakdown),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurface
                 )
                 if (onViewAllClick != null) {
+                    val viewAllInteraction = remember { MutableInteractionSource() }
+                    val viewAllScale = rememberPressScale(viewAllInteraction)
                     Text(
-                        text = "View all >",
+                        text = stringResource(R.string.view_all),
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.primary,
                         modifier = Modifier
-                            .clickable(onClick = onViewAllClick)
+                            .scale(viewAllScale)
+                            .clickable(
+                                interactionSource = viewAllInteraction,
+                                indication = LocalIndication.current,
+                                onClick = onViewAllClick
+                            )
                             .padding(horizontal = 4.dp, vertical = 2.dp)
                     )
                 }
@@ -627,7 +647,7 @@ fun WhereItWentCard(
 @Composable
 private fun ChartToggle(selected: Int, onSelect: (Int) -> Unit) {
     val haptic = LocalHapticFeedback.current
-    val labels = listOf("Payment Apps", "Purpose", "Trend")
+    val labels = listOf(stringResource(R.string.payment_apps_tab), stringResource(R.string.purpose_tab), stringResource(R.string.trend_tab))
     Surface(
         modifier = Modifier.fillMaxWidth(),
         color = MaterialTheme.colorScheme.surfaceContainerHighest,
@@ -640,14 +660,18 @@ private fun ChartToggle(selected: Int, onSelect: (Int) -> Unit) {
         ) {
             labels.forEachIndexed { index, label ->
                 val isSel = index == selected
+                val interactionSource = remember { MutableInteractionSource() }
+                val scale = rememberPressScale(interactionSource)
                 Surface(
                     onClick = {
                         runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
                         onSelect(index)
                     },
+                    interactionSource = interactionSource,
                     modifier = Modifier
                         .weight(1f)
-                        .heightIn(min = SegmentedCellHeight),
+                        .heightIn(min = SegmentedCellHeight)
+                        .scale(scale),
                     shape = RoundedCornerShape(12.dp),
                     // Solid brand fill is the whole selected signal — no outline on top of it.
                     color = if (isSel) MaterialTheme.colorScheme.primary else Color.Transparent,

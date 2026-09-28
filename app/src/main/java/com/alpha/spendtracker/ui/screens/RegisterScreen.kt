@@ -43,6 +43,8 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
@@ -217,15 +219,15 @@ fun RegisterScreen(
     }
 
     AuthScaffold(
-        title = "Create your account",
-        subtitle = "Sign up to start tracking your spending",
+        title = stringResource(R.string.register_title),
+        subtitle = stringResource(R.string.register_subtitle),
         footer = {
             Row(
                 verticalAlignment = Alignment.CenterVertically,
                 horizontalArrangement = Arrangement.Center
             ) {
                 Text(
-                    text = "Already have an account?",
+                    text = stringResource(R.string.already_have_account),
                     style = MaterialTheme.typography.bodyMedium,
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -235,7 +237,7 @@ fun RegisterScreen(
                     colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
                 ) {
                     Text(
-                        "Sign in",
+                        stringResource(R.string.sign_in),
                         fontWeight = FontWeight.Bold,
                         color = MaterialTheme.colorScheme.primary
                     )
@@ -250,7 +252,7 @@ fun RegisterScreen(
                 emailTouched = true
                 onEmailChange(it)
             },
-            label = { Text("Email Address") },
+            label = { Text(stringResource(R.string.email)) },
             leadingIcon = { Icon(Icons.Rounded.Email, contentDescription = null) },
             modifier = Modifier.fillMaxWidth(),
             singleLine = true,
@@ -273,7 +275,7 @@ fun RegisterScreen(
                 password = it
                 passwordTouched = true
             },
-            label = { Text("Password") },
+            label = { Text(stringResource(R.string.password)) },
             leadingIcon = { Icon(Icons.Rounded.Lock, contentDescription = null) },
             visualTransformation = if (passwordVisible) VisualTransformation.None else PasswordVisualTransformation(),
             keyboardOptions = KeyboardOptions(
@@ -315,7 +317,7 @@ fun RegisterScreen(
                 elevation = ButtonDefaults.buttonElevation(defaultElevation = 4.dp, pressedElevation = 1.dp)
             ) {
                 Text(
-                    "Create account",
+                    stringResource(R.string.sign_up),
                     style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold)
                 )
             }
@@ -331,7 +333,7 @@ fun RegisterScreen(
                     color = MaterialTheme.colorScheme.outlineVariant
                 )
                 Text(
-                    text = "  OR  ",
+                    text = "  ${stringResource(R.string.or_continue_with)}  ",
                     style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )

@@ -6,11 +6,9 @@
  */
 package com.alpha.spendtracker.ui.components
 
-import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
-import androidx.compose.foundation.interaction.collectIsPressedAsState
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -62,6 +60,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alpha.spendtracker.util.rememberTranslatedText
 import com.alpha.spendtracker.data.HistoryType
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.data.SpendHistory
@@ -70,6 +69,7 @@ import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.Sizes
 import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.asMoney
+import com.alpha.spendtracker.ui.theme.rememberPressScale
 import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Calendar
@@ -100,16 +100,18 @@ fun parseLendBorrowNotes(rawNotes: String, appName: String): Pair<String, String
 
 fun resolveTitleAndSubtitle(spend: Spend): Pair<String, String> {
     val isLendBorrow = spend.purpose == "Lending" || spend.purpose == "Borrowing"
+    val localizedApp = getLocalizedPresetName(spend.appName)
+    val localizedPurpose = getLocalizedPresetName(spend.purpose)
     if (isLendBorrow) {
         val (personName, notes) = parseLendBorrowNotes(spend.notes, spend.appName)
         val title = personName.ifBlank { "Unknown Person" }
         val subtitle = notes.ifBlank {
-            if (spend.appName.isNotBlank() && spend.appName != "Other" && spend.appName != "Cash") spend.appName else ""
+            if (spend.appName.isNotBlank() && spend.appName != "Other" && spend.appName != "Cash") localizedApp else ""
         }
         return title to subtitle
     }
 
-    return spend.appName to spend.notes.ifBlank { spend.purpose }
+    return localizedApp to spend.notes.ifBlank { localizedPurpose }
 }
 
 /**
@@ -139,8 +141,7 @@ fun RecentSpendRow(
         ?: categoryAccent
 
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.98f else 1f, label = "recentRowScale")
+    val scale = rememberPressScale(interactionSource)
 
     val isLending = spend.purpose.equals("Lending", ignoreCase = true)
     val isBorrowing = spend.purpose.equals("Borrowing", ignoreCase = true)
@@ -194,8 +195,9 @@ fun RecentSpendRow(
                             )
                         }
                         Spacer(modifier = Modifier.width(8.dp))
+                        val displayTitle by rememberTranslatedText(title)
                         Text(
-                            text = title,
+                            text = displayTitle,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -203,10 +205,11 @@ fun RecentSpendRow(
                         )
                     }
 
-                    if (subtitle.isNotBlank()) {
+                    val displaySubtitle by rememberTranslatedText(subtitle)
+                    if (displaySubtitle.isNotBlank()) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = subtitle,
+                            text = displaySubtitle,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -265,6 +268,8 @@ fun HistorySpendCard(
     onClick: (() -> Unit)? = null
 ) {
     val (title, subtitle) = resolveTitleAndSubtitle(spend)
+    val displayTitle by rememberTranslatedText(title)
+    val displaySubtitle by rememberTranslatedText(subtitle)
     val isNoteLinked = spend.noteUuid.isNotBlank()
     val categoryAccent = getCategoryAccentColor(spend.purpose, spend.category)
     val appAccent = APP_COLOR_BY_NAME[spend.appName]
@@ -280,9 +285,15 @@ fun HistorySpendCard(
         else -> MaterialTheme.colorScheme.onSurface
     }
 
+    val interactionSource = remember { MutableInteractionSource() }
+    val scale = rememberPressScale(interactionSource)
+
     Surface(
         onClick = onClick ?: onEdit,
-        modifier = modifier.fillMaxWidth(),
+        interactionSource = interactionSource,
+        modifier = modifier
+            .fillMaxWidth()
+            .scale(scale),
         shape = RoundedCornerShape(Radius.md),
         color = Color.Transparent,
         border = null
@@ -311,7 +322,7 @@ fun HistorySpendCard(
                     ) {
                         if (isLending || isBorrowing) {
                             PersonInitialAvatar(
-                                personName = title,
+                                personName = displayTitle,
                                 backgroundColor = amountColor,
                                 modifier = Modifier.size(20.dp)
                             )
@@ -324,7 +335,7 @@ fun HistorySpendCard(
                         }
                         Spacer(modifier = Modifier.width(4.dp))
                         Text(
-                            text = title,
+                            text = displayTitle,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 1,
@@ -334,10 +345,10 @@ fun HistorySpendCard(
                             Icon(imageVector = AppIcons.Notes, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(14.dp))
                         }
                     }
-                    if (subtitle.isNotBlank()) {
+                    if (displaySubtitle.isNotBlank()) {
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = subtitle,
+                            text = displaySubtitle,
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -443,7 +454,7 @@ fun HistoryRecordCard(
                     Column {
                         Row(verticalAlignment = Alignment.CenterVertically) {
                             Text(
-                                text = history.appName,
+                                text = getLocalizedPresetName(history.appName),
                                 style = MaterialTheme.typography.titleMedium,
                                 color = MaterialTheme.colorScheme.onSurface,
                                 maxLines = 1,
@@ -469,7 +480,7 @@ fun HistoryRecordCard(
                         }
 
                         Text(
-                            text = "₹${formatCurrency(history.amount)} · ${history.purpose}",
+                            text = "₹${formatCurrency(history.amount)} · ${getLocalizedPresetName(history.purpose)}",
                             style = MaterialTheme.typography.bodyMedium.asMoney(),
                             color = MaterialTheme.colorScheme.onSurfaceVariant,
                             maxLines = 1,
@@ -572,8 +583,7 @@ fun PresetGridCard(
     }
 
     val interactionSource = remember { MutableInteractionSource() }
-    val pressed by interactionSource.collectIsPressedAsState()
-    val scale by animateFloatAsState(if (pressed) 0.95f else 1f, label = "presetScale")
+    val scale = rememberPressScale(interactionSource, pressedScale = 0.95f)
 
     Surface(
         onClick = onClick,
@@ -600,7 +610,7 @@ fun PresetGridCard(
             )
             Spacer(modifier = Modifier.height(8.dp))
             Text(
-                text = preset.displayName,
+                text = getLocalizedPresetName(preset.displayName),
                 style = MaterialTheme.typography.labelMedium.copy(
                     fontWeight = FontWeight.SemiBold,
                     fontSize = 12.sp

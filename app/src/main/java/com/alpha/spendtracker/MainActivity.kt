@@ -9,6 +9,8 @@ import android.content.pm.PackageManager
 import android.os.Build
 import android.os.Bundle
 import android.util.Log
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
@@ -130,6 +132,7 @@ import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.ThemePreference
 import com.alpha.spendtracker.ui.theme.isDark
 import com.alpha.spendtracker.ui.theme.next
+import com.alpha.spendtracker.ui.theme.rememberPressScale
 import com.alpha.spendtracker.ui.theme.rememberThemePreference
 import com.alpha.spendtracker.ui.viewmodel.SpendViewModel
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
@@ -140,6 +143,7 @@ import com.google.android.play.core.appupdate.AppUpdateOptions
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.firebase.auth.FirebaseAuth
+import androidx.appcompat.app.AppCompatActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -147,7 +151,7 @@ import kotlinx.coroutines.launch
 enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, HISTORY_TRASH, ADD_SPEND, LEND_BORROW_HISTORY, RECURRING_BILLS, NOTES, NOTES_HISTORY, SETTINGS }
 
 @AndroidEntryPoint
-class MainActivity : FragmentActivity() {
+class MainActivity : AppCompatActivity() {
     private val spendViewModel: SpendViewModel by viewModels()
     private lateinit var appUpdateManager: AppUpdateManager
     private val MY_UPDATE_REQUEST_CODE = 1001
@@ -254,8 +258,8 @@ class MainActivity : FragmentActivity() {
             })
 
         val promptInfo = BiometricPrompt.PromptInfo.Builder()
-            .setTitle("Biometric login for Spendly")
-            .setSubtitle("Log in using your biometric credential")
+            .setTitle(getString(R.string.unlock_spendly))
+            .setSubtitle(getString(R.string.biometric_prompt_subtitle))
             .setAllowedAuthenticators(BiometricManager.Authenticators.BIOMETRIC_STRONG or BiometricManager.Authenticators.DEVICE_CREDENTIAL)
             .build()
 
@@ -354,7 +358,7 @@ fun LockedOverlay(onUnlock: () -> Unit) {
             ) {
                 Icon(Icons.Rounded.Fingerprint, null)
                 Spacer(Modifier.width(12.dp))
-                Text("Unlock with Biometrics")
+                Text(stringResource(R.string.unlock_spendly))
             }
         }
     }
@@ -850,18 +854,37 @@ LaunchedEffect(Unit) {
             bottomBar = {
                 if (activeView != ActiveView.ADD_SPEND) {
                     NavigationBar(tonalElevation = 8.dp) {
+                        val dashboardInteraction = remember { MutableInteractionSource() }
                         NavigationBarItem(
                             selected = activeView == ActiveView.DASHBOARD,
                             onClick = { goToMajor(ActiveView.DASHBOARD) },
-                            icon = { Icon(AppIcons.Dashboard, contentDescription = "Dashboard") },
-                            label = { Text("Dashboard", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            interactionSource = dashboardInteraction,
+                            icon = {
+                                val navIconScale = rememberPressScale(dashboardInteraction)
+                                Icon(
+                                    AppIcons.Dashboard,
+                                    contentDescription = stringResource(R.string.dashboard_tab),
+                                    modifier = Modifier.graphicsLayer { scaleX = navIconScale; scaleY = navIconScale }
+                                )
+                            },
+                            label = { Text(stringResource(R.string.dashboard_tab), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
+                        val duesInteraction = remember { MutableInteractionSource() }
                         NavigationBarItem(
                             selected = activeView == ActiveView.LEND_BORROW,
                             onClick = { goToMajor(ActiveView.LEND_BORROW) },
-                            icon = { Icon(Icons.Outlined.Handshake, contentDescription = "Dues — money lent and borrowed") },
-                            label = { Text("Dues", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            interactionSource = duesInteraction,
+                            icon = {
+                                val navIconScale = rememberPressScale(duesInteraction)
+                                Icon(
+                                    Icons.Outlined.Handshake,
+                                    contentDescription = stringResource(R.string.lend_borrow_tab),
+                                    modifier = Modifier.graphicsLayer { scaleX = navIconScale; scaleY = navIconScale }
+                                )
+                            },
+                            label = { Text(stringResource(R.string.lend_borrow_tab), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
+                        val historyInteraction = remember { MutableInteractionSource() }
                         NavigationBarItem(
                             selected = activeView == ActiveView.HISTORY,
                             onClick = {
@@ -870,14 +893,31 @@ LaunchedEffect(Unit) {
                                 historyTimeFilter = TimeFilter.ALL
                                 goToMajor(ActiveView.HISTORY)
                             },
-                            icon = { Icon(AppIcons.History, contentDescription = "Spending History") },
-                            label = { Text("History", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            interactionSource = historyInteraction,
+                            icon = {
+                                val navIconScale = rememberPressScale(historyInteraction)
+                                Icon(
+                                    AppIcons.History,
+                                    contentDescription = stringResource(R.string.history_tab),
+                                    modifier = Modifier.graphicsLayer { scaleX = navIconScale; scaleY = navIconScale }
+                                )
+                            },
+                            label = { Text(stringResource(R.string.history_tab), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
+                        val settingsInteraction = remember { MutableInteractionSource() }
                         NavigationBarItem(
                             selected = activeView == ActiveView.SETTINGS,
                             onClick = { goToMajor(ActiveView.SETTINGS) },
-                            icon = { Icon(Icons.Outlined.Settings, contentDescription = "Settings") },
-                            label = { Text("Settings", maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                            interactionSource = settingsInteraction,
+                            icon = {
+                                val navIconScale = rememberPressScale(settingsInteraction)
+                                Icon(
+                                    Icons.Outlined.Settings,
+                                    contentDescription = stringResource(R.string.settings_title),
+                                    modifier = Modifier.graphicsLayer { scaleX = navIconScale; scaleY = navIconScale }
+                                )
+                            },
+                            label = { Text(stringResource(R.string.settings_title), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
                     }
                 }
@@ -933,11 +973,14 @@ LaunchedEffect(Unit) {
                                 modifier = Modifier.padding(bottom = 16.dp),
                                 verticalArrangement = Arrangement.spacedBy(10.dp)
                             ) {
+                                val fabItem1Interaction = remember { MutableInteractionSource() }
+                                val fabItem1PressScale = rememberPressScale(fabItem1Interaction)
                                 Surface(
                                     onClick = {
                                         showFabMenu = false
                                         showAiInput = true
                                     },
+                                    interactionSource = fabItem1Interaction,
                                     shape = RoundedCornerShape(14.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                     contentColor = MaterialTheme.colorScheme.onSurface,
@@ -950,8 +993,8 @@ LaunchedEffect(Unit) {
                                         translationX = (1f - fabItem1Progress) * -65f
                                         translationY = (1f - fabItem1Progress) * 18f
                                         alpha = fabItem1Progress.coerceIn(0f, 1f)
-                                        scaleX = 0.5f + 0.5f * fabItem1Progress
-                                        scaleY = 0.5f + 0.5f * fabItem1Progress
+                                        scaleX = (0.5f + 0.5f * fabItem1Progress) * fabItem1PressScale
+                                        scaleY = (0.5f + 0.5f * fabItem1Progress) * fabItem1PressScale
                                         cameraDistance = 14f * this.density
                                     }
                                 ) {
@@ -961,10 +1004,12 @@ LaunchedEffect(Unit) {
                                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
                                         Icon(AppIcons.Ai, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                                        Text("AI log", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+                                        Text(stringResource(R.string.ai_log), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
                                     }
                                 }
 
+                                val fabItem2Interaction = remember { MutableInteractionSource() }
+                                val fabItem2PressScale = rememberPressScale(fabItem2Interaction)
                                 Surface(
                                     onClick = {
                                         showFabMenu = false
@@ -982,6 +1027,7 @@ LaunchedEffect(Unit) {
                                             }
                                         }
                                     },
+                                    interactionSource = fabItem2Interaction,
                                     shape = RoundedCornerShape(14.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                     contentColor = MaterialTheme.colorScheme.onSurface,
@@ -994,8 +1040,8 @@ LaunchedEffect(Unit) {
                                         translationX = (1f - fabItem2Progress) * -40f
                                         translationY = (1f - fabItem2Progress) * 10f
                                         alpha = fabItem2Progress.coerceIn(0f, 1f)
-                                        scaleX = 0.5f + 0.5f * fabItem2Progress
-                                        scaleY = 0.5f + 0.5f * fabItem2Progress
+                                        scaleX = (0.5f + 0.5f * fabItem2Progress) * fabItem2PressScale
+                                        scaleY = (0.5f + 0.5f * fabItem2Progress) * fabItem2PressScale
                                         cameraDistance = 14f * this.density
                                     }
                                 ) {
@@ -1005,10 +1051,12 @@ LaunchedEffect(Unit) {
                                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
                                         Icon(Icons.Rounded.Mic, contentDescription = null, tint = MaterialTheme.colorScheme.tertiary, modifier = Modifier.size(18.dp))
-                                        Text("Voice", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+                                        Text(stringResource(R.string.voice), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
                                     }
                                 }
 
+                                val fabItem3Interaction = remember { MutableInteractionSource() }
+                                val fabItem3PressScale = rememberPressScale(fabItem3Interaction)
                                 Surface(
                                     onClick = {
                                         showFabMenu = false
@@ -1016,6 +1064,7 @@ LaunchedEffect(Unit) {
                                         returnTo = activeView
                                         activeView = ActiveView.ADD_SPEND
                                     },
+                                    interactionSource = fabItem3Interaction,
                                     shape = RoundedCornerShape(14.dp),
                                     color = MaterialTheme.colorScheme.surfaceContainerHighest,
                                     contentColor = MaterialTheme.colorScheme.onSurface,
@@ -1028,8 +1077,8 @@ LaunchedEffect(Unit) {
                                         translationX = (1f - fabItem3Progress) * -18f
                                         translationY = (1f - fabItem3Progress) * 4f
                                         alpha = fabItem3Progress.coerceIn(0f, 1f)
-                                        scaleX = 0.5f + 0.5f * fabItem3Progress
-                                        scaleY = 0.5f + 0.5f * fabItem3Progress
+                                        scaleX = (0.5f + 0.5f * fabItem3Progress) * fabItem3PressScale
+                                        scaleY = (0.5f + 0.5f * fabItem3Progress) * fabItem3PressScale
                                         cameraDistance = 14f * this.density
                                     }
                                 ) {
@@ -1039,7 +1088,7 @@ LaunchedEffect(Unit) {
                                         horizontalArrangement = Arrangement.spacedBy(10.dp)
                                     ) {
                                         Icon(Icons.Rounded.Edit, contentDescription = null, tint = MaterialTheme.colorScheme.secondary, modifier = Modifier.size(18.dp))
-                                        Text("Manual", style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
+                                        Text(stringResource(R.string.manual), style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold))
                                     }
                                 }
                             }
@@ -1067,18 +1116,25 @@ LaunchedEffect(Unit) {
                         )
 
                         val haptic = LocalHapticFeedback.current
+                        val fabInteractionSource = remember { MutableInteractionSource() }
+                        val fabPressScale = rememberPressScale(fabInteractionSource, pressedScale = 0.9f)
 
                         Surface(
                             onClick = {
                                 runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
                                 showFabMenu = !showFabMenu
                             },
+                            interactionSource = fabInteractionSource,
                             shape = RoundedCornerShape(fabCornerRadius),
                             color = fabBgColor,
                             contentColor = fabContentColor,
                             shadowElevation = 4.dp,
                             modifier = Modifier
                                 .size(56.dp)
+                                .graphicsLayer {
+                                    scaleX = fabPressScale
+                                    scaleY = fabPressScale
+                                }
                                 .pointerInput(Unit) {
                                     awaitEachGesture {
                                         val down = awaitFirstDown(requireUnconsumed = false)
@@ -1334,31 +1390,34 @@ LaunchedEffect(Unit) {
                             },
                             onBack = { activeView = ActiveView.NOTES }
                         )
-                        ActiveView.SETTINGS -> SettingsScreen(
-                            themePreference = themePreference,
-                            aiPreferences = aiPrefs,
-                            onBack = goBackMajor,
-                            onCycleTheme = onCycleTheme,
-                            onShowNotification = { msg, type -> showNotification(msg, type) },
-                            onUpdateAiPreferences = viewModel::updateAiPreferences,
-                            onToggleBiometrics = viewModel::updateBiometricEnabled,
-                            onAiAssistantClick = { showAiHistoryAssistant = true },
-                            onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
-                            onNotesClick = { goToMajor(ActiveView.NOTES) },
-                            onShareApp = {
-                                val sendIntent: Intent = Intent().apply {
-                                    action = Intent.ACTION_SEND
-                                    putExtra(Intent.EXTRA_TEXT, "Take control of your finances with Spendly! 🚀\n\nDownload the latest version here: https://github.com/saikumar2882/spend-analyzer/releases/latest")
-                                    type = "text/plain"
-                                }
-                                val shareIntent = Intent.createChooser(sendIntent, "Share Spendly via")
-                                context.startActivity(shareIntent)
-                            },
+                        ActiveView.SETTINGS -> {
+                            val shareChooserTitle = stringResource(R.string.share_app_chooser)
+                            SettingsScreen(
+                                themePreference = themePreference,
+                                aiPreferences = aiPrefs,
+                                onBack = goBackMajor,
+                                onCycleTheme = onCycleTheme,
+                                onShowNotification = { msg, type -> showNotification(msg, type) },
+                                onUpdateAiPreferences = viewModel::updateAiPreferences,
+                                onToggleBiometrics = viewModel::updateBiometricEnabled,
+                                onAiAssistantClick = { showAiHistoryAssistant = true },
+                                onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
+                                onNotesClick = { goToMajor(ActiveView.NOTES) },
+                                onShareApp = {
+                                    val sendIntent: Intent = Intent().apply {
+                                        action = Intent.ACTION_SEND
+                                        putExtra(Intent.EXTRA_TEXT, "Take control of your finances with Spendly! 🚀\n\nDownload the latest version here: https://github.com/saikumar2882/spend-analyzer/releases/latest")
+                                        type = "text/plain"
+                                    }
+                                    val shareIntent = Intent.createChooser(sendIntent, shareChooserTitle)
+                                    context.startActivity(shareIntent)
+                                },
                             onLogout = {
                                 FirebaseAuth.getInstance().signOut()
                                 showNotification("Logged out successfully", NotificationType.INFO)
                             }
                         )
+                    }
                         ActiveView.HISTORY -> HistoryScreen(
                             allSpends = nonLendBorrowSpends,
                             initialSearchQuery = historySearchQuery,
@@ -1603,13 +1662,9 @@ LaunchedEffect(Unit) {
                     showEnableBiometricPrompt = false
                 },
                 icon = { Icon(Icons.Rounded.Fingerprint, contentDescription = null) },
-                title = { Text("Enable App Lock?") },
+                title = { Text(stringResource(R.string.app_lock_title)) },
                 text = {
-                    Text(
-                        "Protect your expenses with your fingerprint, face, or device PIN. " +
-                        "Spendly will ask you to unlock it each time you open the app. " +
-                        "You can change this anytime in Settings."
-                    )
+                    Text(stringResource(R.string.biometric_subtitle))
                 },
                 confirmButton = {
                     Button(onClick = {
@@ -1622,13 +1677,13 @@ LaunchedEffect(Unit) {
                             viewModel.updateBiometricEnabled(true)
                             showNotification("App lock enabled", NotificationType.SUCCESS)
                         }
-                    }) { Text("Enable") }
+                    }) { Text(stringResource(R.string.apply)) }
                 },
                 dismissButton = {
                     TextButton(onClick = {
                         viewModel.setBiometricPrompted()
                         showEnableBiometricPrompt = false
-                    }) { Text("Not Now") }
+                    }) { Text(stringResource(R.string.cancel)) }
                 }
             )
         }
