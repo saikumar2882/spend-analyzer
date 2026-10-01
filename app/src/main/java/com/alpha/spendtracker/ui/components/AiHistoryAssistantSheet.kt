@@ -13,6 +13,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.Send
 import androidx.compose.material.icons.rounded.Block
 import androidx.compose.material.icons.rounded.ContentCopy
+import androidx.compose.material.icons.rounded.DeleteSweep
 import androidx.compose.material.icons.rounded.ErrorOutline
 import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material.icons.rounded.Settings
@@ -56,6 +57,7 @@ data class Suggestion(val label: String, val question: String)
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiHistoryAssistantSheet(
+    /** Every stored message, cleared ones included: the "N/7 left" chip counts them, as the limit does. */
     messages: List<ChatMessage>,
     status: AiHistoryStatus,
     /**
@@ -66,9 +68,14 @@ fun AiHistoryAssistantSheet(
     onDismiss: () -> Unit,
     sheetState: SheetState = rememberModalBottomSheetState(),
     /** False hides the Lending/Borrowing suggestions for someone with nothing to ask about. */
-    hasDues: Boolean = true
+    hasDues: Boolean = true,
+    /** Messages stamped at or before this are hidden from the chat; see `SpendViewModel.clearChatHistory`. */
+    clearedAt: Long = 0L,
+    onClearChat: () -> Unit = {}
 ) {
     var textInput by remember { mutableStateOf("") }
+    var showClearConfirm by remember { mutableStateOf(false) }
+    val visibleMessages = remember(messages, clearedAt) { messages.filter { it.timestamp > clearedAt } }
     val listState = rememberLazyListState()
     val clipboard = LocalClipboard.current
     val scope = rememberCoroutineScope()
@@ -88,9 +95,9 @@ fun AiHistoryAssistantSheet(
     val chipsEnabled = status !is AiHistoryStatus.Analyzing &&
         !(status is AiHistoryStatus.Error && status.type == AiErrorType.CLIENT_RATE_LIMIT)
 
-    LaunchedEffect(messages.size) {
-        if (messages.isNotEmpty()) {
-            listState.animateScrollToItem(messages.size - 1)
+    LaunchedEffect(visibleMessages.size) {
+        if (visibleMessages.isNotEmpty()) {
+            listState.animateScrollToItem(visibleMessages.size - 1)
         }
     }
 
@@ -112,7 +119,10 @@ fun AiHistoryAssistantSheet(
                 horizontalArrangement = Arrangement.SpaceBetween,
                 verticalAlignment = Alignment.CenterVertically
             ) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
+                Row(
+                    modifier = Modifier.weight(1f),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
                     Box(
                         modifier = Modifier
                             .size(36.dp)
@@ -137,7 +147,9 @@ fun AiHistoryAssistantSheet(
                                 fontWeight = FontWeight.Bold,
                                 letterSpacing = (-0.2).sp
                             ),
-                            color = MaterialTheme.colorScheme.onSurface
+                            color = MaterialTheme.colorScheme.onSurface,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                         Text(
                             text = stringResource(R.string.ai_assistant_subtitle),
@@ -160,22 +172,45 @@ fun AiHistoryAssistantSheet(
                         color = chipColor
                     )
                 }
+
+                // Always present (just dimmed when there is nothing to clear) so the chip doesn't
+                // slide sideways when the first message arrives.
+                IconButton(
+                    onClick = { showClearConfirm = true },
+                    enabled = visibleMessages.isNotEmpty() && status !is AiHistoryStatus.Analyzing,
+                    colors = IconButtonDefaults.iconButtonColors(
+                        contentColor = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                ) {
+                    Icon(
+                        Icons.Rounded.DeleteSweep,
+                        contentDescription = stringResource(R.string.ai_clear_chat),
+                        modifier = Modifier.size(20.dp)
+                    )
+                }
             }
 
             Box(modifier = Modifier.weight(1f)) {
-                if (messages.isEmpty()) {
-                    EmptyChatState(
-                        suggestions = suggestions,
-                        enabled = chipsEnabled,
-                        onSuggestionClick = { onSendMessage(it.label, it.question) }
-                    )
+                if (visibleMessages.isEmpty()) {
+                    // The notice has to show here too: after a clear at the daily limit this is the
+                    // only thing explaining why the suggestions are disabled.
+                    Column(modifier = Modifier.fillMaxSize()) {
+                        Box(modifier = Modifier.weight(1f)) {
+                            EmptyChatState(
+                                suggestions = suggestions,
+                                enabled = chipsEnabled,
+                                onSuggestionClick = { onSendMessage(it.label, it.question) }
+                            )
+                        }
+                        AiStatusIndicator(status)
+                    }
                 } else {
                     LazyColumn(
                         state = listState,
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.spacedBy(8.dp)
                     ) {
-                        items(messages) { message ->
+                        items(visibleMessages) { message ->
                             ChatBubble(
                                 message = message,
                                 onCopy = {
@@ -196,7 +231,7 @@ fun AiHistoryAssistantSheet(
             Spacer(modifier = Modifier.height(10.dp))
 
             // Persistent suggestion chips: one tap asks the question.
-            if (messages.isNotEmpty() && textInput.isBlank()) {
+            if (visibleMessages.isNotEmpty() && textInput.isBlank()) {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
@@ -272,6 +307,26 @@ fun AiHistoryAssistantSheet(
 
             Spacer(modifier = Modifier.height(16.dp))
         }
+    }
+
+    if (showClearConfirm) {
+        AlertDialog(
+            onDismissRequest = { showClearConfirm = false },
+            title = { Text(stringResource(R.string.ai_clear_chat_title)) },
+            text = { Text(stringResource(R.string.ai_clear_chat_message)) },
+            confirmButton = {
+                TextButton(
+                    onClick = {
+                        showClearConfirm = false
+                        onClearChat()
+                    },
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                ) { Text(stringResource(R.string.ai_clear_chat)) }
+            },
+            dismissButton = {
+                TextButton(onClick = { showClearConfirm = false }) { Text(stringResource(R.string.cancel)) }
+            }
+        )
     }
 }
 

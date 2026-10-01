@@ -221,6 +221,9 @@
     <string name="ai_example_7">इस महीने मेरा सबसे बड़ा खर्च क्या था?</string>
     <string name="ai_example_8">पिछले 7 दिनों के मेरे खर्च दिखाएं</string>
     <string name="ai_tap_to_ask">पूछने के लिए किसी सवाल पर टैप करें</string>
+    <string name="ai_clear_chat">चैट साफ करें</string>
+    <string name="ai_clear_chat_title">चैट साफ करें?</string>
+    <string name="ai_clear_chat_message">इससे बातचीत साफ हो जाएगी। जो सवाल आप पूछ चुके हैं, वे आज की सीमा में गिने जाते रहेंगे।</string>
     <string name="requests_left">%d शेष</string>
     <string name="try_asking">उदाहरण / प्रश्न</string>
 
@@ -312,8 +315,8 @@
     <string name="summary_widget_preview_month">इस महीने · ₹18,450</string>
 
     <!-- Recap & Wrapped -->
-    <string name="recap_channel_name">साप्ताहिक सारांश और Wrapped</string>
-    <string name="recap_channel_description">रविवार का शांत सारांश और आपका मासिक Wrapped</string>
+    <string name="recap_channel_name">साप्ताहिक सारांश</string>
+    <string name="recap_channel_description">आपके खर्च का रविवार का शांत सारांश</string>
     <string name="recap_weekly_title">आपका सप्ताह · %1$s</string>
     <string name="recap_weekly_no_previous">इस सप्ताह %1$s।</string>
     <string name="recap_weekly_same">इस सप्ताह %1$s, पिछले सप्ताह जितना।</string>
@@ -322,7 +325,6 @@
     <string name="recap_weekly_biggest">सबसे बड़ा: %1$s %2$s</string>
     <string name="recap_weekly_most_on">सबसे ज़्यादा: %1$s %2$s</string>
     <string name="wrapped_notification_title">आपका %1$s Wrapped तैयार है</string>
-    <string name="wrapped_notification_text">देखें %1$s में आपका पैसा कहाँ गया।</string>
     <string name="wrapped_title">%1$s Wrapped</string>
     <string name="wrapped_previous_month">पिछला महीना</string>
     <string name="wrapped_next_month">अगला महीना</string>
@@ -343,6 +345,14 @@
     <string name="wrapped_share_text">Spendly पर मेरा %1$s</string>
     <string name="wrapped_settings_title">मासिक Wrapped</string>
     <string name="wrapped_settings_subtitle">एक नज़र में आपका महीना</string>
+    <string name="wrapped_channel_name">मासिक Wrapped</string>
+    <string name="wrapped_channel_description">महीने में एक बार, जब आपका Wrapped तैयार हो</string>
+    <string name="wrapped_notification_teaser">आपने %1$s में %2$s खर्च किए, ज़्यादातर %3$s पर। अपना Wrapped देखने के लिए टैप करें।</string>
+    <string name="wrapped_notification_teaser_plain">आपने %1$s में %2$s खर्च किए। अपना Wrapped देखने के लिए टैप करें।</string>
+    <string name="wrapped_banner_new">नया</string>
+    <string name="wrapped_banner_subtitle">आपने %1$s खर्च किए। अपना महीना देखने के लिए टैप करें।</string>
+    <string name="wrapped_banner_open">अपना Wrapped खोलें</string>
+    <string name="wrapped_banner_dismiss">हटाएँ</string>
     <plurals name="wrapped_transactions">
         <item quantity="one">%d लेन-देन</item>
         <item quantity="other">%d लेन-देन</item>

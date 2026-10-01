@@ -62,9 +62,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
 import androidx.compose.foundation.clickable
-import androidx.compose.runtime.mutableStateListOf
-import androidx.compose.runtime.saveable.listSaver
-import androidx.compose.runtime.toMutableStateList
 import androidx.compose.ui.draw.rotate
 import androidx.compose.ui.semantics.Role
 import com.alpha.spendtracker.ui.theme.MotionDuration
@@ -158,6 +155,8 @@ fun HistoryScreen(
     initialCategoryFilter: String = ALL_CATEGORIES,
     initialTimeFilter: TimeFilter = TimeFilter.ALL,
     initialDateRange: Pair<Long, Long>? = null,
+    // Hoisted by the caller so open/closed months survive leaving the screen (see MonthChoices).
+    monthChoices: MonthChoices = rememberMonthChoices(),
     onEditSpend: (Spend) -> Unit,
     onDeleteSpend: (Spend) -> Unit,
     onShowHistory: () -> Unit = {},
@@ -177,13 +176,6 @@ fun HistoryScreen(
         mutableStateOf((initialTimeFilter != TimeFilter.ALL) || (initialCategoryFilter != ALL_CATEGORIES)) 
     }
     var showExportPreview by remember { mutableStateOf(false) }
-    // Months the user has flipped away from their default open/closed state (see isMonthExpanded).
-    val toggledMonths = rememberSaveable(
-        saver = listSaver(
-            save = { it.toList() },
-            restore = { it.toMutableStateList() }
-        )
-    ) { mutableStateListOf<String>() }
     var exportSpends by remember { mutableStateOf<List<Spend>>(emptyList()) }
 
     // Advanced Filter states
@@ -277,14 +269,13 @@ fun HistoryScreen(
             .map { (monthHeader, spends) -> MonthGroup(monthHeader, spends, spends.sumOf { it.amount }) }
     }
 
-    // Months are collapsed behind their header. The newest one starts open so the screen is never a
-    // bare list of headers, and every month starts open while searching: hits hidden behind a tap
-    // would read as "no results". A tap flips a month, and only the flipped months are stored, so
-    // the default stays right when a filter changes which month is newest.
-    val newestMonth = groupedHistory.firstOrNull()?.monthHeader
-    val isSearching = searchQuery.isNotBlank()
-    fun isMonthExpanded(month: String): Boolean =
-        (isSearching || month == newestMonth) != (month in toggledMonths)
+    // Months are collapsed behind their header. A month the user opened or closed stays that way;
+    // otherwise only the newest is open, and every month is open while searching (see MonthSections).
+    val sections = rememberMonthSections(
+        choices = monthChoices,
+        newestKey = groupedHistory.firstOrNull()?.monthHeader,
+        searching = searchQuery.isNotBlank()
+    )
 
     val graphicsLayer = rememberGraphicsLayer()
     if (showExportPreview) {
@@ -677,15 +668,13 @@ fun HistoryScreen(
                 groupedHistory.forEach { group ->
                     val monthHeader = group.monthHeader
                     val spends = group.spends
-                    val expanded = isMonthExpanded(monthHeader)
+                    val expanded = sections.isExpanded(monthHeader)
                     item(key = "header-$monthHeader") {
                         MonthHeader(
                             month = monthHeader,
                             total = group.total,
                             expanded = expanded,
-                            onToggle = {
-                                if (!toggledMonths.remove(monthHeader)) toggledMonths.add(monthHeader)
-                            }
+                            onToggle = { sections.toggle(monthHeader) }
                         )
                     }
                     if (expanded) {
@@ -718,7 +707,7 @@ fun HistoryScreen(
  * cropping the text); the click label tells a screen reader which way the tap will go.
  */
 @Composable
-private fun MonthHeader(
+internal fun MonthHeader(
     month: String,
     total: Double,
     expanded: Boolean,

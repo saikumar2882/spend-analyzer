@@ -221,6 +221,9 @@
     <string name="ai_example_7">What was my biggest expense this month?</string>
     <string name="ai_example_8">Show my spending in the last 7 days</string>
     <string name="ai_tap_to_ask">Tap a question to ask it</string>
+    <string name="ai_clear_chat">Clear chat</string>
+    <string name="ai_clear_chat_title">Clear chat?</string>
+    <string name="ai_clear_chat_message">This clears the conversation. Questions you have already asked still count toward today\'s limit.</string>
     <string name="requests_left">%d left</string>
     <string name="try_asking">Examples / Prompts</string>
 
@@ -313,8 +316,8 @@
     <string name="summary_widget_preview_month">This month · ₹18,450</string>
 
     <!-- Recap & Wrapped -->
-    <string name="recap_channel_name">Weekly recap &amp; Wrapped</string>
-    <string name="recap_channel_description">A quiet Sunday summary and your monthly Wrapped</string>
+    <string name="recap_channel_name">Weekly recap</string>
+    <string name="recap_channel_description">A quiet Sunday summary of your spending</string>
     <string name="recap_weekly_title">Your week · %1$s</string>
     <string name="recap_weekly_no_previous">%1$s this week.</string>
     <string name="recap_weekly_same">%1$s this week, same as last week.</string>
@@ -323,7 +326,6 @@
     <string name="recap_weekly_biggest">Biggest: %1$s %2$s</string>
     <string name="recap_weekly_most_on">Most on: %1$s %2$s</string>
     <string name="wrapped_notification_title">Your %1$s Wrapped is ready</string>
-    <string name="wrapped_notification_text">See where your money went in %1$s.</string>
     <string name="wrapped_title">%1$s Wrapped</string>
     <string name="wrapped_previous_month">Previous month</string>
     <string name="wrapped_next_month">Next month</string>
@@ -344,6 +346,14 @@
     <string name="wrapped_share_text">My %1$s on Spendly</string>
     <string name="wrapped_settings_title">Monthly Wrapped</string>
     <string name="wrapped_settings_subtitle">Your month at a glance</string>
+    <string name="wrapped_channel_name">Monthly Wrapped</string>
+    <string name="wrapped_channel_description">Once a month, when your Wrapped is ready</string>
+    <string name="wrapped_notification_teaser">You spent %2$s in %1$s, mostly on %3$s. Tap to see your Wrapped.</string>
+    <string name="wrapped_notification_teaser_plain">You spent %2$s in %1$s. Tap to see your Wrapped.</string>
+    <string name="wrapped_banner_new">NEW</string>
+    <string name="wrapped_banner_subtitle">You spent %1$s. Tap to see your month.</string>
+    <string name="wrapped_banner_open">Open your Wrapped</string>
+    <string name="wrapped_banner_dismiss">Dismiss</string>
     <plurals name="wrapped_transactions">
         <item quantity="one">%d transaction</item>
         <item quantity="other">%d transactions</item>

@@ -26,6 +26,13 @@ object SpendRecap {
     /** The Wrapped for last month may be announced on days 1..this of the new month. */
     const val WRAPPED_GRACE_DAYS = 3
 
+    /**
+     * The in-app "your Wrapped is ready" card shows on days 1..this. Longer than the notification
+     * window ([WRAPPED_GRACE_DAYS]): a notification is a single evening's ping that is easy to miss
+     * or have switched off, while the card is waiting for whenever the user next opens the app.
+     */
+    const val WRAPPED_BANNER_DAYS = 7
+
     /** An item must show up in at least this many spends to be the "most spent on" item. */
     const val MIN_ITEM_SPENDS = 2
 
@@ -139,6 +146,17 @@ object SpendRecap {
         val due = (day == 1 && cal.get(Calendar.HOUR_OF_DAY) >= WEEKLY_RECAP_HOUR - 1) ||
             day in 2..WRAPPED_GRACE_DAYS
         if (!due) return null
+        cal.add(Calendar.MONTH, -1)
+        return cal.get(Calendar.YEAR) to cal.get(Calendar.MONTH)
+    }
+
+    /**
+     * The (year, 0-based month) whose Wrapped the in-app card should offer at [now]: the previous
+     * month, on days 1..[WRAPPED_BANNER_DAYS]. Null otherwise.
+     */
+    fun bannerWrappedMonth(now: Long, tz: TimeZone = TimeZone.getDefault()): Pair<Int, Int>? {
+        val cal = calendar(tz, now)
+        if (cal.get(Calendar.DAY_OF_MONTH) > WRAPPED_BANNER_DAYS) return null
         cal.add(Calendar.MONTH, -1)
         return cal.get(Calendar.YEAR) to cal.get(Calendar.MONTH)
     }

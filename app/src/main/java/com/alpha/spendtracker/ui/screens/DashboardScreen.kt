@@ -53,6 +53,8 @@ import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.EmptyStateCard
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.ProfileDialog
+import com.alpha.spendtracker.ui.components.WrappedBanner
+import com.alpha.spendtracker.ui.components.WrappedBannerInfo
 import com.alpha.spendtracker.ui.components.QuickStatsRow
 import com.alpha.spendtracker.ui.components.RecentSpendRow
 import com.alpha.spendtracker.ui.components.SwipeableLogCard
@@ -89,7 +91,12 @@ fun DashboardScreen(
     onAiAssistantClick: () -> Unit,
     onNotesClick: () -> Unit,
     onEditSpend: ((Spend) -> Unit)? = null,
-    onDeleteSpend: ((Spend) -> Unit)? = null
+    onDeleteSpend: ((Spend) -> Unit)? = null,
+    // Non-null in the first days of a month while last month's Wrapped hasn't been looked at.
+    wrappedBanner: WrappedBannerInfo? = null,
+    currency: String = "",
+    onWrappedBannerClick: () -> Unit = {},
+    onWrappedBannerDismiss: () -> Unit = {}
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
@@ -196,6 +203,17 @@ fun DashboardScreen(
                     onAiAssistantClick = onAiAssistantClick,
                     onNotesClick = onNotesClick
                 )
+            }
+
+            if (wrappedBanner != null) {
+                item(key = "wrapped-banner") {
+                    WrappedBanner(
+                        info = wrappedBanner,
+                        currency = currency,
+                        onOpen = onWrappedBannerClick,
+                        onDismiss = onWrappedBannerDismiss
+                    )
+                }
             }
 
             item {

@@ -219,6 +219,9 @@
     <string name="ai_example_7">ఈ నెలలో నా అతిపెద్ద ఖర్చు ఏది?</string>
     <string name="ai_example_8">గత 7 రోజుల నా ఖర్చులను చూపించు</string>
     <string name="ai_tap_to_ask">అడగడానికి ఒక ప్రశ్నను నొక్కండి</string>
+    <string name="ai_clear_chat">చాట్ క్లియర్ చేయి</string>
+    <string name="ai_clear_chat_title">చాట్ క్లియర్ చేయాలా?</string>
+    <string name="ai_clear_chat_message">ఇది సంభాషణను క్లియర్ చేస్తుంది. మీరు ఇప్పటికే అడిగిన ప్రశ్నలు ఈ రోజు పరిమితిలో లెక్కించబడతాయి.</string>
     <string name="requests_left">%d మిగిలి ఉన్నాయి</string>
     <string name="try_asking">ఉదాహరణలు / ప్రశ్నలు</string>
 
@@ -310,8 +313,8 @@
     <string name="summary_widget_preview_month">ఈ నెల · ₹18,450</string>
 
     <!-- Recap & Wrapped -->
-    <string name="recap_channel_name">వారపు సారాంశం &amp; Wrapped</string>
-    <string name="recap_channel_description">ఆదివారపు నిశ్శబ్ద సారాంశం మరియు మీ నెలవారీ Wrapped</string>
+    <string name="recap_channel_name">వారపు సారాంశం</string>
+    <string name="recap_channel_description">మీ ఖర్చుల ఆదివారపు నిశ్శబ్ద సారాంశం</string>
     <string name="recap_weekly_title">మీ వారం · %1$s</string>
     <string name="recap_weekly_no_previous">ఈ వారం %1$s.</string>
     <string name="recap_weekly_same">ఈ వారం %1$s, గత వారం అంతే.</string>
@@ -320,7 +323,6 @@
     <string name="recap_weekly_biggest">అతిపెద్దది: %1$s %2$s</string>
     <string name="recap_weekly_most_on">ఎక్కువగా: %1$s %2$s</string>
     <string name="wrapped_notification_title">మీ %1$s Wrapped సిద్ధంగా ఉంది</string>
-    <string name="wrapped_notification_text">%1$s లో మీ డబ్బు ఎక్కడికి వెళ్ళిందో చూడండి.</string>
     <string name="wrapped_title">%1$s Wrapped</string>
     <string name="wrapped_previous_month">గత నెల</string>
     <string name="wrapped_next_month">తదుపరి నెల</string>
@@ -341,6 +343,14 @@
     <string name="wrapped_share_text">Spendly లో నా %1$s</string>
     <string name="wrapped_settings_title">నెలవారీ Wrapped</string>
     <string name="wrapped_settings_subtitle">ఒక్క చూపులో మీ నెల</string>
+    <string name="wrapped_channel_name">నెలవారీ Wrapped</string>
+    <string name="wrapped_channel_description">నెలకు ఒకసారి, మీ Wrapped సిద్ధమైనప్పుడు</string>
+    <string name="wrapped_notification_teaser">మీరు %1$s లో %2$s ఖర్చు చేశారు, ఎక్కువగా %3$s కోసం. మీ Wrapped చూడటానికి ట్యాప్ చేయండి.</string>
+    <string name="wrapped_notification_teaser_plain">మీరు %1$s లో %2$s ఖర్చు చేశారు. మీ Wrapped చూడటానికి ట్యాప్ చేయండి.</string>
+    <string name="wrapped_banner_new">కొత్తది</string>
+    <string name="wrapped_banner_subtitle">మీరు %1$s ఖర్చు చేశారు. మీ నెలను చూడటానికి ట్యాప్ చేయండి.</string>
+    <string name="wrapped_banner_open">మీ Wrapped తెరవండి</string>
+    <string name="wrapped_banner_dismiss">మూసివేయి</string>
     <plurals name="wrapped_transactions">
         <item quantity="one">%d లావాదేవీ</item>
         <item quantity="other">%d లావాదేవీలు</item>

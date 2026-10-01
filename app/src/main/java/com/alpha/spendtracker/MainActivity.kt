@@ -122,6 +122,10 @@ import com.alpha.spendtracker.ui.screens.DashboardScreen
 import com.alpha.spendtracker.ui.screens.HistoryScreen
 import com.alpha.spendtracker.ui.screens.LendBorrowScreen
 import com.alpha.spendtracker.ui.screens.LoginScreen
+import com.alpha.spendtracker.ui.screens.rememberMonthChoices
+import com.alpha.spendtracker.ui.components.WrappedBannerInfo
+import com.alpha.spendtracker.data.RecapPreferences
+import com.alpha.spendtracker.data.SpendRecap
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.ui.screens.NotesHistoryScreen
 import com.alpha.spendtracker.ui.screens.NotesScreen
@@ -592,6 +596,10 @@ LaunchedEffect(Unit) {
     var historySearchQuery by rememberSaveable { mutableStateOf("") }
     var historyCategoryFilter by rememberSaveable { mutableStateOf("All") }
     var historyTimeFilter by rememberSaveable { mutableStateOf(TimeFilter.ALL) }
+    // Open/closed months of the History and Dues lists. Held here rather than inside the screens:
+    // AnimatedContent drops a screen's state on navigation, which reopened months the user had closed.
+    val historyMonthChoices = rememberMonthChoices()
+    val duesMonthChoices = rememberMonthChoices()
     var editingSpend by remember { mutableStateOf<Spend?>(null) }
     var prefilledBillSpend by remember { mutableStateOf<NewSpend?>(null) }
     var showBillTrackingSheet by remember { mutableStateOf(false) }
@@ -633,11 +641,38 @@ LaunchedEffect(Unit) {
     }
 
     val allSpends by viewModel.allSpendsFlow.collectAsStateWithLifecycle()
+
+    // In-app counterpart of the "Wrapped is ready" notification: a card on the Dashboard on days
+    // 1..WRAPPED_BANNER_DAYS until the user has opened last month's Wrapped (from the card, the
+    // notification or Settings) or dismissed it. It does not depend on notification permission.
+    // `wrappedSeen` is null until DataStore has loaded, so the card never flashes in and out.
+    val recapPreferences = remember { RecapPreferences(context) }
+    val wrappedSeen by recapPreferences.wrappedSeen.collectAsStateWithLifecycle(initialValue = null)
+    val signedInUid = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
+    val wrappedBanner = remember(allSpends, wrappedSeen, signedInUid) {
+        val seen = wrappedSeen ?: return@remember null
+        val now = System.currentTimeMillis()
+        val (year, month) = SpendRecap.bannerWrappedMonth(now) ?: return@remember null
+        if (seen == "$signedInUid:${SpendRecap.monthKey(year, month)}") return@remember null
+        val wrapped = SpendRecap.monthly(allSpends, year, month, now)
+        if (wrapped.isEmpty) null else WrappedBannerInfo(year, month, wrapped.total)
+    }
+    // Only the card's own month is ever recorded: opening another month's Wrapped from Settings
+    // must not count as having seen the one the card is offering.
+    val markWrappedSeen: (String?) -> Unit = { openedKey ->
+        val bannerMonth = SpendRecap.bannerWrappedMonth(System.currentTimeMillis())
+        val bannerKey = bannerMonth?.let { SpendRecap.monthKey(it.first, it.second) }
+        if (bannerKey != null && bannerKey == openedKey) {
+            scope.launch { recapPreferences.setWrappedSeen("$signedInUid:$bannerKey") }
+        }
+    }
+
     val analyticsState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val customDateRange by viewModel.customDateRange.collectAsStateWithLifecycle()
     val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
     val chatHistory by viewModel.chatHistory.collectAsStateWithLifecycle()
+    val chatClearedAt by viewModel.chatClearedAt.collectAsStateWithLifecycle()
     val historyStatus by viewModel.historyStatus.collectAsStateWithLifecycle()
     val syncStatus by viewModel.syncStatus.collectAsStateWithLifecycle()
     val deletedHistory by viewModel.deletedHistory.collectAsStateWithLifecycle()
@@ -1309,7 +1344,15 @@ LaunchedEffect(Unit) {
                                 returnTo = activeView
                                 activeView = ActiveView.ADD_SPEND
                             },
-                            onDeleteSpend = { spend -> deleteSpendWithUndo(spend) }
+                            onDeleteSpend = { spend -> deleteSpendWithUndo(spend) },
+                            wrappedBanner = wrappedBanner,
+                            currency = aiPrefs.defaultCurrency,
+                            onWrappedBannerClick = {
+                                wrappedBanner?.let { wrappedMonthKey = SpendRecap.monthKey(it.year, it.month) }
+                            },
+                            onWrappedBannerDismiss = {
+                                wrappedBanner?.let { markWrappedSeen(SpendRecap.monthKey(it.year, it.month)) }
+                            }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
                             allSpends = allSpends,
@@ -1323,7 +1366,8 @@ LaunchedEffect(Unit) {
                             onDeleteSpend = { spend -> deleteSpendWithUndo(spend) },
                             onShowHistory = {
                                 activeView = ActiveView.LEND_BORROW_HISTORY
-                            }
+                            },
+                            monthChoices = duesMonthChoices
                         )
                         ActiveView.LEND_BORROW_HISTORY -> com.alpha.spendtracker.ui.screens.LendBorrowHistoryScreen(
                             deletedHistory = lendBorrowDeleted,
@@ -1508,6 +1552,7 @@ LaunchedEffect(Unit) {
                             initialCategoryFilter = historyCategoryFilter,
                             initialTimeFilter = historyTimeFilter,
                             initialDateRange = customDateRange,
+                            monthChoices = historyMonthChoices,
                             onEditSpend = { spend ->
                                 editingSpend = spend
                                 returnTo = activeView
@@ -1731,6 +1776,8 @@ LaunchedEffect(Unit) {
         // Same lock gate as the AI confirmation sheet: a ModalBottomSheet floats above LockedOverlay.
         if (wrappedMonth != null && (!needsBiometric || isBiometricAuthenticated)) {
             val wrappedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            // The sheet is only composed once the app lock is open, so "seen" means actually seen.
+            LaunchedEffect(wrappedMonthKey) { markWrappedSeen(wrappedMonthKey) }
             com.alpha.spendtracker.ui.components.WrappedSheet(
                 spends = allSpends,
                 initialYear = wrappedMonth.first,
@@ -1776,7 +1823,9 @@ LaunchedEffect(Unit) {
                 onSendMessage = { question, scopeText -> viewModel.askAiAboutHistory(question, scopeText) },
                 onDismiss = { showAiHistoryAssistant = false },
                 sheetState = aiHistorySheetState,
-                hasDues = hasDues
+                hasDues = hasDues,
+                clearedAt = chatClearedAt,
+                onClearChat = viewModel::clearChatHistory
             )
         }
 

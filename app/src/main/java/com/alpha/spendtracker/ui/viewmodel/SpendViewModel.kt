@@ -197,6 +197,15 @@ class SpendViewModel @Inject constructor(
     )
 
     @OptIn(ExperimentalCoroutinesApi::class)
+    val chatClearedAt: StateFlow<Long> = _userId.flatMapLatest { userId ->
+        aiPrefsRepository.chatClearedAtFlow(userId)
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = 0L
+    )
+
+    @OptIn(ExperimentalCoroutinesApi::class)
     val recurringBills: StateFlow<List<RecurringBill>> = _userId.flatMapLatest { userId ->
         repository.getAllRecurringBills(userId)
     }.stateIn(
@@ -430,6 +439,26 @@ class SpendViewModel @Inject constructor(
 
     fun clearUpdateHistory(lendBorrow: Boolean, onResult: (Result<Unit>) -> Unit = {}) =
         mutate(onResult) { repository.clearHistory(_userId.value, HistoryType.UPDATED, lendBorrow) }
+
+    /**
+     * Hides the conversation by moving a cutoff, and deliberately leaves the rows alone: the daily
+     * limit (2 sessions x 7 messages) is counted from them, so deleting them would hand the quota
+     * back. They are purged by the usual 12-hour TTL cleanup.
+     */
+    fun clearChatHistory() {
+        // An answer that lands after the cutoff would sit alone in an empty chat.
+        if (_historyStatus.value is AiHistoryStatus.Analyzing) return
+        val userId = _userId.value
+        viewModelScope.launch {
+            aiPrefsRepository.setChatClearedAt(userId, System.currentTimeMillis())
+            // A stale "server busy" shouldn't greet the next question; the daily-limit notice is
+            // still true, and is what keeps the suggestions disabled.
+            val status = _historyStatus.value
+            if (status is AiHistoryStatus.Error && status.type != AiErrorType.CLIENT_RATE_LIMIT) {
+                _historyStatus.value = AiHistoryStatus.Idle
+            }
+        }
+    }
 
     /**
      * [question] is shown in the chat and sent to the model. [scopeText] is what [HistoryQuery]

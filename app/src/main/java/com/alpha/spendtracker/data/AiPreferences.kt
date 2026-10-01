@@ -98,6 +98,17 @@ class AiPreferencesRepository(private val context: Context) {
         }
     }
 
+    // Keyed by user: this DataStore is device-wide, but the chat rows are per account.
+    private fun chatClearedAtKey(userId: String) = longPreferencesKey("chat_cleared_at_$userId")
+
+    /** Messages at or before this time are hidden from the assistant's chat; 0 means none are. */
+    fun chatClearedAtFlow(userId: String): Flow<Long> = context.dataStore.data
+        .map { it[chatClearedAtKey(userId)] ?: 0L }
+
+    suspend fun setChatClearedAt(userId: String, time: Long) {
+        context.dataStore.edit { it[chatClearedAtKey(userId)] = time }
+    }
+
     suspend fun incrementUsage() {
         context.dataStore.edit { preferences ->
             val lastDate = preferences[PreferencesKeys.LAST_USAGE_DATE] ?: 0L

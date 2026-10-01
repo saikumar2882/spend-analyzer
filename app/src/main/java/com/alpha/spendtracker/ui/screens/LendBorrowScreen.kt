@@ -73,6 +73,8 @@ fun LendBorrowScreen(
     onDeleteSpend: (Spend) -> Unit,
     onShowHistory: () -> Unit,
     onShowNotification: (String, NotificationType) -> Unit = { _, _ -> },
+    // Hoisted by the caller so open/closed months survive leaving the screen (see MonthChoices).
+    monthChoices: MonthChoices = rememberMonthChoices(),
 ) {
     val context = LocalContext.current
     var selectedTab by remember { mutableIntStateOf(0) }
@@ -204,6 +206,20 @@ fun LendBorrowScreen(
     val peopleCount = remember(filteredSpends) {
         calculatePeopleCount(filteredSpends)
     }
+
+    // Grouped once here rather than inside the LazyColumn lambda, which re-ran it on every recomposition.
+    val groupedSpends = remember(filteredSpends) {
+        filteredSpends.groupBy { formatMonth(it.timestamp) }.toList()
+    }
+
+    // Same rule as History (see MonthSections). The tab is part of the key because "You lent" and
+    // "You borrowed" are separate lists: closing September in one must not close it in the other.
+    fun monthKey(month: String) = "$selectedTab|$month"
+    val sections = rememberMonthSections(
+        choices = monthChoices,
+        newestKey = groupedSpends.firstOrNull()?.first?.let(::monthKey),
+        searching = searchQuery.isNotBlank()
+    )
 
     if (spendToDelete != null) {
         val currentSpendToDelete = spendToDelete!!
@@ -412,68 +428,45 @@ fun LendBorrowScreen(
                     )
                 }
 
-                val grouped = filteredSpends.groupBy { formatMonth(it.timestamp) }
-                grouped.forEach { (monthHeader, spends) ->
+                groupedSpends.forEach { (monthHeader, spends) ->
                     val monthSum = spends.sumOf { it.amount }
+                    val expanded = sections.isExpanded(monthKey(monthHeader))
                     item(key = "group-$monthHeader-$selectedTab") {
                         Column(modifier = Modifier.fillMaxWidth()) {
-                            // Month Header Row
-                            Row(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(horizontal = 4.dp, vertical = 6.dp),
-                                horizontalArrangement = Arrangement.SpaceBetween,
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Text(
-                                    text = monthHeader.uppercase(),
-                                    style = MaterialTheme.typography.labelMedium.copy(
-                                        fontWeight = FontWeight.Bold,
-                                        letterSpacing = 1.sp
-                                    ),
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
+                            MonthHeader(
+                                month = monthHeader,
+                                total = monthSum,
+                                expanded = expanded,
+                                onToggle = { sections.toggle(monthKey(monthHeader)) }
+                            )
+
+                            if (expanded) {
+                                // Flat seamless rows for items in this month (no outer background box)
                                 Surface(
-                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-                                    shape = RoundedCornerShape(8.dp),
-                                    border = null
+                                    shape = RoundedCornerShape(16.dp),
+                                    color = Color.Transparent,
+                                    border = null,
+                                    modifier = Modifier.fillMaxWidth()
                                 ) {
-                                    Text(
-                                        text = "₹${formatCurrency(monthSum)}",
-                                        style = MaterialTheme.typography.labelSmall.asMoney(),
-                                        color = MaterialTheme.colorScheme.onSurface,
-                                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                                    )
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.height(6.dp))
-
-                            // Flat seamless rows for items in this month (no outer background box)
-                            Surface(
-                                shape = RoundedCornerShape(16.dp),
-                                color = Color.Transparent,
-                                border = null,
-                                modifier = Modifier.fillMaxWidth()
-                            ) {
-                                Column {
-                                    spends.forEachIndexed { index, spend ->
-                                        SwipeableLogCard(
-                                            onEdit = { onEditSpend(spend) },
-                                            onDelete = { spendToDelete = spend }
-                                        ) {
-                                            DuesSpendCard(
-                                                spend = spend,
-                                                isLending = selectedTab == 0,
-                                                onEdit = { onEditSpend(spend) }
-                                            )
-                                        }
-                                        if (index < spends.size - 1) {
-                                            HorizontalDivider(
-                                                modifier = Modifier.padding(start = 72.dp, end = 16.dp),
-                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                                                thickness = 1.dp
-                                            )
+                                    Column {
+                                        spends.forEachIndexed { index, spend ->
+                                            SwipeableLogCard(
+                                                onEdit = { onEditSpend(spend) },
+                                                onDelete = { spendToDelete = spend }
+                                            ) {
+                                                DuesSpendCard(
+                                                    spend = spend,
+                                                    isLending = selectedTab == 0,
+                                                    onEdit = { onEditSpend(spend) }
+                                                )
+                                            }
+                                            if (index < spends.size - 1) {
+                                                HorizontalDivider(
+                                                    modifier = Modifier.padding(start = 72.dp, end = 16.dp),
+                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                                                    thickness = 1.dp
+                                                )
+                                            }
                                         }
                                     }
                                 }

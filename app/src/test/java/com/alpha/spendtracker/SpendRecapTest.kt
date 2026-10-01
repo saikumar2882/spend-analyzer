@@ -120,4 +120,21 @@ class SpendRecapTest {
         assertNull(SpendRecap.parseMonthKey("2026-13"))
         assertNull(SpendRecap.parseMonthKey(null))
     }
+
+    @Test
+    fun inAppWrappedCardIsOfferedAllDayForTheFirstWeek() {
+        // Unlike the notification (evening of the 1st .. day 3), the card is there from midnight
+        // and lasts a week, so someone who opens the app on the 5th still sees it.
+        assertEquals(2026 to Calendar.SEPTEMBER, SpendRecap.bannerWrappedMonth(at(2026, Calendar.OCTOBER, 1, 9), tz))
+        assertNull(SpendRecap.dueWrappedMonth(at(2026, Calendar.OCTOBER, 1, 9), tz))
+        assertEquals(2026 to Calendar.SEPTEMBER, SpendRecap.bannerWrappedMonth(at(2026, Calendar.OCTOBER, 5), tz))
+        assertEquals(2026 to Calendar.SEPTEMBER, SpendRecap.bannerWrappedMonth(at(2026, Calendar.OCTOBER, 7, 23), tz))
+        assertNull(SpendRecap.bannerWrappedMonth(at(2026, Calendar.OCTOBER, 8), tz))
+        assertNull(SpendRecap.bannerWrappedMonth(at(2026, Calendar.OCTOBER, 20), tz))
+    }
+
+    @Test
+    fun inAppWrappedCardInJanuaryOffersDecemberOfLastYear() {
+        assertEquals(2025 to Calendar.DECEMBER, SpendRecap.bannerWrappedMonth(at(2026, Calendar.JANUARY, 3), tz))
+    }
 }

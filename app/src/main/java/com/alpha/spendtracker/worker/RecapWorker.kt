@@ -56,6 +56,10 @@ class RecapWorker @AssistedInject constructor(
         private const val TAG = "RecapWorker"
         private const val WORK_NAME = "SpendRecapWork"
         private const val CHANNEL_ID = "spend_recaps"
+        // Wrapped has its own channel (IMPORTANCE_DEFAULT) so it isn't as quiet as the weekly recap,
+        // and so users can mute one without the other. A channel's importance can't be raised once
+        // it exists on a device, which is why this is a new id rather than a change to CHANNEL_ID.
+        private const val WRAPPED_CHANNEL_ID = "spend_wrapped"
         private const val WEEKLY_NOTIFICATION_ID = 0x5EC0
         private const val WRAPPED_NOTIFICATION_ID = 0x5EC1
 
@@ -133,7 +137,7 @@ class RecapWorker @AssistedInject constructor(
             if (recapPreferences.lastMonthlyWrapped() != key) {
                 val wrapped = SpendRecap.monthly(spends, year, month, now, tz)
                 if (!wrapped.isEmpty) {
-                    showWrappedReady(year, month)
+                    showWrappedReady(wrapped, currency)
                     recapPreferences.setLastMonthlyWrapped(key)
                 }
             }
@@ -142,17 +146,24 @@ class RecapWorker @AssistedInject constructor(
         return Result.success()
     }
 
-    private fun ensureChannel(): NotificationManager {
+    private fun ensureChannel(): NotificationManager = ensureChannel(
+        CHANNEL_ID, R.string.recap_channel_name, R.string.recap_channel_description,
+        // LOW: shows in the shade without sound or heads-up — a weekly recap is never urgent.
+        NotificationManager.IMPORTANCE_LOW
+    )
+
+    private fun ensureWrappedChannel(): NotificationManager = ensureChannel(
+        WRAPPED_CHANNEL_ID, R.string.wrapped_channel_name, R.string.wrapped_channel_description,
+        // DEFAULT: sound, but no heads-up. It happens once a month, so it should be noticed.
+        NotificationManager.IMPORTANCE_DEFAULT
+    )
+
+    private fun ensureChannel(id: String, nameRes: Int, descriptionRes: Int, importance: Int): NotificationManager {
         val notificationManager =
             applicationContext.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-            // LOW: shows in the shade without sound or heads-up — a recap is never urgent.
-            val channel = NotificationChannel(
-                CHANNEL_ID,
-                applicationContext.getString(R.string.recap_channel_name),
-                NotificationManager.IMPORTANCE_LOW
-            ).apply {
-                description = applicationContext.getString(R.string.recap_channel_description)
+            val channel = NotificationChannel(id, applicationContext.getString(nameRes), importance).apply {
+                description = applicationContext.getString(descriptionRes)
             }
             notificationManager.createNotificationChannel(channel)
         }
@@ -214,22 +225,27 @@ class RecapWorker @AssistedInject constructor(
         ensureChannel().notify(WEEKLY_NOTIFICATION_ID, notification)
     }
 
-    private fun showWrappedReady(year: Int, month: Int) {
+    private fun showWrappedReady(wrapped: SpendRecap.MonthlyWrapped, currency: String) {
         val ctx = applicationContext
-        val monthName = SimpleDateFormat("LLLL", Locale.getDefault())
-            .format(SpendRecap.monthPeriod(year, month).start)
+        val monthName = SimpleDateFormat("LLLL", Locale.getDefault()).format(wrapped.period.start)
+        // A teaser with the real number is what makes this worth opening, versus a generic
+        // "your Wrapped is ready".
+        val total = "$currency${formatCurrencyRounded(wrapped.total)}"
+        val body = wrapped.topCategory
+            ?.let { (category, _) -> ctx.getString(R.string.wrapped_notification_teaser, monthName, total, category) }
+            ?: ctx.getString(R.string.wrapped_notification_teaser_plain, monthName, total)
 
-        val notification = NotificationCompat.Builder(ctx, CHANNEL_ID)
+        val notification = NotificationCompat.Builder(ctx, WRAPPED_CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(ctx.getString(R.string.wrapped_notification_title, monthName))
-            .setContentText(ctx.getString(R.string.wrapped_notification_text, monthName))
-            .setPriority(NotificationCompat.PRIORITY_LOW)
+            .setContentText(body)
+            .setStyle(NotificationCompat.BigTextStyle().bigText(body))
+            .setPriority(NotificationCompat.PRIORITY_DEFAULT)
             .setCategory(NotificationCompat.CATEGORY_RECOMMENDATION)
-            .setSilent(true)
             .setAutoCancel(true)
-            .setContentIntent(contentIntent(WRAPPED_NOTIFICATION_ID, SpendRecap.monthKey(year, month)))
+            .setContentIntent(contentIntent(WRAPPED_NOTIFICATION_ID, SpendRecap.monthKey(wrapped.year, wrapped.month)))
             .build()
 
-        ensureChannel().notify(WRAPPED_NOTIFICATION_ID, notification)
+        ensureWrappedChannel().notify(WRAPPED_NOTIFICATION_ID, notification)
     }
 }
