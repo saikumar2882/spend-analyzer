@@ -443,13 +443,14 @@ fun ChatBubble(
         }
 
         Column(
+            modifier = if (isUser) Modifier else Modifier.weight(1f, fill = false),
             horizontalAlignment = if (isUser) Alignment.End else Alignment.Start
         ) {
             Surface(
                 color = if (isUser) MaterialTheme.colorScheme.primary
                 else MaterialTheme.colorScheme.surfaceContainerLow,
                 shape = RoundedCornerShape(14.dp),
-                modifier = Modifier.widthIn(max = 280.dp)
+                modifier = if (isUser) Modifier.widthIn(max = 280.dp) else Modifier.fillMaxWidth()
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     if (isUser) {

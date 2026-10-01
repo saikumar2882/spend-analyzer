@@ -1,5 +1,7 @@
 package com.alpha.spendtracker.ui.screens
 
+import android.app.DatePickerDialog
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
@@ -14,12 +16,15 @@ import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalConfiguration
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextOverflow
@@ -38,7 +43,10 @@ import androidx.compose.ui.draw.scale
 import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.rememberPressScale
+import com.alpha.spendtracker.util.findActivity
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -54,7 +62,8 @@ fun RecurringBillsScreen(
         dayOfMonth: Int,
         notes: String,
         isCreditCard: Boolean,
-        cardLast4: String
+        cardLast4: String,
+        untilDate: Long?
     ) -> Unit,
     onUpdateBill: (RecurringBill) -> Unit,
     onDeleteBill: (RecurringBill) -> Unit,
@@ -279,7 +288,7 @@ fun RecurringBillsScreen(
                     editingBill = null
                     acceptingSuggestion = null
                 },
-                onSave = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4 ->
+                onSave = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate ->
                     val currentEditing = editingBill
                     if (currentEditing != null) {
                         onUpdateBill(
@@ -292,11 +301,12 @@ fun RecurringBillsScreen(
                                 dayOfMonth = day,
                                 notes = notes,
                                 isCreditCard = isCreditCard,
-                                cardLast4 = cardLast4
+                                cardLast4 = cardLast4,
+                                untilDate = untilDate
                             )
                         )
                     } else {
-                        onAddBill(name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4)
+                        onAddBill(name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate)
                     }
                     showAddDialog = false
                     editingBill = null
@@ -369,14 +379,54 @@ fun RecurringBillItem(
             Spacer(modifier = Modifier.width(Spacing.md))
 
             Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = bill.name,
-                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                    color = MaterialTheme.colorScheme.onSurface,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
-                )
+                // Top Row: Bill Name + Due Date / Status
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
+                ) {
+                    Text(
+                        text = bill.name,
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                        color = MaterialTheme.colorScheme.onSurface,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
+                    )
+
+                    Text(
+                        text = "•",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                    )
+
+                    if (bill.isExpired) {
+                        Surface(
+                            color = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.5f),
+                            shape = RoundedCornerShape(Radius.xxs)
+                        ) {
+                            Text(
+                                text = "Ended",
+                                style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.error,
+                                modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
+                            )
+                        }
+                    } else {
+                        Text(
+                            text = dueLabel,
+                            style = MaterialTheme.typography.bodySmall.copy(
+                                fontWeight = if (daysUntil <= 5) FontWeight.SemiBold else FontWeight.Normal
+                            ),
+                            color = dueColor,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
+
                 Spacer(modifier = Modifier.height(2.dp))
+
+                // Bottom Row: App Name / Card Info + Until Date
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
@@ -393,31 +443,41 @@ fun RecurringBillItem(
                                 modifier = Modifier.padding(horizontal = 4.dp, vertical = 1.dp)
                             )
                         }
-                        Text(
-                            text = "•",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                        )
-                    } else if (!bill.isCreditCardBill && bill.appName.isNotBlank()) {
+                    } else if (bill.appName.isNotBlank()) {
                         Text(
                             text = getLocalizedPresetName(bill.appName),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = "•",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
                         )
                     }
 
-                    Text(
-                        text = dueLabel,
-                        style = MaterialTheme.typography.bodySmall.copy(
-                            fontWeight = if (daysUntil <= 5) FontWeight.SemiBold else FontWeight.Normal
-                        ),
-                        color = dueColor
-                    )
+                    if (bill.untilDate != null && !bill.isExpired) {
+                        if (bill.isCreditCardBill && bill.cardLast4.isNotBlank() || (!bill.isCreditCardBill && bill.appName.isNotBlank())) {
+                            Text(
+                                text = "•",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                            )
+                        }
+                        val locale = LocalConfiguration.current.locales[0]
+                        val untilCal = remember(bill.untilDate) {
+                            Calendar.getInstance().apply { timeInMillis = bill.untilDate }
+                        }
+                        val currentYear = remember { Calendar.getInstance().get(Calendar.YEAR) }
+                        val pattern = if (untilCal.get(Calendar.YEAR) == currentYear) "d MMM" else "d MMM ''yy"
+                        val untilStr = remember(bill.untilDate, locale) {
+                            SimpleDateFormat(pattern, locale).format(Date(bill.untilDate))
+                        }
+                        Text(
+                            text = "until $untilStr",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
                 }
             }
 
@@ -530,9 +590,14 @@ fun BillEditDialog(
         day: Int,
         notes: String,
         isCreditCard: Boolean,
-        cardLast4: String
+        cardLast4: String,
+        untilDate: Long?
     ) -> Unit
 ) {
+    val context = LocalContext.current
+    val locale = LocalConfiguration.current.locales[0]
+    val dateFormatter = remember(locale) { SimpleDateFormat("d MMM yyyy", locale) }
+
     val purposeOptions = remember {
         listOf(
             "Credit Card Bill",
@@ -563,6 +628,7 @@ fun BillEditDialog(
     var amount by remember(initial) { mutableStateOf(initial?.amount?.takeIf { it > 0 }?.toString() ?: "") }
     var day by remember(initial) { mutableStateOf(initial?.dayOfMonth?.toString() ?: "1") }
     var notes by remember(initial) { mutableStateOf(initial?.notes ?: "") }
+    var untilDate by remember(initial) { mutableStateOf<Long?>(initial?.untilDate) }
 
     val cleanTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
@@ -746,6 +812,78 @@ fun BillEditDialog(
                     shape = RoundedCornerShape(14.dp),
                     colors = cleanTextFieldColors
                 )
+
+                // Optional Recurring Until Date Field
+                OutlinedCard(
+                    onClick = {
+                        val activity = context.findActivity()
+                        if (activity != null) {
+                            val cal = Calendar.getInstance().apply {
+                                timeInMillis = untilDate ?: System.currentTimeMillis()
+                            }
+                            DatePickerDialog(
+                                activity,
+                                { _, year, month, dayOfMonth ->
+                                    val selected = Calendar.getInstance().apply {
+                                        set(year, month, dayOfMonth, 23, 59, 59)
+                                    }
+                                    untilDate = selected.timeInMillis
+                                },
+                                cal.get(Calendar.YEAR),
+                                cal.get(Calendar.MONTH),
+                                cal.get(Calendar.DAY_OF_MONTH)
+                            ).show()
+                        }
+                    },
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(14.dp),
+                    colors = CardDefaults.outlinedCardColors(
+                        containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
+                    ),
+                    border = BorderStroke(0.dp, Color.Transparent)
+                ) {
+                    Row(
+                        modifier = Modifier
+                            .padding(horizontal = 16.dp, vertical = 12.dp)
+                            .fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = "Recurring Until (Optional)",
+                                style = MaterialTheme.typography.labelSmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = if (untilDate != null) "Until ${dateFormatter.format(Date(untilDate!!))}" else "No end date (Indefinite)",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = if (untilDate != null) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                            )
+                        }
+                        if (untilDate != null) {
+                            IconButton(
+                                onClick = { untilDate = null },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.Close,
+                                    contentDescription = "Clear end date",
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                    modifier = Modifier.size(16.dp)
+                                )
+                            }
+                        } else {
+                            Icon(
+                                Icons.Rounded.Event,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                                modifier = Modifier.size(20.dp)
+                            )
+                        }
+                    }
+                }
             }
         },
         confirmButton = {
@@ -756,7 +894,7 @@ fun BillEditDialog(
                     val isCard = isCreditCardMode || purpose.contains("Credit Card", ignoreCase = true) || cardLast4.isNotBlank() || defaultIsCreditCard
                     val category = if (isCard) "Credit Card" else (APP_PRESETS.find { it.displayName == appName }?.category ?: "Other")
                     val finalPurpose = if (isCard) "Credit Card Bill" else purpose
-                    onSave(name, finalPurpose, category, appName, a, d, notes, isCard, cardLast4)
+                    onSave(name, finalPurpose, category, appName, a, d, notes, isCard, cardLast4, untilDate)
                 },
                 enabled = name.isNotBlank() && day.isNotBlank()
             ) {

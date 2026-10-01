@@ -224,6 +224,7 @@ class SpendViewModel @Inject constructor(
         notes: String = "",
         isCreditCard: Boolean = false,
         cardLast4: String = "",
+        untilDate: Long? = null,
         onResult: (Result<Unit>) -> Unit = {}
     ) {
         mutate(onResult) {
@@ -239,6 +240,7 @@ class SpendViewModel @Inject constructor(
                 notes = notes,
                 isCreditCard = isCreditCard,
                 cardLast4 = cardLast4,
+                untilDate = untilDate,
                 updatedAt = System.currentTimeMillis()
             )
             repository.insertRecurringBill(bill)
@@ -647,7 +649,8 @@ class SpendViewModel @Inject constructor(
 
                         RESPONSE FORMAT:
                         - Use **bold** for amounts, category names, app names, and key numbers.
-                        - Use bullet points for lists and breakdowns.
+                        - For monetary amounts, write negative values as -$currency<amount> instead of $currency-<amount>.
+                        - For category breakdowns, app summaries, or multi-item comparisons, prefer Markdown tables (| Category | Amount | Share |) or bullet lists.
                         ${if (includesDues) """- For person-grouped data (lending/borrowing), use hierarchical lists:
                           * **<person>** (Total: **$currency<total>**)
                             - **<date>**: **$currency<amount>** — <that row's note text>
@@ -657,7 +660,7 @@ class SpendViewModel @Inject constructor(
                         - Indent nested items with 2 spaces.
                         - Finish every list you start. If there are too many transactions to list in
                           full, group or summarise them instead of stopping mid-line.
-                        - End with a short actionable insight when relevant.
+                        - Always start final takeaways or actionable advice with **Insight:** <text>.
                         - Keep responses concise. Do not restate the user's question.
                     """.trimIndent()
 

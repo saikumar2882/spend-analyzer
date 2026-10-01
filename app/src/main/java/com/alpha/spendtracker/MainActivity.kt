@@ -1425,7 +1425,7 @@ LaunchedEffect(Unit) {
                             suggestions = viewModel.subscriptionSuggestions.collectAsStateWithLifecycle().value,
                             onDismissSuggestion = viewModel::dismissSubscriptionSuggestion,
                             onBack = goBackMajor,
-                            onAddBill = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4 ->
+                            onAddBill = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate ->
                                 viewModel.addRecurringBill(
                                     name = name,
                                     purpose = purpose,
@@ -1435,7 +1435,8 @@ LaunchedEffect(Unit) {
                                     dayOfMonth = day,
                                     notes = notes,
                                     isCreditCard = isCreditCard,
-                                    cardLast4 = cardLast4
+                                    cardLast4 = cardLast4,
+                                    untilDate = untilDate
                                 )
                             },
                             onUpdateBill = viewModel::updateRecurringBill,

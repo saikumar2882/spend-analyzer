@@ -55,6 +55,11 @@ class RecurringBillWorker @AssistedInject constructor(
         if (dueBills.isEmpty()) return Result.success()
 
         for (bill in dueBills) {
+            if (bill.isExpired) {
+                Log.d(TAG, "Bill ${bill.name} expired. Skipping reminder.")
+                continue
+            }
+
             // 1. Reset flags if it's a new day
             var updatedBill = if (bill.lastNotifiedDate != todayStr) {
                 bill.copy(lastNotifiedDate = todayStr, notifiedAt1230 = false, notifiedAt2200 = false)
