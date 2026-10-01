@@ -116,6 +116,11 @@ fun AiInputBottomSheet(
                     color = MaterialTheme.colorScheme.primary,
                     trackColor = MaterialTheme.colorScheme.surfaceVariant
                 )
+                Text(
+                    text = stringResource(R.string.ai_reading_input),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.primary
+                )
             }
 
             if (errorMessage != null && !isProcessing) {
@@ -194,7 +199,8 @@ fun AiInputBottomSheet(
                     listOf(
                         "₹250 Uber ride via GPay",
                         "Lent 1000 to Arjun",
-                        "Bought groceries from Zepto for 540"
+                        "Bought groceries from Zepto for 540",
+                        "Tea 20, auto 80 and lunch 150"
                     )
                 }
                 Column(
@@ -204,6 +210,13 @@ fun AiInputBottomSheet(
                     Text(
                         text = "Try these examples:",
                         style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    // Several expenses in one go is easy to miss, and the review list that follows
+                    // shows each one, so say it here once.
+                    Text(
+                        text = stringResource(R.string.ai_multi_hint),
+                        style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
                     examples.forEach { ex ->

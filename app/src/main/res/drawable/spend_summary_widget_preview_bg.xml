@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Picker-preview only (previewLayout is plain RemoteViews XML); mirrors the Glance widget. -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <solid android:color="@color/summary_widget_background" />
+    <corners android:radius="18dp" />
+</shape>

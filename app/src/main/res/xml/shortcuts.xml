@@ -1,0 +1,53 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Long-press launcher shortcuts, mirroring the Dashboard FAB speed dial: AI text, voice, manual.
+
+     AI and voice open the same translucent overlay the home-screen widget uses
+     (QuickAddInputActivity), so the full app is not loaded just to type a sentence; it hands
+     the parsed result to MainActivity for confirmation. Manual add has no overlay, so it
+     opens MainActivity with OPEN_ADD_SPEND. -->
+<shortcuts xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <shortcut
+        android:shortcutId="track_with_ai"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_ai"
+        android:shortcutShortLabel="@string/shortcut_ai_short"
+        android:shortcutLongLabel="@string/shortcut_ai_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.alpha.spendtracker"
+            android:targetClass="com.alpha.spendtracker.widget.QuickAddInputActivity" />
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="add_by_voice"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_voice"
+        android:shortcutShortLabel="@string/shortcut_voice_short"
+        android:shortcutLongLabel="@string/shortcut_voice_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.alpha.spendtracker"
+            android:targetClass="com.alpha.spendtracker.widget.QuickAddInputActivity">
+            <extra
+                android:name="SHOW_VOICE_INPUT"
+                android:value="true" />
+        </intent>
+    </shortcut>
+
+    <shortcut
+        android:shortcutId="add_manually"
+        android:enabled="true"
+        android:icon="@drawable/ic_shortcut_add"
+        android:shortcutShortLabel="@string/shortcut_add_short"
+        android:shortcutLongLabel="@string/shortcut_add_long">
+        <intent
+            android:action="android.intent.action.VIEW"
+            android:targetPackage="com.alpha.spendtracker"
+            android:targetClass="com.alpha.spendtracker.MainActivity">
+            <extra
+                android:name="OPEN_ADD_SPEND"
+                android:value="true" />
+        </intent>
+    </shortcut>
+</shortcuts>

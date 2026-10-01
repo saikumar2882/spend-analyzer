@@ -31,7 +31,8 @@ class RecurringBillWorker @AssistedInject constructor(
 
     companion object {
         private const val TAG = "RecurringBillWorker"
-        private const val CHANNEL_ID = "bill_reminders"
+        // Also used by NotificationActionReceiver for the "Mark as paid" confirmation.
+        const val CHANNEL_ID = "bill_reminders"
         private const val CHANNEL_NAME = "Bill Reminders"
     }
 
@@ -156,13 +157,33 @@ class RecurringBillWorker @AssistedInject constructor(
             PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
         )
 
+        // "Mark as paid" logs the bill straight from the shade. Same request code as the other
+        // actions is safe: PendingIntents are keyed by action too, so this never replaces them.
+        val markAsPaidIntent = Intent(applicationContext, NotificationActionReceiver::class.java).apply {
+            action = NotificationActionReceiver.ACTION_MARK_AS_PAID
+            putExtra(NotificationActionReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(NotificationActionReceiver.EXTRA_BILL_USER_ID, bill.userId)
+            putExtra(NotificationActionReceiver.EXTRA_BILL_NAME, bill.name)
+            putExtra(NotificationActionReceiver.EXTRA_BILL_APP, bill.appName)
+            putExtra(NotificationActionReceiver.EXTRA_BILL_PURPOSE, bill.purpose)
+            putExtra(NotificationActionReceiver.EXTRA_BILL_NOTES, bill.notes)
+            putExtra(NotificationActionReceiver.EXTRA_BILL_AMOUNT, bill.amount)
+        }
+
+        val markAsPaidPendingIntent = PendingIntent.getBroadcast(
+            applicationContext,
+            notificationId,
+            markAsPaidIntent,
+            PendingIntent.FLAG_UPDATE_CURRENT or PendingIntent.FLAG_IMMUTABLE
+        )
+
         val contentText = if (bill.amount > 0) {
             "Due today • ₹${String.format(Locale.getDefault(), "%.2f", bill.amount)} via ${bill.appName}"
         } else {
             "Due today via ${bill.appName}"
         }
 
-        val notification = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
+        val builder = NotificationCompat.Builder(applicationContext, CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
             .setContentTitle(bill.name)
             .setContentText(contentText)
@@ -171,6 +192,11 @@ class RecurringBillWorker @AssistedInject constructor(
             .setAutoCancel(true)
             .setContentIntent(trackPendingIntent)
             .addAction(0, "Mark as read", markAsReadPendingIntent)
+        // Without a known amount there is nothing to log, so the bill has to go through Track spend.
+        if (bill.amount > 0) {
+            builder.addAction(0, applicationContext.getString(R.string.bill_mark_as_paid), markAsPaidPendingIntent)
+        }
+        val notification = builder
             .addAction(0, "Track spend", trackPendingIntent)
             .build()
 

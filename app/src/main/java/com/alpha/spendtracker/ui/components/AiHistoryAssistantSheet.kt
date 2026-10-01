@@ -5,6 +5,8 @@ import androidx.compose.foundation.background
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.*
+import androidx.compose.foundation.rememberScrollState
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
@@ -19,6 +21,7 @@ import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.draw.alpha
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.draw.scale
 import androidx.compose.ui.graphics.Color
@@ -36,6 +39,7 @@ import coil.compose.SubcomposeAsyncImage
 import coil.request.ImageRequest
 import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
+import com.alpha.spendtracker.data.AssistantSuggestions
 import com.alpha.spendtracker.data.ChatMessage
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.rememberPressScale
@@ -46,14 +50,23 @@ import kotlinx.coroutines.launch
 import java.text.SimpleDateFormat
 import java.util.Date
 
+/** A suggestion as displayed: the localized [label] to show and the English [question] to scope with. */
+data class Suggestion(val label: String, val question: String)
+
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiHistoryAssistantSheet(
     messages: List<ChatMessage>,
     status: AiHistoryStatus,
-    onSendMessage: (String) -> Unit,
+    /**
+     * (what the chat shows, what the assistant reads for period/category/dues). They differ only
+     * for a suggestion chip in a non-English app language; see [AssistantSuggestions].
+     */
+    onSendMessage: (question: String, scopeText: String) -> Unit,
     onDismiss: () -> Unit,
-    sheetState: SheetState = rememberModalBottomSheetState()
+    sheetState: SheetState = rememberModalBottomSheetState(),
+    /** False hides the Lending/Borrowing suggestions for someone with nothing to ask about. */
+    hasDues: Boolean = true
 ) {
     var textInput by remember { mutableStateOf("") }
     val listState = rememberLazyListState()
@@ -66,14 +79,14 @@ fun AiHistoryAssistantSheet(
     } else 0
     val remainingMessages = (7 - userMessagesInCurrentSession).coerceAtLeast(0)
 
-    val examples = listOf(
-        stringResource(R.string.ai_example_1),
-        stringResource(R.string.ai_example_2),
-        stringResource(R.string.ai_example_3),
-        stringResource(R.string.ai_example_4),
-        stringResource(R.string.ai_example_5),
-        stringResource(R.string.ai_example_6)
-    )
+    val suggestions = AssistantSuggestions.visible(hasDues).map { s ->
+        Suggestion(label = stringResource(s.labelRes), question = s.question)
+    }
+    // A tap sends straight away, so a second tap while the first is in flight would cancel it
+    // (askAiAboutHistory supersedes the running request) and leave an unanswered question in the
+    // chat. No point offering them once the daily limit is hit, either.
+    val chipsEnabled = status !is AiHistoryStatus.Analyzing &&
+        !(status is AiHistoryStatus.Error && status.type == AiErrorType.CLIENT_RATE_LIMIT)
 
     LaunchedEffect(messages.size) {
         if (messages.isNotEmpty()) {
@@ -151,7 +164,11 @@ fun AiHistoryAssistantSheet(
 
             Box(modifier = Modifier.weight(1f)) {
                 if (messages.isEmpty()) {
-                    EmptyChatState(examples = examples, onExampleClick = { textInput = it })
+                    EmptyChatState(
+                        suggestions = suggestions,
+                        enabled = chipsEnabled,
+                        onSuggestionClick = { onSendMessage(it.label, it.question) }
+                    )
                 } else {
                     LazyColumn(
                         state = listState,
@@ -178,25 +195,28 @@ fun AiHistoryAssistantSheet(
 
             Spacer(modifier = Modifier.height(10.dp))
 
-            // Persistent example chips
+            // Persistent suggestion chips: one tap asks the question.
             if (messages.isNotEmpty() && textInput.isBlank()) {
                 LazyRow(
                     modifier = Modifier.fillMaxWidth().padding(bottom = 8.dp),
                     horizontalArrangement = Arrangement.spacedBy(6.dp),
                     contentPadding = PaddingValues(horizontal = 2.dp)
                 ) {
-                    items(examples) { example ->
+                    items(suggestions, key = { it.question }) { suggestion ->
                         val interactionSource = remember { MutableInteractionSource() }
                         val scale = rememberPressScale(interactionSource)
                         Surface(
-                            onClick = { textInput = example },
+                            onClick = { onSendMessage(suggestion.label, suggestion.question) },
+                            enabled = chipsEnabled,
                             interactionSource = interactionSource,
                             shape = RoundedCornerShape(10.dp),
                             color = MaterialTheme.colorScheme.surfaceContainer,
-                            modifier = Modifier.scale(scale)
+                            modifier = Modifier
+                                .scale(scale)
+                                .alpha(if (chipsEnabled) 1f else 0.5f)
                         ) {
                             Text(
-                                example,
+                                suggestion.label,
                                 modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
                                 style = MaterialTheme.typography.labelMedium,
                                 color = MaterialTheme.colorScheme.onSurface
@@ -216,7 +236,7 @@ fun AiHistoryAssistantSheet(
                         IconButton(
                             onClick = {
                                 if (textInput.isNotBlank()) {
-                                    onSendMessage(textInput)
+                                    onSendMessage(textInput, textInput)
                                     textInput = ""
                                 }
                             },
@@ -496,12 +516,15 @@ private fun DefaultUserAvatar() {
 
 @Composable
 fun EmptyChatState(
-    examples: List<String>,
-    onExampleClick: (String) -> Unit
+    suggestions: List<Suggestion>,
+    enabled: Boolean,
+    onSuggestionClick: (Suggestion) -> Unit
 ) {
     Column(
         modifier = Modifier
             .fillMaxSize()
+            // Eight suggestions don't fit above the keyboard on a small screen or a large font.
+            .verticalScroll(rememberScrollState())
             .padding(horizontal = 8.dp, vertical = 12.dp),
         horizontalAlignment = Alignment.CenterHorizontally,
         verticalArrangement = Arrangement.Top
@@ -532,7 +555,7 @@ fun EmptyChatState(
         )
         Spacer(modifier = Modifier.height(2.dp))
         Text(
-            text = "Try one of these to get started",
+            text = stringResource(R.string.ai_tap_to_ask),
             style = MaterialTheme.typography.bodySmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
@@ -543,17 +566,19 @@ fun EmptyChatState(
             modifier = Modifier.fillMaxWidth(),
             verticalArrangement = Arrangement.spacedBy(6.dp)
         ) {
-            examples.forEach { example ->
+            suggestions.forEach { suggestion ->
                 val interactionSource = remember { MutableInteractionSource() }
                 val scale = rememberPressScale(interactionSource)
                 Surface(
-                    onClick = { onExampleClick(example) },
+                    onClick = { onSuggestionClick(suggestion) },
+                    enabled = enabled,
                     interactionSource = interactionSource,
                     shape = RoundedCornerShape(10.dp),
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     modifier = Modifier
                         .fillMaxWidth()
                         .scale(scale)
+                        .alpha(if (enabled) 1f else 0.5f)
                 ) {
                     Row(
                         modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
@@ -567,7 +592,7 @@ fun EmptyChatState(
                             modifier = Modifier.size(16.dp)
                         )
                         Text(
-                            text = example,
+                            text = suggestion.label,
                             style = MaterialTheme.typography.bodyMedium,
                             color = MaterialTheme.colorScheme.onSurface,
                             maxLines = 2,

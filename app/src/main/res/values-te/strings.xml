@@ -100,6 +100,8 @@
 
     <!-- History Screen -->
     <string name="history_title">చరిత్ర</string>
+    <string name="history_expand_month">ఈ నెల లావాదేవీలను చూపించు</string>
+    <string name="history_collapse_month">ఈ నెల లావాదేవీలను దాచు</string>
     <string name="total_spend">మొత్తం ఖర్చు</string>
 
     <!-- Notes Screen -->
@@ -121,6 +123,7 @@
     <string name="ai_input_placeholder">ఉదా. Swiggy లో భోజనం కోసం 250 చెల్లించాను...</string>
     <string name="ai_input_hint">మీ ఖర్చు వివరాలను టైప్ చేయండి లేదా పేస్ట్ చేయండి...</string>
     <string name="review_transaction">లావాదేవీని సమీక్షించండి</string>
+    <string name="ai_learned_from_corrections">మీ సవరణల నుండి నేర్చుకున్నది</string>
     <string name="confirm_and_save">నిర్ధారించి సేవ్ చేయండి</string>
     <string name="edit_details">వివరాలను సవరించండి</string>
 
@@ -211,8 +214,11 @@
     <string name="ai_example_2">ప్రస్తుతం నేను ఎవరికి డబ్బు ఇవ్వాలి?</string>
     <string name="ai_example_3">ఈ వారం ఆహారం కోసం ఎంత ఖర్చు చేశాను?</string>
     <string name="ai_example_4">గత నెలలోని టాప్ 3 కేటగిరీలు</string>
-    <string name="ai_example_5">మే మరియు ఏప్రిల్ ఖర్చులను పోల్చండి</string>
+    <string name="ai_example_5">నేను ఎక్కువగా ఏ పేమెంట్ యాప్ వాడుతున్నాను?</string>
     <string name="ai_example_6">నా అప్పులన్నింటినీ వ్యక్తుల వారీగా చూపించు</string>
+    <string name="ai_example_7">ఈ నెలలో నా అతిపెద్ద ఖర్చు ఏది?</string>
+    <string name="ai_example_8">గత 7 రోజుల నా ఖర్చులను చూపించు</string>
+    <string name="ai_tap_to_ask">అడగడానికి ఒక ప్రశ్నను నొక్కండి</string>
     <string name="requests_left">%d మిగిలి ఉన్నాయి</string>
     <string name="try_asking">ఉదాహరణలు / ప్రశ్నలు</string>
 
@@ -278,4 +284,116 @@
     <string name="google_photo_loaded">మీ Google ఖాతా నుండి ప్రొఫైల్ ఫోటో లోడ్ చేయబడింది.</string>
     <string name="google_photo_hint">మీ Google ప్రొఫైల్ ఫోటోను ఉపయోగించడానికి Google తో సైన్ ఇన్ చేయండి.</string>
     <string name="close">మూసివేయి</string>
+    <!-- Bill mark as paid -->
+    <string name="bill_mark_as_paid">చెల్లించినట్లు గుర్తించు</string>
+    <string name="bill_logged_confirmation">%2$s కోసం ₹%1$s నమోదు చేయబడింది</string>
+    <!-- Undo -->
+    <string name="undo">రద్దు చేయి</string>
+    <string name="undo_deleted">తొలగించబడింది</string>
+    <string name="undo_saved">సేవ్ చేయబడింది</string>
+    <string name="undo_updated">నవీకరించబడింది</string>
+    <string name="undo_done">రద్దు చేయబడింది</string>
+    <!-- Subscription finder -->
+    <string name="subscription_suggestions_title">ప్రతి నెలా చెల్లింపులా ఉంది — పునరావృత బిల్లుగా జోడించాలా?</string>
+    <string name="subscription_suggestion_detail">₹%1$s · ప్రతి నెలా సుమారు %2$dవ తేదీన</string>
+    <string name="subscription_suggestion_add">జోడించు</string>
+    <string name="subscription_suggestion_dismiss">సూచనను తీసివేయి</string>
+
+    <!-- Summary widget -->
+    <string name="summary_widget_label">ఖర్చుల సారాంశం</string>
+    <string name="summary_widget_description">ఈ రోజు మరియు ఈ నెల ఖర్చులు ఒక్క చూపులో</string>
+    <string name="summary_widget_today">ఈ రోజు</string>
+    <string name="summary_widget_this_month">ఈ నెల · %1$s</string>
+    <string name="summary_widget_top_purpose">ఎక్కువగా: %1$s</string>
+    <string name="summary_widget_signed_out">మీ ఖర్చులను చూడటానికి సైన్ ఇన్ చేయండి</string>
+    <string name="summary_widget_quick_add">AI తో త్వరగా జోడించు</string>
+    <string name="summary_widget_preview_month">ఈ నెల · ₹18,450</string>
+
+    <!-- Recap & Wrapped -->
+    <string name="recap_channel_name">వారపు సారాంశం &amp; Wrapped</string>
+    <string name="recap_channel_description">ఆదివారపు నిశ్శబ్ద సారాంశం మరియు మీ నెలవారీ Wrapped</string>
+    <string name="recap_weekly_title">మీ వారం · %1$s</string>
+    <string name="recap_weekly_no_previous">ఈ వారం %1$s.</string>
+    <string name="recap_weekly_same">ఈ వారం %1$s, గత వారం అంతే.</string>
+    <string name="recap_weekly_less">ఈ వారం %1$s, గత వారం కంటే %2$d%% తక్కువ.</string>
+    <string name="recap_weekly_more">ఈ వారం %1$s, గత వారం కంటే %2$d%% ఎక్కువ.</string>
+    <string name="recap_weekly_biggest">అతిపెద్దది: %1$s %2$s</string>
+    <string name="recap_weekly_most_on">ఎక్కువగా: %1$s %2$s</string>
+    <string name="wrapped_notification_title">మీ %1$s Wrapped సిద్ధంగా ఉంది</string>
+    <string name="wrapped_notification_text">%1$s లో మీ డబ్బు ఎక్కడికి వెళ్ళిందో చూడండి.</string>
+    <string name="wrapped_title">%1$s Wrapped</string>
+    <string name="wrapped_previous_month">గత నెల</string>
+    <string name="wrapped_next_month">తదుపరి నెల</string>
+    <string name="wrapped_total_spent">%1$s లో ఖర్చు</string>
+    <string name="wrapped_spent_so_far">%1$s లో ఇప్పటివరకు ఖర్చు</string>
+    <string name="wrapped_empty">ఈ నెల ఏదీ నమోదు కాలేదు</string>
+    <string name="wrapped_change_same">గత నెల అంతే</string>
+    <string name="wrapped_change_less">గత నెల కంటే %1$d%% తక్కువ</string>
+    <string name="wrapped_change_more">గత నెల కంటే %1$d%% ఎక్కువ</string>
+    <string name="wrapped_top_category">అగ్ర వర్గం</string>
+    <string name="wrapped_top_app">ఎక్కువగా వాడిన యాప్</string>
+    <string name="wrapped_biggest">అతిపెద్ద ఖర్చు</string>
+    <string name="wrapped_most_on">ఎక్కువగా ఖర్చు చేసింది</string>
+    <string name="wrapped_no_spend_days">ఖర్చు లేని రోజులు</string>
+    <string name="wrapped_no_spend_value">%2$d లో %1$d రోజులు</string>
+    <string name="wrapped_share">షేర్ చేయండి</string>
+    <string name="wrapped_share_chooser">మీ Wrapped ను షేర్ చేయండి</string>
+    <string name="wrapped_share_text">Spendly లో నా %1$s</string>
+    <string name="wrapped_settings_title">నెలవారీ Wrapped</string>
+    <string name="wrapped_settings_subtitle">ఒక్క చూపులో మీ నెల</string>
+    <plurals name="wrapped_transactions">
+        <item quantity="one">%d లావాదేవీ</item>
+        <item quantity="other">%d లావాదేవీలు</item>
+    </plurals>
+    <plurals name="wrapped_times">
+        <item quantity="one">%d సారి</item>
+        <item quantity="other">%d సార్లు</item>
+    </plurals>
+    <plurals name="wrapped_longest_streak">
+        <item quantity="one">అత్యుత్తమ వరుస %d రోజు</item>
+        <item quantity="other">అత్యుత్తమ వరుస %d రోజులు</item>
+    </plurals>
+
+    <!-- Share to Spendly -->
+    <string name="share_to_spendly_label">Spendly లో ట్రాక్ చేయండి</string>
+    <string name="share_reading_payment">మీ చెల్లింపును చదువుతోంది…</string>
+    <string name="share_no_amount">షేర్ చేసిన టెక్స్ట్‌లో మొత్తం కనిపించలేదు. కింద టైప్ చేయండి.</string>
+    <string name="share_nothing_to_track">షేర్ చేసిన టెక్స్ట్‌లో ట్రాక్ చేయడానికి ఏమీ లేదు</string>
+
+    <!-- Launcher (long-press) shortcuts -->
+    <string name="shortcut_ai_short">AI ట్రాక్</string>
+    <string name="shortcut_ai_long">AI తో ఖర్చును ట్రాక్ చేయండి</string>
+    <string name="shortcut_voice_short">వాయిస్</string>
+    <string name="shortcut_voice_long">మాటలతో ఖర్చు జోడించండి</string>
+    <string name="shortcut_add_short">ఖర్చు జోడించు</string>
+    <string name="shortcut_add_long">చేతితో ఖర్చు జోడించండి</string>
+    <string name="voice_needs_mic">వాయిస్‌కు మైక్ అనుమతి కావాలి — మీరు టైప్ కూడా చేయవచ్చు</string>
+    <string name="voice_unavailable">ఈ పరికరంలో వాయిస్ రికగ్నిషన్ అందుబాటులో లేదు</string>
+
+    <!-- AI Track: several expenses in one sentence -->
+    <plurals name="ai_batch_title">
+        <item quantity="one">%d లాగ్‌ను సమీక్షించండి</item>
+        <item quantity="other">%d లాగ్‌లను సమీక్షించండి</item>
+    </plurals>
+    <string name="ai_batch_hint">మార్చడానికి లాగ్‌ను నొక్కండి</string>
+    <plurals name="ai_batch_will_save">
+        <item quantity="one">%d లాగ్ సేవ్ అవుతుంది</item>
+        <item quantity="other">%d లాగ్‌లు సేవ్ అవుతాయి</item>
+    </plurals>
+    <plurals name="ai_batch_save">
+        <item quantity="one">%d లాగ్‌ను సేవ్ చేయి</item>
+        <item quantity="other">%d లాగ్‌లను సేవ్ చేయి</item>
+    </plurals>
+    <string name="ai_batch_remove">ఈ లాగ్‌ను తీసివేయి</string>
+    <string name="ai_batch_edit_log">ఈ లాగ్‌ను మార్చు</string>
+    <string name="ai_batch_needs_amount">మొత్తం జోడించు</string>
+    <string name="ai_batch_empty">సేవ్ చేయడానికి లాగ్‌లు ఏవీ లేవు</string>
+    <string name="ai_batch_update_log">లాగ్‌ను అప్‌డేట్ చేయి</string>
+    <plurals name="undo_saved_many">
+        <item quantity="one">%d లాగ్ సేవ్ అయింది</item>
+        <item quantity="other">%d లాగ్‌లు సేవ్ అయ్యాయి</item>
+    </plurals>
+    <string name="ai_multi_hint">సూచన: ఒకేసారి చాలా జోడించండి, ఉదా. “టీ 20, ఆటో 80, లంచ్ 150”</string>
+    <string name="voice_multi_hint">మీరు ఒకటి కంటే ఎక్కువ ఖర్చులు చెప్పవచ్చు, ఉదా. “టీ 20, ఆటో 80”</string>
+    <string name="ai_reading_input">మీ ఖర్చులను చదువుతోంది…</string>
 </resources>

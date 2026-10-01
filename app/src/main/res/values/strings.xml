@@ -102,6 +102,8 @@
 
     <!-- History Screen -->
     <string name="history_title">History</string>
+    <string name="history_expand_month">Show this month\'s logs</string>
+    <string name="history_collapse_month">Hide this month\'s logs</string>
     <string name="total_spend">Total Spend</string>
 
     <!-- Notes Screen -->
@@ -123,6 +125,7 @@
     <string name="ai_input_placeholder">e.g. Paid 250 for lunch on Swiggy...</string>
     <string name="ai_input_hint">Type or paste your expense details...</string>
     <string name="review_transaction">Review Transaction</string>
+    <string name="ai_learned_from_corrections">Learned from your corrections</string>
     <string name="confirm_and_save">Confirm &amp; Save</string>
     <string name="edit_details">Edit Details</string>
 
@@ -213,8 +216,11 @@
     <string name="ai_example_2">Who do I owe money to right now?</string>
     <string name="ai_example_3">What did I spend on food this week?</string>
     <string name="ai_example_4">Top 3 categories of last month</string>
-    <string name="ai_example_5">Compare May vs April spending</string>
+    <string name="ai_example_5">Which payment app do I use the most?</string>
     <string name="ai_example_6">Show all my lendings grouped by person</string>
+    <string name="ai_example_7">What was my biggest expense this month?</string>
+    <string name="ai_example_8">Show my spending in the last 7 days</string>
+    <string name="ai_tap_to_ask">Tap a question to ask it</string>
     <string name="requests_left">%d left</string>
     <string name="try_asking">Examples / Prompts</string>
 
@@ -280,4 +286,117 @@
     <string name="google_photo_loaded">Profile photo loaded from your Google account.</string>
     <string name="google_photo_hint">Sign in with Google to use your Google profile photo.</string>
     <string name="close">Close</string>
+    <!-- Bill mark as paid -->
+    <string name="bill_mark_as_paid">Mark as paid</string>
+    <string name="bill_logged_confirmation">Logged ₹%1$s for %2$s</string>
+    <!-- Undo -->
+    <string name="undo">Undo</string>
+    <string name="undo_deleted">Deleted</string>
+    <string name="undo_saved">Saved</string>
+    <string name="undo_updated">Updated</string>
+    <string name="undo_done">Undone</string>
+    <!-- Subscription finder -->
+    <string name="subscription_suggestions_title">Looks monthly — add as a recurring bill?</string>
+    <string name="subscription_suggestion_detail">₹%1$s · around day %2$d each month</string>
+    <string name="subscription_suggestion_add">Add</string>
+    <string name="subscription_suggestion_dismiss">Dismiss suggestion</string>
+
+    <!-- Summary widget -->
+    <string name="summary_widget_label">Spend summary</string>
+    <string name="summary_widget_description">Today\'s and this month\'s spending at a glance</string>
+    <string name="summary_widget_today">Today</string>
+    <string name="summary_widget_this_month">This month · %1$s</string>
+    <string name="summary_widget_top_purpose">Top: %1$s</string>
+    <string name="summary_widget_signed_out">Sign in to see your spending</string>
+    <string name="summary_widget_quick_add">Quick add with AI</string>
+    <string name="summary_widget_preview_today" translatable="false">₹1,240</string>
+    <string name="summary_widget_preview_month">This month · ₹18,450</string>
+
+    <!-- Recap & Wrapped -->
+    <string name="recap_channel_name">Weekly recap &amp; Wrapped</string>
+    <string name="recap_channel_description">A quiet Sunday summary and your monthly Wrapped</string>
+    <string name="recap_weekly_title">Your week · %1$s</string>
+    <string name="recap_weekly_no_previous">%1$s this week.</string>
+    <string name="recap_weekly_same">%1$s this week, same as last week.</string>
+    <string name="recap_weekly_less">%1$s this week, %2$d%% less than last.</string>
+    <string name="recap_weekly_more">%1$s this week, %2$d%% more than last.</string>
+    <string name="recap_weekly_biggest">Biggest: %1$s %2$s</string>
+    <string name="recap_weekly_most_on">Most on: %1$s %2$s</string>
+    <string name="wrapped_notification_title">Your %1$s Wrapped is ready</string>
+    <string name="wrapped_notification_text">See where your money went in %1$s.</string>
+    <string name="wrapped_title">%1$s Wrapped</string>
+    <string name="wrapped_previous_month">Previous month</string>
+    <string name="wrapped_next_month">Next month</string>
+    <string name="wrapped_total_spent">Spent in %1$s</string>
+    <string name="wrapped_spent_so_far">Spent so far in %1$s</string>
+    <string name="wrapped_empty">Nothing logged this month</string>
+    <string name="wrapped_change_same">Same as the month before</string>
+    <string name="wrapped_change_less">%1$d%% less than the month before</string>
+    <string name="wrapped_change_more">%1$d%% more than the month before</string>
+    <string name="wrapped_top_category">Top category</string>
+    <string name="wrapped_top_app">Most used app</string>
+    <string name="wrapped_biggest">Biggest spend</string>
+    <string name="wrapped_most_on">Spent most on</string>
+    <string name="wrapped_no_spend_days">No-spend days</string>
+    <string name="wrapped_no_spend_value">%1$d of %2$d days</string>
+    <string name="wrapped_share">Share</string>
+    <string name="wrapped_share_chooser">Share your Wrapped</string>
+    <string name="wrapped_share_text">My %1$s on Spendly</string>
+    <string name="wrapped_settings_title">Monthly Wrapped</string>
+    <string name="wrapped_settings_subtitle">Your month at a glance</string>
+    <plurals name="wrapped_transactions">
+        <item quantity="one">%d transaction</item>
+        <item quantity="other">%d transactions</item>
+    </plurals>
+    <plurals name="wrapped_times">
+        <item quantity="one">%d time</item>
+        <item quantity="other">%d times</item>
+    </plurals>
+    <plurals name="wrapped_longest_streak">
+        <item quantity="one">Best streak %d day</item>
+        <item quantity="other">Best streak %d days</item>
+    </plurals>
+
+    <!-- Share to Spendly -->
+    <string name="share_to_spendly_label">Track in Spendly</string>
+    <string name="share_reading_payment">Reading your payment…</string>
+    <string name="share_no_amount">Couldn\'t find an amount in the shared text. Type it below.</string>
+    <string name="share_nothing_to_track">Nothing to track in the shared text</string>
+
+    <!-- Launcher (long-press) shortcuts -->
+    <string name="shortcut_ai_short">AI Track</string>
+    <string name="shortcut_ai_long">Track an expense with AI</string>
+    <string name="shortcut_voice_short">Voice</string>
+    <string name="shortcut_voice_long">Add an expense by voice</string>
+    <string name="shortcut_add_short">Add expense</string>
+    <string name="shortcut_add_long">Add an expense manually</string>
+    <string name="voice_needs_mic">Voice needs mic access — you can still type</string>
+    <string name="voice_unavailable">Voice recognition is not available on this device</string>
+
+    <!-- AI Track: several expenses in one sentence -->
+    <plurals name="ai_batch_title">
+        <item quantity="one">Review %d log</item>
+        <item quantity="other">Review %d logs</item>
+    </plurals>
+    <string name="ai_batch_hint">Tap a log to edit it</string>
+    <plurals name="ai_batch_will_save">
+        <item quantity="one">%d log will be saved</item>
+        <item quantity="other">%d logs will be saved</item>
+    </plurals>
+    <plurals name="ai_batch_save">
+        <item quantity="one">Save %d log</item>
+        <item quantity="other">Save %d logs</item>
+    </plurals>
+    <string name="ai_batch_remove">Remove this log</string>
+    <string name="ai_batch_edit_log">Edit this log</string>
+    <string name="ai_batch_needs_amount">Add amount</string>
+    <string name="ai_batch_empty">No logs left to save</string>
+    <string name="ai_batch_update_log">Update log</string>
+    <plurals name="undo_saved_many">
+        <item quantity="one">Saved %d log</item>
+        <item quantity="other">Saved %d logs</item>
+    </plurals>
+    <string name="ai_multi_hint">Tip: add several at once, like “tea 20, auto 80 and lunch 150”</string>
+    <string name="voice_multi_hint">You can say more than one expense, like “tea 20, auto 80”</string>
+    <string name="ai_reading_input">Reading your expenses…</string>
 </resources>

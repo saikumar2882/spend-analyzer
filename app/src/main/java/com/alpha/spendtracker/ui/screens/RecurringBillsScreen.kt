@@ -12,6 +12,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.Add
+import androidx.compose.material.icons.rounded.Close
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
@@ -26,6 +27,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.RecurringBill
+import com.alpha.spendtracker.data.SubscriptionSuggestion
 import com.alpha.spendtracker.ui.components.APP_COLOR_BY_NAME
 import com.alpha.spendtracker.ui.components.APP_PRESETS
 import com.alpha.spendtracker.ui.components.getLocalizedPresetName
@@ -55,12 +57,16 @@ fun RecurringBillsScreen(
         cardLast4: String
     ) -> Unit,
     onUpdateBill: (RecurringBill) -> Unit,
-    onDeleteBill: (RecurringBill) -> Unit
+    onDeleteBill: (RecurringBill) -> Unit,
+    suggestions: List<SubscriptionSuggestion> = emptyList(),
+    onDismissSuggestion: (SubscriptionSuggestion) -> Unit = {}
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) } // 0 = Bills & Subscriptions, 1 = Credit Cards
     var showAddDialog by remember { mutableStateOf(false) }
     var editingBill by remember { mutableStateOf<RecurringBill?>(null) }
     var billToDelete by remember { mutableStateOf<RecurringBill?>(null) }
+    // A suggestion being accepted opens the normal add dialog pre-filled, so the user confirms it.
+    var acceptingSuggestion by remember { mutableStateOf<SubscriptionSuggestion?>(null) }
 
     val mainTabs = remember { listOf("Bills & Subscriptions", "Credit Cards") }
 
@@ -70,6 +76,10 @@ fun RecurringBillsScreen(
         } else {
             bills.filter { !it.isCreditCardBill }
         }
+    }
+
+    val displayedSuggestions = remember(suggestions, selectedTab) {
+        suggestions.filter { it.purpose.contains("Credit Card", ignoreCase = true) == (selectedTab == 1) }
     }
 
     Scaffold(
@@ -156,7 +166,7 @@ fun RecurringBillsScreen(
         },
         containerColor = MaterialTheme.colorScheme.background
     ) { padding ->
-        if (displayedBills.isEmpty()) {
+        if (displayedBills.isEmpty() && displayedSuggestions.isEmpty()) {
             Box(
                 modifier = Modifier
                     .fillMaxSize()
@@ -200,6 +210,23 @@ fun RecurringBillsScreen(
                 ),
                 verticalArrangement = Arrangement.spacedBy(Spacing.sm)
             ) {
+                if (displayedSuggestions.isNotEmpty()) {
+                    item(key = "suggestions-header") {
+                        Text(
+                            text = stringResource(R.string.subscription_suggestions_title),
+                            style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(horizontal = Spacing.sm)
+                        )
+                    }
+                    items(displayedSuggestions, key = { "suggestion-${it.key}" }) { suggestion ->
+                        SubscriptionSuggestionItem(
+                            suggestion = suggestion,
+                            onAdd = { acceptingSuggestion = suggestion },
+                            onDismiss = { onDismissSuggestion(suggestion) }
+                        )
+                    }
+                }
                 items(displayedBills, key = { it.uuid }) { bill ->
                     SwipeableLogCard(
                         onEdit = { editingBill = bill },
@@ -233,13 +260,24 @@ fun RecurringBillsScreen(
             )
         }
 
-        if (showAddDialog || editingBill != null) {
+        if (showAddDialog || editingBill != null || acceptingSuggestion != null) {
             BillEditDialog(
                 bill = editingBill,
+                prefill = acceptingSuggestion?.let { s ->
+                    RecurringBill(
+                        name = s.name,
+                        purpose = s.purpose,
+                        category = s.category,
+                        appName = s.appName,
+                        amount = s.amount,
+                        dayOfMonth = s.dayOfMonth
+                    )
+                },
                 defaultIsCreditCard = selectedTab == 1,
                 onDismiss = {
                     showAddDialog = false
                     editingBill = null
+                    acceptingSuggestion = null
                 },
                 onSave = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4 ->
                     val currentEditing = editingBill
@@ -262,6 +300,7 @@ fun RecurringBillsScreen(
                     }
                     showAddDialog = false
                     editingBill = null
+                    acceptingSuggestion = null
                 }
             )
         }
@@ -394,6 +433,77 @@ fun RecurringBillItem(
     }
 }
 
+/** One compact "looks monthly" row: app icon, name, amount + typical day, then Add / dismiss. */
+@Composable
+private fun SubscriptionSuggestionItem(
+    suggestion: SubscriptionSuggestion,
+    onAdd: () -> Unit,
+    onDismiss: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val accent = APP_COLOR_BY_NAME[suggestion.appName]
+        ?: APP_PRESETS.find { it.displayName.equals(suggestion.appName, ignoreCase = true) }?.color
+        ?: MaterialTheme.colorScheme.primary
+
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+        shape = RoundedCornerShape(Radius.md)
+    ) {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(start = Spacing.sm, top = Spacing.xs, bottom = Spacing.xs),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            AppIconImage(
+                appName = suggestion.appName,
+                fallbackColor = accent,
+                modifier = Modifier.size(38.dp)
+            )
+
+            Spacer(modifier = Modifier.width(Spacing.md))
+
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = getLocalizedPresetName(suggestion.name),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.onSurface,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+                Text(
+                    text = stringResource(
+                        R.string.subscription_suggestion_detail,
+                        formatCurrency(suggestion.amount),
+                        suggestion.dayOfMonth
+                    ),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+
+            TextButton(onClick = onAdd) {
+                Text(
+                    stringResource(R.string.subscription_suggestion_add),
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            IconButton(onClick = onDismiss) {
+                Icon(
+                    Icons.Rounded.Close,
+                    contentDescription = stringResource(R.string.subscription_suggestion_dismiss),
+                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                    modifier = Modifier.size(20.dp)
+                )
+            }
+        }
+    }
+}
+
 /** Approximate days until the next occurrence of [dayOfMonth] (for a "due soon" hint). */
 private fun daysUntilDue(dayOfMonth: Int): Int {
     val cal = Calendar.getInstance()
@@ -408,6 +518,8 @@ private fun daysUntilDue(dayOfMonth: Int): Int {
 fun BillEditDialog(
     bill: RecurringBill?,
     defaultIsCreditCard: Boolean = false,
+    // Initial values for a new bill (e.g. an accepted subscription suggestion). Ignored when editing.
+    prefill: RecurringBill? = null,
     onDismiss: () -> Unit,
     onSave: (
         name: String,
@@ -434,22 +546,23 @@ fun BillEditDialog(
         )
     }
 
-    var purpose by remember(bill, defaultIsCreditCard) {
+    val initial = bill ?: prefill
+    var purpose by remember(initial, defaultIsCreditCard) {
         mutableStateOf(
-            bill?.purpose.takeIf { !it.isNullOrBlank() }
-                ?: if (defaultIsCreditCard || bill?.isCreditCardBill == true) "Credit Card Bill" else "Rent & Utilities"
+            initial?.purpose.takeIf { !it.isNullOrBlank() }
+                ?: if (defaultIsCreditCard || initial?.isCreditCardBill == true) "Credit Card Bill" else "Rent & Utilities"
         )
     }
     var isCreditCardMode by remember(purpose, defaultIsCreditCard) {
-        mutableStateOf(purpose.contains("Credit Card", ignoreCase = true) || defaultIsCreditCard || bill?.isCreditCardBill == true)
+        mutableStateOf(purpose.contains("Credit Card", ignoreCase = true) || defaultIsCreditCard || initial?.isCreditCardBill == true)
     }
 
-    var name by remember(bill) { mutableStateOf(bill?.name ?: "") }
-    var cardLast4 by remember(bill) { mutableStateOf(bill?.cardLast4 ?: "") }
-    var appName by remember(bill) { mutableStateOf(bill?.appName ?: APP_PRESETS.first().displayName) }
-    var amount by remember(bill) { mutableStateOf(bill?.amount?.takeIf { it > 0 }?.toString() ?: "") }
-    var day by remember(bill) { mutableStateOf(bill?.dayOfMonth?.toString() ?: "1") }
-    var notes by remember(bill) { mutableStateOf(bill?.notes ?: "") }
+    var name by remember(initial) { mutableStateOf(initial?.name ?: "") }
+    var cardLast4 by remember(initial) { mutableStateOf(initial?.cardLast4 ?: "") }
+    var appName by remember(initial) { mutableStateOf(initial?.appName ?: APP_PRESETS.first().displayName) }
+    var amount by remember(initial) { mutableStateOf(initial?.amount?.takeIf { it > 0 }?.toString() ?: "") }
+    var day by remember(initial) { mutableStateOf(initial?.dayOfMonth?.toString() ?: "1") }
+    var notes by remember(initial) { mutableStateOf(initial?.notes ?: "") }
 
     val cleanTextFieldColors = OutlinedTextFieldDefaults.colors(
         focusedContainerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),

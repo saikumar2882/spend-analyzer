@@ -44,7 +44,14 @@ android {
       isMinifyEnabled = true
       isShrinkResources = true
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
-      
+
+      // ML Kit Translate ships a ~11-17 MB libtranslate_jni.so per ABI, and the release APK is one
+      // universal file, so all four ABIs cost ~60 MB. Phones are ARM; x86/x86_64 only matter for
+      // emulators, which keep working through the debug build. Don't switch this to `splits`:
+      // UpdateChecker downloads the first .apk asset of a GitHub release, which would be an
+      // arbitrary ABI.
+      ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+
       // Only attach signing config if it was actually configured
       val releaseConfig = signingConfigs.getByName("release")
       if (releaseConfig.storeFile != null) {

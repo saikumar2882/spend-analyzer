@@ -102,6 +102,8 @@
 
     <!-- History Screen -->
     <string name="history_title">इतिहास</string>
+    <string name="history_expand_month">इस महीने के लेनदेन दिखाएँ</string>
+    <string name="history_collapse_month">इस महीने के लेनदेन छिपाएँ</string>
     <string name="total_spend">कुल खर्च</string>
 
     <!-- Notes Screen -->
@@ -123,6 +125,7 @@
     <string name="ai_input_placeholder">जैसे Swiggy पर दोपहर के भोजन के लिए 250 का भुगतान किया...</string>
     <string name="ai_input_hint">अपने खर्च का विवरण टाइप या पेस्ट करें...</string>
     <string name="review_transaction">लेनदेन की समीक्षा करें</string>
+    <string name="ai_learned_from_corrections">आपके सुधारों से सीखा गया</string>
     <string name="confirm_and_save">पुष्टि करें और सहेजें</string>
     <string name="edit_details">विवरण संपादित करें</string>
 
@@ -213,8 +216,11 @@
     <string name="ai_example_2">अभी मुझे किसे पैसे देने हैं?</string>
     <string name="ai_example_3">इस सप्ताह मैंने भोजन पर क्या खर्च किया?</string>
     <string name="ai_example_4">पिछले महीने की शीर्ष 3 श्रेणियां</string>
-    <string name="ai_example_5">मई बनाम अप्रैल के खर्चों की तुलना करें</string>
+    <string name="ai_example_5">सबसे ज़्यादा कौन-सा पेमेंट ऐप इस्तेमाल होता है?</string>
     <string name="ai_example_6">व्यक्ति के अनुसार मेरे सभी उधार दिखाएं</string>
+    <string name="ai_example_7">इस महीने मेरा सबसे बड़ा खर्च क्या था?</string>
+    <string name="ai_example_8">पिछले 7 दिनों के मेरे खर्च दिखाएं</string>
+    <string name="ai_tap_to_ask">पूछने के लिए किसी सवाल पर टैप करें</string>
     <string name="requests_left">%d शेष</string>
     <string name="try_asking">उदाहरण / प्रश्न</string>
 
@@ -280,4 +286,116 @@
     <string name="google_photo_loaded">आपकी Google प्रोफ़ाइल फ़ोटो लोड की गई।</string>
     <string name="google_photo_hint">अपनी Google फ़ोटो का उपयोग करने के लिए Google से साइन इन करें।</string>
     <string name="close">बंद करें</string>
+    <!-- Bill mark as paid -->
+    <string name="bill_mark_as_paid">भुगतान हो गया</string>
+    <string name="bill_logged_confirmation">%2$s के लिए ₹%1$s दर्ज किया गया</string>
+    <!-- Undo -->
+    <string name="undo">पूर्ववत करें</string>
+    <string name="undo_deleted">हटाया गया</string>
+    <string name="undo_saved">सहेजा गया</string>
+    <string name="undo_updated">अपडेट किया गया</string>
+    <string name="undo_done">पूर्ववत किया गया</string>
+    <!-- Subscription finder -->
+    <string name="subscription_suggestions_title">हर महीने का भुगतान लगता है — बिल के रूप में जोड़ें?</string>
+    <string name="subscription_suggestion_detail">₹%1$s · हर महीने लगभग %2$d तारीख को</string>
+    <string name="subscription_suggestion_add">जोड़ें</string>
+    <string name="subscription_suggestion_dismiss">सुझाव हटाएँ</string>
+
+    <!-- Summary widget -->
+    <string name="summary_widget_label">खर्च सारांश</string>
+    <string name="summary_widget_description">आज और इस महीने का खर्च एक नज़र में</string>
+    <string name="summary_widget_today">आज</string>
+    <string name="summary_widget_this_month">इस महीने · %1$s</string>
+    <string name="summary_widget_top_purpose">सबसे ज़्यादा: %1$s</string>
+    <string name="summary_widget_signed_out">अपना खर्च देखने के लिए साइन इन करें</string>
+    <string name="summary_widget_quick_add">AI से जल्दी जोड़ें</string>
+    <string name="summary_widget_preview_month">इस महीने · ₹18,450</string>
+
+    <!-- Recap & Wrapped -->
+    <string name="recap_channel_name">साप्ताहिक सारांश और Wrapped</string>
+    <string name="recap_channel_description">रविवार का शांत सारांश और आपका मासिक Wrapped</string>
+    <string name="recap_weekly_title">आपका सप्ताह · %1$s</string>
+    <string name="recap_weekly_no_previous">इस सप्ताह %1$s।</string>
+    <string name="recap_weekly_same">इस सप्ताह %1$s, पिछले सप्ताह जितना।</string>
+    <string name="recap_weekly_less">इस सप्ताह %1$s, पिछले से %2$d%% कम।</string>
+    <string name="recap_weekly_more">इस सप्ताह %1$s, पिछले से %2$d%% ज़्यादा।</string>
+    <string name="recap_weekly_biggest">सबसे बड़ा: %1$s %2$s</string>
+    <string name="recap_weekly_most_on">सबसे ज़्यादा: %1$s %2$s</string>
+    <string name="wrapped_notification_title">आपका %1$s Wrapped तैयार है</string>
+    <string name="wrapped_notification_text">देखें %1$s में आपका पैसा कहाँ गया।</string>
+    <string name="wrapped_title">%1$s Wrapped</string>
+    <string name="wrapped_previous_month">पिछला महीना</string>
+    <string name="wrapped_next_month">अगला महीना</string>
+    <string name="wrapped_total_spent">%1$s में खर्च</string>
+    <string name="wrapped_spent_so_far">%1$s में अब तक खर्च</string>
+    <string name="wrapped_empty">इस महीने कुछ दर्ज नहीं हुआ</string>
+    <string name="wrapped_change_same">पिछले महीने जितना</string>
+    <string name="wrapped_change_less">पिछले महीने से %1$d%% कम</string>
+    <string name="wrapped_change_more">पिछले महीने से %1$d%% ज़्यादा</string>
+    <string name="wrapped_top_category">शीर्ष श्रेणी</string>
+    <string name="wrapped_top_app">सबसे ज़्यादा इस्तेमाल किया गया ऐप</string>
+    <string name="wrapped_biggest">सबसे बड़ा खर्च</string>
+    <string name="wrapped_most_on">सबसे ज़्यादा खर्च</string>
+    <string name="wrapped_no_spend_days">बिना खर्च के दिन</string>
+    <string name="wrapped_no_spend_value">%2$d में से %1$d दिन</string>
+    <string name="wrapped_share">शेयर करें</string>
+    <string name="wrapped_share_chooser">अपना Wrapped शेयर करें</string>
+    <string name="wrapped_share_text">Spendly पर मेरा %1$s</string>
+    <string name="wrapped_settings_title">मासिक Wrapped</string>
+    <string name="wrapped_settings_subtitle">एक नज़र में आपका महीना</string>
+    <plurals name="wrapped_transactions">
+        <item quantity="one">%d लेन-देन</item>
+        <item quantity="other">%d लेन-देन</item>
+    </plurals>
+    <plurals name="wrapped_times">
+        <item quantity="one">%d बार</item>
+        <item quantity="other">%d बार</item>
+    </plurals>
+    <plurals name="wrapped_longest_streak">
+        <item quantity="one">सबसे लंबा सिलसिला %d दिन</item>
+        <item quantity="other">सबसे लंबा सिलसिला %d दिन</item>
+    </plurals>
+
+    <!-- Share to Spendly -->
+    <string name="share_to_spendly_label">Spendly में ट्रैक करें</string>
+    <string name="share_reading_payment">आपका भुगतान पढ़ा जा रहा है…</string>
+    <string name="share_no_amount">शेयर किए गए टेक्स्ट में राशि नहीं मिली। नीचे लिखें।</string>
+    <string name="share_nothing_to_track">शेयर किए गए टेक्स्ट में ट्रैक करने को कुछ नहीं है</string>
+
+    <!-- Launcher (long-press) shortcuts -->
+    <string name="shortcut_ai_short">एआई ट्रैक</string>
+    <string name="shortcut_ai_long">एआई से खर्च ट्रैक करें</string>
+    <string name="shortcut_voice_short">वॉइस</string>
+    <string name="shortcut_voice_long">बोलकर खर्च जोड़ें</string>
+    <string name="shortcut_add_short">खर्च जोड़ें</string>
+    <string name="shortcut_add_long">हाथ से खर्च जोड़ें</string>
+    <string name="voice_needs_mic">वॉइस के लिए माइक की अनुमति चाहिए — आप टाइप भी कर सकते हैं</string>
+    <string name="voice_unavailable">इस डिवाइस पर वॉइस रिकग्निशन उपलब्ध नहीं है</string>
+
+    <!-- AI Track: several expenses in one sentence -->
+    <plurals name="ai_batch_title">
+        <item quantity="one">%d लॉग की समीक्षा करें</item>
+        <item quantity="other">%d लॉग की समीक्षा करें</item>
+    </plurals>
+    <string name="ai_batch_hint">बदलने के लिए किसी लॉग पर टैप करें</string>
+    <plurals name="ai_batch_will_save">
+        <item quantity="one">%d लॉग सहेजा जाएगा</item>
+        <item quantity="other">%d लॉग सहेजे जाएँगे</item>
+    </plurals>
+    <plurals name="ai_batch_save">
+        <item quantity="one">%d लॉग सहेजें</item>
+        <item quantity="other">%d लॉग सहेजें</item>
+    </plurals>
+    <string name="ai_batch_remove">यह लॉग हटाएँ</string>
+    <string name="ai_batch_edit_log">यह लॉग बदलें</string>
+    <string name="ai_batch_needs_amount">राशि जोड़ें</string>
+    <string name="ai_batch_empty">सहेजने के लिए कोई लॉग नहीं बचा</string>
+    <string name="ai_batch_update_log">लॉग अपडेट करें</string>
+    <plurals name="undo_saved_many">
+        <item quantity="one">%d लॉग सहेजा गया</item>
+        <item quantity="other">%d लॉग सहेजे गए</item>
+    </plurals>
+    <string name="ai_multi_hint">सुझाव: एक साथ कई जोड़ें, जैसे “चाय 20, ऑटो 80 और लंच 150”</string>
+    <string name="voice_multi_hint">आप एक से ज़्यादा खर्च बोल सकते हैं, जैसे “चाय 20, ऑटो 80”</string>
+    <string name="ai_reading_input">आपके खर्च पढ़े जा रहे हैं…</string>
 </resources>

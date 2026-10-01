@@ -4,6 +4,8 @@
 package com.alpha.spendtracker.ui.screens
 
 import androidx.compose.animation.AnimatedVisibility
+import androidx.compose.animation.core.animateFloatAsState
+import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
@@ -59,6 +61,15 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.compose.ui.res.stringResource
+import androidx.compose.foundation.clickable
+import androidx.compose.runtime.mutableStateListOf
+import androidx.compose.runtime.saveable.listSaver
+import androidx.compose.runtime.toMutableStateList
+import androidx.compose.ui.draw.rotate
+import androidx.compose.ui.semantics.Role
+import com.alpha.spendtracker.ui.theme.MotionDuration
+import com.alpha.spendtracker.ui.theme.motionDuration
+import com.alpha.spendtracker.ui.theme.rememberReduceMotion
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.CATEGORY_PRESETS
@@ -166,6 +177,13 @@ fun HistoryScreen(
         mutableStateOf((initialTimeFilter != TimeFilter.ALL) || (initialCategoryFilter != ALL_CATEGORIES)) 
     }
     var showExportPreview by remember { mutableStateOf(false) }
+    // Months the user has flipped away from their default open/closed state (see isMonthExpanded).
+    val toggledMonths = rememberSaveable(
+        saver = listSaver(
+            save = { it.toList() },
+            restore = { it.toMutableStateList() }
+        )
+    ) { mutableStateListOf<String>() }
     var exportSpends by remember { mutableStateOf<List<Spend>>(emptyList()) }
 
     // Advanced Filter states
@@ -258,6 +276,15 @@ fun HistoryScreen(
         filteredHistory.groupBy { formatMonth(it.timestamp) }
             .map { (monthHeader, spends) -> MonthGroup(monthHeader, spends, spends.sumOf { it.amount }) }
     }
+
+    // Months are collapsed behind their header. The newest one starts open so the screen is never a
+    // bare list of headers, and every month starts open while searching: hits hidden behind a tap
+    // would read as "no results". A tap flips a month, and only the flipped months are stored, so
+    // the default stays right when a filter changes which month is newest.
+    val newestMonth = groupedHistory.firstOrNull()?.monthHeader
+    val isSearching = searchQuery.isNotBlank()
+    fun isMonthExpanded(month: String): Boolean =
+        (isSearching || month == newestMonth) != (month in toggledMonths)
 
     val graphicsLayer = rememberGraphicsLayer()
     if (showExportPreview) {
@@ -650,46 +677,93 @@ fun HistoryScreen(
                 groupedHistory.forEach { group ->
                     val monthHeader = group.monthHeader
                     val spends = group.spends
-                    val monthSum = group.total
+                    val expanded = isMonthExpanded(monthHeader)
                     item(key = "header-$monthHeader") {
-                        Row(
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp),
-                            horizontalArrangement = Arrangement.SpaceBetween,
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Text(
-                                text = monthHeader,
-                                style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.primary
-                            )
-                            Text(
-                                text = "₹${formatCurrency(monthSum)}",
-                                style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
-                                color = MaterialTheme.colorScheme.secondary
-                            )
-                        }
+                        MonthHeader(
+                            month = monthHeader,
+                            total = group.total,
+                            expanded = expanded,
+                            onToggle = {
+                                if (!toggledMonths.remove(monthHeader)) toggledMonths.add(monthHeader)
+                            }
+                        )
                     }
-                    items(spends, key = { it.uuid }) { spend ->
-                        SwipeableLogCard(
-                            onEdit = { onEditSpend(spend) },
-                            onDelete = { spendToDelete = spend },
-                            modifier = Modifier.animateItem()
-                        ) {
-                            HistorySpendCard(
-                                spend = spend,
+                    if (expanded) {
+                        items(spends, key = { it.uuid }) { spend ->
+                            SwipeableLogCard(
                                 onEdit = { onEditSpend(spend) },
                                 onDelete = { spendToDelete = spend },
-                                onClick = if (spend.noteUuid.isNotBlank()) {
-                                    { onOpenNote(spend.noteUuid) }
-                                } else null
-                            )
+                                modifier = Modifier.animateItem()
+                            ) {
+                                HistorySpendCard(
+                                    spend = spend,
+                                    onEdit = { onEditSpend(spend) },
+                                    onDelete = { spendToDelete = spend },
+                                    onClick = if (spend.noteUuid.isNotBlank()) {
+                                        { onOpenNote(spend.noteUuid) }
+                                    } else null
+                                )
+                            }
                         }
                     }
                 }
             }
         }
+    }
+}
+
+/**
+ * A month's heading, doubling as the button that opens and closes its logs. The whole row is the
+ * tap target (and at least [Sizes.minTouchTarget] tall, growing with the font scale rather than
+ * cropping the text); the click label tells a screen reader which way the tap will go.
+ */
+@Composable
+private fun MonthHeader(
+    month: String,
+    total: Double,
+    expanded: Boolean,
+    onToggle: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val reduceMotion = rememberReduceMotion()
+    val chevronRotation by animateFloatAsState(
+        targetValue = if (expanded) 180f else 0f,
+        animationSpec = tween(motionDuration(MotionDuration.SHORT, reduceMotion)),
+        label = "monthChevron"
+    )
+    val clickLabel = stringResource(
+        if (expanded) R.string.history_collapse_month else R.string.history_expand_month
+    )
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .heightIn(min = Sizes.minTouchTarget)
+            .clickable(onClickLabel = clickLabel, role = Role.Button, onClick = onToggle)
+            .padding(vertical = 4.dp),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Rounded.KeyboardArrowDown,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.primary,
+            modifier = Modifier.rotate(chevronRotation)
+        )
+        Spacer(modifier = Modifier.width(4.dp))
+        Text(
+            text = month,
+            modifier = Modifier.weight(1f),
+            style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.primary,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "₹${formatCurrency(total)}",
+            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold),
+            color = MaterialTheme.colorScheme.secondary
+        )
     }
 }
 

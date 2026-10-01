@@ -75,4 +75,9 @@ interface SpendDao {
         startTime: Long,
         endTime: Long
     ): Spend?
+
+    // Summary widget: this user's live, non-dues spends in [start, endExclusive). Narrow on
+    // purpose so a widget refresh reads one month of rows instead of the whole log.
+    @Query("SELECT * FROM spends WHERE userId = :userId AND deleted = 0 AND purpose NOT IN ('Lending', 'Borrowing') AND timestamp >= :start AND timestamp < :endExclusive")
+    suspend fun getSummaryWidgetSpends(userId: String, start: Long, endExclusive: Long): List<Spend>
 }

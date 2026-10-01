@@ -83,6 +83,7 @@ import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 import com.alpha.spendtracker.ui.components.PresetGridCard
 import com.alpha.spendtracker.ui.components.getLocalizedPresetName
+import com.alpha.spendtracker.ui.components.buildLendBorrowNotes
 import com.alpha.spendtracker.ui.components.parseLendBorrowNotes
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.asMoney
@@ -358,12 +359,7 @@ fun AddSpendScreen(
                             return@Button
                         }
 
-                        val finalNotes = if (isLendBorrow && personNameInput.isNotBlank()) {
-                            if (notesInput.isNotBlank()) "${personNameInput.trim()} - ${notesInput.trim()}"
-                            else personNameInput.trim()
-                        } else {
-                            notesInput
-                        }
+                        val finalNotes = if (isLendBorrow) buildLendBorrowNotes(personNameInput, notesInput) else notesInput
 
                         onSave(
                             NewSpend(

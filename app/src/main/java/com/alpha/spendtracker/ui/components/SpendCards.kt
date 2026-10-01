@@ -75,6 +75,17 @@ import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 
+/** Inverse of [parseLendBorrowNotes]: "Rahul - Lunch", or just "Rahul" / "Lunch". */
+fun buildLendBorrowNotes(personName: String, notes: String): String {
+    val person = personName.trim()
+    val detail = notes.trim()
+    return when {
+        person.isBlank() -> detail
+        detail.isBlank() -> person
+        else -> "$person - $detail"
+    }
+}
+
 fun parseLendBorrowNotes(rawNotes: String, appName: String): Pair<String, String> {
     val trimmed = rawNotes.trim()
     if (trimmed.contains(" - ")) {

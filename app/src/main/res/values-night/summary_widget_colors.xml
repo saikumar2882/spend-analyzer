@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- Summary widget picker preview. Keep in sync with SummaryWidgetColors in SpendSummaryWidget.kt. -->
+<resources>
+    <color name="summary_widget_background">#FF252A38</color>
+    <color name="summary_widget_text">#FFFFFFFF</color>
+    <color name="summary_widget_muted_text">#FFB7BBCB</color>
+    <color name="summary_widget_accent">#FF9D8BFF</color>
+    <color name="summary_widget_add_button">#FF353B50</color>
+</resources>

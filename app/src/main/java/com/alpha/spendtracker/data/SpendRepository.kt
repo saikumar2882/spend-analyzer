@@ -320,7 +320,13 @@ class SpendRepository(
     suspend fun getActiveSpendByNoteUuid(userId: String, noteUuid: String): Result<Spend?> =
         localWrite("note-linked spend lookup") { spendDao.getActiveSpendByNoteUuid(userId, noteUuid) }
 
-    suspend fun delete(spend: Spend): Result<Unit> = localWrite("spend delete") {
+    suspend fun delete(spend: Spend): Result<Unit> = deleteWithHistory(spend).map { }
+
+    /**
+     * [delete], but hands back the Recycle Bin entry it created so an "Undo" can feed it
+     * straight into [restoreFromHistory] — the same path the trash screen's Restore uses.
+     */
+    suspend fun deleteWithHistory(spend: Spend): Result<SpendHistory> = localWrite("spend delete") {
         // Move to history
         val history = SpendHistory(
             historyUuid = java.util.UUID.randomUUID().toString(),
@@ -350,6 +356,7 @@ class SpendRepository(
         val tombstone = spend.copy(deleted = true, updatedAt = System.currentTimeMillis())
         spendDao.insertSpend(tombstone)
         syncToFirestore(tombstone)
+        history
     }
 
     suspend fun restoreFromHistory(history: SpendHistory): Result<Unit> = localWrite("spend restore") {
@@ -555,13 +562,16 @@ class SpendRepository(
         syncNoteToFirestore(updated)
     }
 
-    suspend fun deleteNote(note: Note): Result<Unit> = localWrite("note delete") {
+    suspend fun deleteNote(note: Note): Result<Unit> = deleteNoteWithHistory(note).map { }
+
+    /** [deleteNote], returning its Recycle Bin entry for "Undo" via [restoreNoteFromHistory]. */
+    suspend fun deleteNoteWithHistory(note: Note): Result<NoteHistory> = localWrite("note delete") {
         // Soft delete, same as spends — see delete() for the resurrection rationale.
         // Cascade the tombstone to the note's entries so they don't linger as orphans
         // that keep re-syncing after their parent note is gone. A single NOTE history record
         // represents the whole note in the Recycle Bin; restoring it brings the entries back.
         val now = System.currentTimeMillis()
-        recordNoteHistory(note, HistoryType.DELETED, now)
+        val history = recordNoteHistory(note, HistoryType.DELETED, now)
         notesDao.getEntriesForNoteOnce(note.uuid).forEach { entry ->
             val entryTombstone = entry.copy(deleted = true, updatedAt = now)
             notesDao.insertNoteEntry(entryTombstone)
@@ -570,6 +580,7 @@ class SpendRepository(
         val tombstone = note.copy(deleted = true, updatedAt = now)
         notesDao.insertNote(tombstone)
         syncNoteToFirestore(tombstone)
+        history
     }
 
     suspend fun insertNoteEntry(entry: NoteEntry): Result<Unit> = localWrite("note entry insert") {
@@ -627,7 +638,7 @@ class SpendRepository(
 
     fun getNoteHistory(userId: String, type: String): Flow<List<NoteHistory>> = notesDao.getNoteHistory(userId, type)
 
-    private suspend fun recordNoteHistory(note: Note, type: String, now: Long) {
+    private suspend fun recordNoteHistory(note: Note, type: String, now: Long): NoteHistory {
         val history = NoteHistory(
             historyUuid = java.util.UUID.randomUUID().toString(),
             userId = note.userId,
@@ -642,6 +653,7 @@ class SpendRepository(
         )
         notesDao.insertNoteHistory(history)
         syncNoteHistoryToFirestore(history)
+        return history
     }
 
     private suspend fun recordEntryHistory(entry: NoteEntry, type: String, now: Long) {

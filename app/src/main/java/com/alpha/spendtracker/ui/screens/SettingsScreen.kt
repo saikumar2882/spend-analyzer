@@ -30,6 +30,7 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.CalendarMonth
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Fingerprint
@@ -72,6 +73,7 @@ fun SettingsScreen(
     onAiAssistantClick: () -> Unit,
     onRecurringBillsClick: () -> Unit,
     onNotesClick: () -> Unit,
+    onWrappedClick: () -> Unit,
     onShareApp: () -> Unit,
     onLogout: () -> Unit
 ) {
@@ -463,6 +465,13 @@ fun SettingsScreen(
                             title = stringResource(R.string.notes_title),
                             subtitle = stringResource(R.string.notes_subtitle),
                             onClick = onNotesClick
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = Icons.Rounded.CalendarMonth,
+                            title = stringResource(R.string.wrapped_settings_title),
+                            subtitle = stringResource(R.string.wrapped_settings_subtitle),
+                            onClick = onWrappedClick
                         )
                         SettingsDivider()
                         SettingsRow(

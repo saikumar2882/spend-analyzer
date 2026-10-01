@@ -1,8 +1,12 @@
 package com.alpha.spendtracker.widget
 
+import android.Manifest
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.result.contract.ActivityResultContracts
+import androidx.core.content.ContextCompat
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -16,7 +20,11 @@ import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import androidx.lifecycle.lifecycleScope
 import androidx.lifecycle.repeatOnLifecycle
+import android.widget.Toast
+import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.MainActivity
+import com.alpha.spendtracker.R
+import com.alpha.spendtracker.data.SharedPaymentText
 import com.alpha.spendtracker.data.AiResultIntent
 import com.alpha.spendtracker.data.AiTransactionProcessor
 import com.alpha.spendtracker.ui.components.AiInputBottomSheet
@@ -24,6 +32,7 @@ import com.alpha.spendtracker.ui.components.VoiceInputOverlay
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.isDark
 import com.alpha.spendtracker.ui.theme.rememberThemePreference
+import com.alpha.spendtracker.util.VoiceInputHelper
 import com.google.firebase.auth.FirebaseAuth
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.launch
@@ -40,11 +49,29 @@ class QuickAddInputActivity : ComponentActivity() {
 
     private val viewModel: QuickAddViewModel by viewModels()
 
+    // Activity-level (not `remember`ed) so the permission callback can flip it.
+    private var isVoiceMode by mutableStateOf(false)
+    // True while the system mic-permission dialog is up, so the typed sheet doesn't flash behind it.
+    private var awaitingMic by mutableStateOf(false)
+
+    private val micPermission = registerForActivityResult(ActivityResultContracts.RequestPermission()) { granted ->
+        awaitingMic = false
+        if (granted) {
+            isVoiceMode = true
+        } else {
+            Toast.makeText(this, R.string.voice_needs_mic, Toast.LENGTH_LONG).show()
+        }
+    }
+
     @OptIn(ExperimentalMaterial3Api::class)
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
         val isVoiceLaunch = intent.getBooleanExtra("SHOW_VOICE_INPUT", false) || intent.extras?.containsKey("SHOW_VOICE_INPUT") == true
+        // "Share → Spendly" from a payment app's receipt (via the ShareToSpendly alias).
+        val sharedText = if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("text/") == true) {
+            intent.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() }
+        } else null
 
         // Nothing can be logged without an account, and the confirmation step lives behind
         // the app's auth gate anyway — send them straight to the app to sign in.
@@ -57,12 +84,39 @@ class QuickAddInputActivity : ComponentActivity() {
 
         enableEdgeToEdge()
 
+        // The widget's mic button and the "Voice" launcher shortcut both land here. Unlike the
+        // Dashboard FAB, nothing asked for the microphone first, so a first-time user would just
+        // see a speech error. Ask now; a "no" falls back to the typed sheet.
+        if (isVoiceLaunch && sharedText == null) {
+            val hasMic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
+                PackageManager.PERMISSION_GRANTED
+            when {
+                !VoiceInputHelper.isAvailable(this) ->
+                    Toast.makeText(this, R.string.voice_unavailable, Toast.LENGTH_LONG).show()
+                hasMic -> isVoiceMode = true
+                else -> {
+                    awaitingMic = true
+                    micPermission.launch(Manifest.permission.RECORD_AUDIO)
+                }
+            }
+        }
+
+        if (sharedText != null && savedInstanceState == null) {
+            val input = SharedPaymentText.toParserInput(sharedText, referrer?.host)
+            if (input.isBlank()) {
+                Toast.makeText(this, R.string.share_nothing_to_track, Toast.LENGTH_SHORT).show()
+                finish()
+                return
+            }
+            viewModel.processShared(input)
+        }
+
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.effects.collect { effect ->
                     when (effect) {
                         is QuickAddEffect.HandOff -> {
-                            startActivity(AiResultIntent.put(mainActivityIntent(), effect.result))
+                            startActivity(AiResultIntent.put(mainActivityIntent(), effect.results))
                             finish()
                         }
                     }
@@ -75,9 +129,36 @@ class QuickAddInputActivity : ComponentActivity() {
             MyApplicationTheme(darkTheme = themePref.value.isDark()) {
                 val uiState by viewModel.uiState.collectAsStateWithLifecycle()
                 val prefs by viewModel.aiPreferences.collectAsStateWithLifecycle()
-                var isVoiceMode by remember { mutableStateOf(isVoiceLaunch) }
 
-                if (isVoiceMode) {
+                if (awaitingMic) {
+                    // Nothing to draw: the system permission dialog is in front.
+                } else if (sharedText != null && (uiState.isProcessing || uiState.errorMessage == null)) {
+                    ModalBottomSheet(
+                        onDismissRequest = {
+                            viewModel.cancel()
+                            finish()
+                        },
+                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                        containerColor = MaterialTheme.colorScheme.surfaceContainerLow,
+                        dragHandle = { BottomSheetDefaults.DragHandle() }
+                    ) {
+                        ProcessingContent(stringResource(R.string.share_reading_payment))
+                    }
+                } else if (sharedText != null) {
+                    // Parsing failed: fall back to the normal input sheet so they can type it.
+                    AiInputBottomSheet(
+                        sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
+                        remainingRequests = AiTransactionProcessor.DAILY_LIMIT - prefs.dailyUsageCount,
+                        errorMessage = uiState.errorMessage?.let {
+                            if (it == SHARE_NO_AMOUNT) stringResource(R.string.share_no_amount) else it
+                        },
+                        onProcess = viewModel::process,
+                        onDismiss = {
+                            viewModel.cancel()
+                            finish()
+                        }
+                    )
+                } else if (isVoiceMode) {
                     ModalBottomSheet(
                         onDismissRequest = {
                             viewModel.cancel()
@@ -88,24 +169,7 @@ class QuickAddInputActivity : ComponentActivity() {
                         dragHandle = { BottomSheetDefaults.DragHandle() }
                     ) {
                         if (uiState.isProcessing) {
-                            Column(
-                                modifier = Modifier
-                                    .fillMaxWidth()
-                                    .padding(28.dp),
-                                horizontalAlignment = Alignment.CenterHorizontally,
-                                verticalArrangement = Arrangement.spacedBy(16.dp)
-                            ) {
-                                LinearProgressIndicator(
-                                    modifier = Modifier.fillMaxWidth(),
-                                    color = MaterialTheme.colorScheme.primary,
-                                    trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
-                                )
-                                Text(
-                                    "AI is reading your voice input…",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    color = MaterialTheme.colorScheme.primary
-                                )
-                            }
+                            ProcessingContent(stringResource(R.string.ai_reading_input))
                         } else {
                             VoiceInputOverlay(
                                 selectedLanguage = prefs.lastVoiceLanguage,
@@ -135,6 +199,28 @@ class QuickAddInputActivity : ComponentActivity() {
                     )
                 }
             }
+        }
+    }
+
+    @Composable
+    private fun ProcessingContent(label: String) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(28.dp),
+            horizontalAlignment = Alignment.CenterHorizontally,
+            verticalArrangement = Arrangement.spacedBy(16.dp)
+        ) {
+            LinearProgressIndicator(
+                modifier = Modifier.fillMaxWidth(),
+                color = MaterialTheme.colorScheme.primary,
+                trackColor = MaterialTheme.colorScheme.primary.copy(alpha = 0.2f)
+            )
+            Text(
+                label,
+                style = MaterialTheme.typography.titleMedium,
+                color = MaterialTheme.colorScheme.primary
+            )
         }
     }
 

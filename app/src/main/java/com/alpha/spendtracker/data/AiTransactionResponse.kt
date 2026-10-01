@@ -8,6 +8,7 @@ package com.alpha.spendtracker.data
  *   raw string from the LLM and the UI defaults to the "Other Platform" preset.
  * - [purpose] is normalized to one of PURPOSE_PRESETS, defaulting to "Others".
  * - [notes] is the short description of what the user spent on (e.g. "Biryani").
+ * - [personName] is the counterparty for Lending/Borrowing ("Rahul"); blank otherwise.
  */
 data class AiTransactionResponse(
     val amount: Double? = null,
@@ -15,62 +16,87 @@ data class AiTransactionResponse(
     val appPresetId: String? = null,
     val purpose: String = "Others",
     val notes: String = "",
+    val personName: String = "",
     val date: String = "today",
     /** Epoch millis. Null means "no date mentioned — use today at confirm time." */
     val timestamp: Long? = null,
-    val needsAmount: Boolean = false
+    val needsAmount: Boolean = false,
+    /** True when an on-device learned correction (not the AI) chose the app / purpose. */
+    val learnedApp: Boolean = false,
+    val learnedPurpose: Boolean = false
 )
 
 /**
- * Intent transport for an already-parsed [AiTransactionResponse].
+ * Intent transport for already-parsed [AiTransactionResponse]s.
  *
- * The widget's overlay activity parses the sentence *before* handing off, so MainActivity
- * receives a finished result and only has to show the confirmation sheet (behind the app
- * lock, if one is set). Kept next to the model so the writer and reader can't drift.
+ * The widget's overlay activity (and the launcher shortcuts that open it) parse the sentence
+ * *before* handing off, so MainActivity receives finished results and only has to show the
+ * confirmation sheet (behind the app lock, if one is set). One sentence can hold several
+ * expenses, so the list travels as a single JSON extra. Kept next to the model so the writer and
+ * reader can't drift.
  */
 object AiResultIntent {
     private const val EXTRA_PRESENT = "AI_RESULT"
-    private const val EXTRA_AMOUNT = "AI_RESULT_AMOUNT"
-    private const val EXTRA_APP_NAME = "AI_RESULT_APP_NAME"
-    private const val EXTRA_APP_PRESET_ID = "AI_RESULT_APP_PRESET_ID"
-    private const val EXTRA_PURPOSE = "AI_RESULT_PURPOSE"
-    private const val EXTRA_NOTES = "AI_RESULT_NOTES"
-    private const val EXTRA_DATE = "AI_RESULT_DATE"
-    private const val EXTRA_TIMESTAMP = "AI_RESULT_TIMESTAMP"
-    private const val EXTRA_NEEDS_AMOUNT = "AI_RESULT_NEEDS_AMOUNT"
+    private const val EXTRA_RESULTS = "AI_RESULTS_JSON"
 
-    fun put(intent: android.content.Intent, result: AiTransactionResponse): android.content.Intent =
+    fun put(intent: android.content.Intent, results: List<AiTransactionResponse>): android.content.Intent =
         intent.apply {
             putExtra(EXTRA_PRESENT, true)
-            result.amount?.let { putExtra(EXTRA_AMOUNT, it) }
-            putExtra(EXTRA_APP_NAME, result.appName)
-            putExtra(EXTRA_APP_PRESET_ID, result.appPresetId)
-            putExtra(EXTRA_PURPOSE, result.purpose)
-            putExtra(EXTRA_NOTES, result.notes)
-            putExtra(EXTRA_DATE, result.date)
-            result.timestamp?.let { putExtra(EXTRA_TIMESTAMP, it) }
-            putExtra(EXTRA_NEEDS_AMOUNT, result.needsAmount)
+            putExtra(EXTRA_RESULTS, encode(results))
         }
 
     fun isPresent(intent: android.content.Intent?): Boolean =
         intent?.getBooleanExtra(EXTRA_PRESENT, false) == true
 
-    fun read(intent: android.content.Intent): AiTransactionResponse = AiTransactionResponse(
-        amount = if (intent.hasExtra(EXTRA_AMOUNT)) intent.getDoubleExtra(EXTRA_AMOUNT, 0.0) else null,
-        appName = intent.getStringExtra(EXTRA_APP_NAME),
-        appPresetId = intent.getStringExtra(EXTRA_APP_PRESET_ID),
-        purpose = intent.getStringExtra(EXTRA_PURPOSE) ?: "Others",
-        notes = intent.getStringExtra(EXTRA_NOTES) ?: "",
-        date = intent.getStringExtra(EXTRA_DATE) ?: "today",
-        timestamp = if (intent.hasExtra(EXTRA_TIMESTAMP)) intent.getLongExtra(EXTRA_TIMESTAMP, 0L) else null,
-        needsAmount = intent.getBooleanExtra(EXTRA_NEEDS_AMOUNT, false)
-    )
+    /** The results carried by [intent]; empty if the extra is missing or unreadable. */
+    fun read(intent: android.content.Intent): List<AiTransactionResponse> =
+        decode(intent.getStringExtra(EXTRA_RESULTS))
 
     /** Clear the extras so rotation / recomposition can't re-open the confirmation sheet. */
     fun clear(intent: android.content.Intent) {
-        listOf(
-            EXTRA_PRESENT, EXTRA_AMOUNT, EXTRA_APP_NAME, EXTRA_APP_PRESET_ID,
-            EXTRA_PURPOSE, EXTRA_NOTES, EXTRA_DATE, EXTRA_TIMESTAMP, EXTRA_NEEDS_AMOUNT
-        ).forEach(intent::removeExtra)
+        listOf(EXTRA_PRESENT, EXTRA_RESULTS).forEach(intent::removeExtra)
+    }
+
+    internal fun encode(results: List<AiTransactionResponse>): String =
+        org.json.JSONArray().apply {
+            results.forEach { r ->
+                put(org.json.JSONObject().apply {
+                    r.amount?.let { put("amount", it) }
+                    put("appName", r.appName ?: org.json.JSONObject.NULL)
+                    put("appPresetId", r.appPresetId ?: org.json.JSONObject.NULL)
+                    put("purpose", r.purpose)
+                    put("notes", r.notes)
+                    put("personName", r.personName)
+                    put("date", r.date)
+                    r.timestamp?.let { put("timestamp", it) }
+                    put("needsAmount", r.needsAmount)
+                    put("learnedApp", r.learnedApp)
+                    put("learnedPurpose", r.learnedPurpose)
+                })
+            }
+        }.toString()
+
+    internal fun decode(json: String?): List<AiTransactionResponse> {
+        if (json.isNullOrBlank()) return emptyList()
+        return try {
+            val array = org.json.JSONArray(json)
+            (0 until array.length()).mapNotNull { array.optJSONObject(it) }.map { o ->
+                AiTransactionResponse(
+                    amount = if (o.has("amount")) o.getDouble("amount") else null,
+                    appName = if (o.isNull("appName")) null else o.getString("appName"),
+                    appPresetId = if (o.isNull("appPresetId")) null else o.getString("appPresetId"),
+                    purpose = o.optString("purpose", "Others"),
+                    notes = o.optString("notes", ""),
+                    personName = o.optString("personName", ""),
+                    date = o.optString("date", "today"),
+                    timestamp = if (o.has("timestamp")) o.getLong("timestamp") else null,
+                    needsAmount = o.optBoolean("needsAmount", false),
+                    learnedApp = o.optBoolean("learnedApp", false),
+                    learnedPurpose = o.optBoolean("learnedPurpose", false)
+                )
+            }
+        } catch (e: org.json.JSONException) {
+            emptyList()
+        }
     }
 }

@@ -11,11 +11,13 @@
         <exclude domain="database" path="spend_database-wal" />
         <exclude domain="database" path="spend_database-shm" />
         <exclude domain="file" path="datastore/ai_preferences.preferences_pb" />
+        <exclude domain="file" path="datastore/ai_corrections.preferences_pb" />
     </cloud-backup>
     <device-transfer>
         <exclude domain="database" path="spend_database" />
         <exclude domain="database" path="spend_database-wal" />
         <exclude domain="database" path="spend_database-shm" />
         <exclude domain="file" path="datastore/ai_preferences.preferences_pb" />
+        <exclude domain="file" path="datastore/ai_corrections.preferences_pb" />
     </device-transfer>
 </data-extraction-rules>

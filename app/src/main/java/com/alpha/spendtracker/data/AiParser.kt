@@ -12,22 +12,39 @@ import java.util.Calendar
  */
 object AiParser {
 
+    // Includes common speech-recognizer misspellings and Telugu/Hindi script, since voice
+    // transcripts rarely spell brand names exactly.
     private val APP_ALIASES: Map<String, List<String>> = mapOf(
-        "google_pay" to listOf("google pay", "googlepay", "gpay", "g pay", "g-pay"),
-        "phone_pe" to listOf("phonepe", "phone pe", "phone pay", "phonepay", "phon pe"),
-        "paytm" to listOf("paytm", "pay tm"),
-        "swiggy" to listOf("swiggy"),
-        "zepto" to listOf("zepto"),
-        "blinkit" to listOf("blinkit", "blink it", "grofers"),
-        "amazon" to listOf("amazon", "amzn"),
-        "flipkart" to listOf("flipkart", "flip kart"),
-        "myntra" to listOf("myntra"),
-        "ajio" to listOf("ajio"),
-        "icici" to listOf("icici bank", "icici"),
-        "yono_sbi" to listOf("yono sbi", "yono", "sbi yono"),
-        "cash" to listOf("cash", "hand", "physical money"),
-        "bank_transfer" to listOf("bank transfer", "neft", "rtgs", "imps", "net banking", "transfer")
+        "google_pay" to listOf("google pay", "googlepay", "gpay", "g pay", "g-pay",
+            "గూగుల్ పే", "జీపే", "गूगल पे", "जीपे"),
+        "phone_pe" to listOf("phonepe", "phone pe", "phone pay", "phonepay", "phon pe", "fone pe",
+            "ఫోన్ పే", "ఫోన్‌పే", "फोनपे", "फ़ोनपे", "फोन पे"),
+        "paytm" to listOf("paytm", "pay tm", "paytim", "పేటీఎం", "पेटीएम"),
+        "swiggy" to listOf("swiggy", "swiggi", "swigy", "swigi", "sweegy", "swiggie", "swiggey",
+            "instamart", "స్విగ్గీ", "స్విగ్గి", "स्विगी", "स्विग्गी"),
+        "zomato" to listOf("zomato", "zomoto", "jomato", "zometo", "జొమాటో", "జోమాటో", "ज़ोमैटो", "जोमैटो", "ज़ोमाटो"),
+        "zepto" to listOf("zepto", "zapto", "jepto", "zeptoo", "zeptto", "zefto",
+            "జెప్టో", "జెప్తో", "ज़ेप्टो", "जेप्टो"),
+        "blinkit" to listOf("blinkit", "blink it", "blinket", "grofers", "బ్లింకిట్", "ब्लिंकिट"),
+        "amazon" to listOf("amazon", "amzn", "అమెజాన్", "अमेज़न", "अमेजन"),
+        "flipkart" to listOf("flipkart", "flip kart", "flipcart", "ఫ్లిప్‌కార్ట్", "ఫ్లిప్కార్ట్", "फ्लिपकार्ट"),
+        "myntra" to listOf("myntra", "mintra", "మింత్రా", "मिंत्रा"),
+        "ajio" to listOf("ajio", "ajeo", "అజియో", "अजियो"),
+        "icici" to listOf("icici bank", "icici", "ఐసీఐసీఐ", "आईसीआईसीआई"),
+        "yono_sbi" to listOf("yono sbi", "yono", "sbi yono", "యోనో", "योनो")
     )
+
+    private val SORTED_APP_ALIASES: List<Pair<AppPreset, Regex>> = APP_ALIASES.entries
+        .flatMap { (id, aliases) ->
+            val preset = APP_PRESETS.firstOrNull { it.id == id } ?: return@flatMap emptyList()
+            aliases.map { preset to it }
+        }
+        // Longest first so "phone pay" wins over any shorter overlapping alias.
+        .sortedByDescending { it.second.length }
+        // Lookarounds instead of \b: \b is ASCII-only here and never fires around Indic script.
+        .map { (preset, alias) ->
+            preset to Regex("""(?<![\p{L}\p{M}])${Regex.escape(alias)}(?![\p{L}\p{M}])""")
+        }
 
     private val PURPOSE_KEYWORDS: Map<String, List<String>> = mapOf(
         "Groceries & Food" to listOf(
@@ -88,18 +105,14 @@ object AiParser {
     )
 
     fun findAppPreset(text: String): AppPreset? {
-        val lower = " " + text.lowercase().trim() + " "
-        // Sort by alias length descending so "phone pay" matches before "pay"
-        val sorted = APP_ALIASES.entries
-            .flatMap { (id, aliases) -> aliases.map { id to it } }
-            .sortedByDescending { it.second.length }
-        for ((id, alias) in sorted) {
-            if (lower.contains(" $alias ") || lower.contains(" $alias.") ||
-                lower.contains(" $alias,") || lower.contains("$alias ")) {
-                return APP_PRESETS.firstOrNull { it.id == id }
-            }
-        }
-        return null
+        val lower = text.lowercase()
+        return SORTED_APP_ALIASES.firstOrNull { (_, regex) -> regex.containsMatchIn(lower) }?.first
+    }
+
+    /** True when [preset] is named in [text] under any known alias. */
+    fun mentionsApp(text: String, preset: AppPreset): Boolean {
+        val lower = text.lowercase()
+        return SORTED_APP_ALIASES.any { (p, regex) -> p.id == preset.id && regex.containsMatchIn(lower) }
     }
 
     fun inferPurpose(text: String): String? {
@@ -107,6 +120,8 @@ object AiParser {
         val scored = PURPOSE_KEYWORDS.mapValues { (_, keywords) ->
             keywords.count { kw -> lower.contains(kw) }
         }.filterValues { it > 0 }
+        // "lent 500 to rahul for lunch" is a loan, not food: the lend/borrow verb decides the type.
+        scored.keys.firstOrNull { it == "Lending" || it == "Borrowing" }?.let { return it }
         return scored.maxByOrNull { it.value }?.key
     }
 
@@ -117,8 +132,12 @@ object AiParser {
         val amount = extractAmount(text)
         val appPreset = findAppPreset(text)
         val purpose = inferPurpose(text) ?: defaultPurpose
-        val notes = extractDescription(text)
+        val description = extractDescription(text)
         val timestamp = extractTimestamp(text)
+        val isLendBorrow = purpose == "Lending" || purpose == "Borrowing"
+        val personName = if (isLendBorrow) extractCounterparty(text) else ""
+        // Lend/borrow keeps the person in its own field, so don't echo it back as the note.
+        val notes = if (isLendBorrow && personName.isNotBlank() && description.contains(personName, ignoreCase = true)) "" else description
 
         return AiTransactionResponse(
             amount = amount,
@@ -126,10 +145,50 @@ object AiParser {
             appPresetId = appPreset?.id,
             purpose = purpose,
             notes = notes,
+            personName = personName,
             date = "today",
             timestamp = timestamp,
             needsAmount = amount == null
         )
+    }
+
+    /**
+     * What sits between two expenses said in one breath: "tea 20, auto 80 and lunch 150".
+     * A comma inside a number ("1,500") is not a break; every other comma is, as are `;`,
+     * new lines, "&", "+", and "and / aur / then / also / plus" between words.
+     */
+    private val EXPENSE_BREAK = Regex(
+        """\s*(?:[;\n]+|(?<!\d),|,(?!\d)|\s+(?:and|aur|then|also|plus)\s+|\s+[&+]\s+)\s*""",
+        RegexOption.IGNORE_CASE
+    )
+
+    /**
+     * Splits one sentence into the separate expenses it describes, for the offline baseline
+     * (the LLM does this itself when it is available). Returns the whole text unchanged unless
+     * at least two pieces each carry an amount, so "lent 500 to rahul and priya" or
+     * "bread and butter for 100" stay a single expense.
+     *
+     * A piece with no amount belongs to a neighbour rather than being its own expense:
+     * "tea 20, coffee 30 with sugar" keeps "with sugar" on the coffee, and a leading
+     * "yesterday," rides along with the first expense.
+     */
+    fun splitExpenses(text: String): List<String> {
+        val pieces = EXPENSE_BREAK.split(text.trim()).map { it.trim() }.filter { it.isNotEmpty() }
+        if (pieces.count { extractAmount(it) != null } < 2) return listOf(text.trim())
+
+        val segments = mutableListOf<String>()
+        var leading = ""
+        for (piece in pieces) {
+            when {
+                extractAmount(piece) != null -> {
+                    segments += if (leading.isEmpty()) piece else "$leading $piece"
+                    leading = ""
+                }
+                segments.isEmpty() -> leading = if (leading.isEmpty()) piece else "$leading $piece"
+                else -> segments[segments.lastIndex] = "${segments.last()} $piece"
+            }
+        }
+        return segments
     }
 
     /**
@@ -223,6 +282,29 @@ object AiParser {
                 return desc.split(' ')
                     .filter { it.isNotBlank() }
                     .joinToString(" ") { word -> word.replaceFirstChar { it.uppercaseChar() } }
+            }
+        }
+        return ""
+    }
+
+    /**
+     * The other party of a lend/borrow sentence: "lent 500 to rahul" / "gave rahul 500" -> "Rahul",
+     * "borrowed 2k from mom for rent" -> "Mom". Blank when no name is found.
+     */
+    fun extractCounterparty(text: String): String {
+        val lower = text.lowercase()
+        val nameEnd = """(?=\s+(?:using|via|through|with|by|on|at|in|for|from|to|yesterday|today|last|\d)\b|\s*[.,!]|$)"""
+        val patterns = listOf(
+            Regex("""\b(?:lent|gave|given|sent|paid|lend)\b.*?\bto\s+([a-z][a-z ]*?)$nameEnd"""),
+            Regex("""\b(?:borrowed|took|taken|received|got|borrow)\b.*?\bfrom\s+([a-z][a-z ]*?)$nameEnd"""),
+            Regex("""\b(?:lent|gave|lend)\s+([a-z][a-z]*)\s+\d""")
+        )
+        for (p in patterns) {
+            val name = p.find(lower)?.groupValues?.get(1)?.trim().orEmpty()
+                .replace(Regex("""^(?:my|the)\s+"""), "")
+            if (name.isNotBlank()) {
+                return name.split(' ').filter { it.isNotBlank() }
+                    .joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }
             }
         }
         return ""

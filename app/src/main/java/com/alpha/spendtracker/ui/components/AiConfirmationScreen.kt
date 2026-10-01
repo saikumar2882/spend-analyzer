@@ -16,6 +16,7 @@ import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.Description
 import androidx.compose.material.icons.rounded.Event
 import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.Person
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Alignment
@@ -42,9 +43,12 @@ fun AiConfirmationScreen(
     onConfirm: (NewSpend) -> Unit,
     onCancel: () -> Unit,
     onShowNotification: (String, NotificationType) -> Unit,
+    onLearnCorrection: (notes: String, app: String?, purpose: String?) -> Unit = { _, _, _ -> },
     defaultApp: String = "Google Pay",
     defaultPurpose: String = "Others",
-    currencySymbol: String = "₹"
+    currencySymbol: String = "₹",
+    /** Overrides "Confirm & save" when confirming doesn't save yet (editing one log of a batch). */
+    confirmLabel: String? = null
 ) {
     val initialPreset = remember(extractedData, defaultApp) {
         APP_PRESETS.firstOrNull { it.id == extractedData.appPresetId }
@@ -55,20 +59,19 @@ fun AiConfirmationScreen(
 
     var amount by remember { mutableStateOf(extractedData.amount?.let { formatAmount(it) } ?: "") }
     var selectedPreset by remember { mutableStateOf(initialPreset) }
-    var customAppName by remember {
-        mutableStateOf(
-            if (initialPreset.id == "other") (extractedData.appName ?: "")
-            else ""
-        )
+    val initialCustomAppName = remember(initialPreset) {
+        if (initialPreset.id == "other") (extractedData.appName ?: "") else ""
     }
-    var purpose by remember {
-        mutableStateOf(
-            PURPOSE_PRESETS.firstOrNull { it.equals(extractedData.purpose, ignoreCase = true) }
-                ?: PURPOSE_PRESETS.firstOrNull { it.equals(defaultPurpose, ignoreCase = true) }
-                ?: "Others"
-        )
+    var customAppName by remember { mutableStateOf(initialCustomAppName) }
+    val initialPurpose = remember(extractedData, defaultPurpose) {
+        PURPOSE_PRESETS.firstOrNull { it.equals(extractedData.purpose, ignoreCase = true) }
+            ?: PURPOSE_PRESETS.firstOrNull { it.equals(defaultPurpose, ignoreCase = true) }
+            ?: "Others"
     }
+    var purpose by remember { mutableStateOf(initialPurpose) }
     var notes by remember { mutableStateOf(extractedData.notes) }
+    var personName by remember { mutableStateOf(extractedData.personName) }
+    val isLendBorrow = purpose == "Lending" || purpose == "Borrowing"
     var selectedTimestamp by remember {
         mutableLongStateOf(extractedData.timestamp ?: System.currentTimeMillis())
     }
@@ -130,7 +133,7 @@ fun AiConfirmationScreen(
             amount = amount,
             appName = if (selectedPreset.id == "other") customAppName.ifBlank { "Other" } else selectedPreset.displayName,
             purpose = purpose,
-            notes = notes,
+            notes = if (isLendBorrow) buildLendBorrowNotes(personName, notes) else notes,
             dateLabel = dateFormatter.format(selectedTimestamp),
             currencySymbol = currencySymbol
         )
@@ -164,10 +167,12 @@ fun AiConfirmationScreen(
             keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Decimal)
         )
 
+        val learnedLabel = stringResource(R.string.ai_learned_from_corrections)
         AppPresetDropdown(
             selected = selectedPreset,
             onSelect = { selectedPreset = it },
-            colors = fieldColors
+            colors = fieldColors,
+            supportingText = learnedLabel.takeIf { extractedData.learnedApp && selectedPreset.id == initialPreset.id }
         )
 
         if (selectedPreset.id == "other") {
@@ -196,8 +201,23 @@ fun AiConfirmationScreen(
         PurposeDropdown(
             selected = purpose,
             onSelect = { purpose = it },
-            colors = fieldColors
+            colors = fieldColors,
+            supportingText = learnedLabel.takeIf { extractedData.learnedPurpose && purpose == initialPurpose }
         )
+
+        if (isLendBorrow) {
+            OutlinedTextField(
+                value = personName,
+                onValueChange = { personName = it },
+                label = { Text("Name of Person") },
+                leadingIcon = { Icon(Icons.Rounded.Person, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                placeholder = { Text("E.g. Alex, Ram, Rahul...") },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = fieldColors,
+                shape = RoundedCornerShape(12.dp)
+            )
+        }
 
         OutlinedTextField(
             value = notes,
@@ -231,13 +251,25 @@ fun AiConfirmationScreen(
             Button(
                 onClick = {
                     val finalAmount = amount.toDoubleOrNull() ?: 0.0
+                    val finalNotes = if (isLendBorrow) buildLendBorrowNotes(personName, notes) else notes.trim()
+                    val finalCustomApp = customAppName.trim()
+                    val appCorrected = selectedPreset.id != initialPreset.id ||
+                        (selectedPreset.id == "other" && !finalCustomApp.equals(initialCustomAppName.trim(), ignoreCase = true))
+                    val purposeCorrected = purpose != initialPurpose
+                    if ((appCorrected || purposeCorrected) && finalNotes.isNotBlank()) {
+                        onLearnCorrection(
+                            finalNotes,
+                            if (appCorrected) (if (selectedPreset.id == "other") finalCustomApp else selectedPreset.displayName) else null,
+                            if (purposeCorrected) purpose else null
+                        )
+                    }
                     onConfirm(
                         NewSpend(
                             amount = finalAmount,
                             purpose = purpose.ifBlank { "Others" },
-                            notes = notes.trim(),
+                            notes = finalNotes,
                             preset = selectedPreset,
-                            customAppName = if (selectedPreset.id == "other") customAppName.trim() else "",
+                            customAppName = if (selectedPreset.id == "other") finalCustomApp else "",
                             timestamp = selectedTimestamp
                         )
                     )
@@ -246,7 +278,7 @@ fun AiConfirmationScreen(
                 shape = RoundedCornerShape(12.dp),
                 enabled = amount.toDoubleOrNull()?.let { it > 0 } == true &&
                           (selectedPreset.id != "other" || customAppName.isNotBlank())
-            ) { Text(stringResource(R.string.confirm_and_save), fontWeight = FontWeight.SemiBold) }
+            ) { Text(confirmLabel ?: stringResource(R.string.confirm_and_save), fontWeight = FontWeight.SemiBold) }
         }
 
         Spacer(Modifier.height(8.dp))
@@ -418,7 +450,8 @@ private fun DateField(
 private fun AppPresetDropdown(
     selected: AppPreset,
     onSelect: (AppPreset) -> Unit,
-    colors: TextFieldColors
+    colors: TextFieldColors,
+    supportingText: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -440,6 +473,7 @@ private fun AppPresetDropdown(
                 )
             },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            supportingText = supportingText?.let { text -> { Text(text) } },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = colors
@@ -483,7 +517,8 @@ private fun AppPresetDropdown(
 private fun PurposeDropdown(
     selected: String,
     onSelect: (String) -> Unit,
-    colors: TextFieldColors
+    colors: TextFieldColors,
+    supportingText: String? = null
 ) {
     var expanded by remember { mutableStateOf(false) }
 
@@ -498,6 +533,7 @@ private fun PurposeDropdown(
             label = { Text("Category / Purpose") },
             leadingIcon = { Icon(Icons.Rounded.Category, contentDescription = null, modifier = Modifier.size(18.dp)) },
             trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = expanded) },
+            supportingText = supportingText?.let { text -> { Text(text) } },
             modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
             shape = RoundedCornerShape(12.dp),
             colors = colors

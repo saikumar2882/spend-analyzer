@@ -86,6 +86,10 @@
 
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
+            <!-- Long-press launcher shortcuts: AI track, voice, manual add. -->
+            <meta-data
+                android:name="android.app.shortcuts"
+                android:resource="@xml/shortcuts" />
         </activity>
         <!-- Own task + excluded from recents: this is a transient overlay launched from the
              home screen, not a screen the user should be able to swipe back to. -->
@@ -97,6 +101,20 @@
             android:launchMode="singleTop"
             android:taskAffinity=".QuickAdd"
             android:windowSoftInputMode="adjustResize" />
+
+        <!-- Puts "Track in Spendly" in the share sheet (e.g. a GPay / PhonePe payment receipt).
+             An alias so the overlay activity itself stays unexported. -->
+        <activity-alias
+            android:name=".ShareToSpendly"
+            android:targetActivity=".widget.QuickAddInputActivity"
+            android:exported="true"
+            android:label="@string/share_to_spendly_label">
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/plain" />
+            </intent-filter>
+        </activity-alias>
 
         <receiver
             android:name=".widget.QuickAddWidgetReceiver"
@@ -110,10 +128,23 @@
         </receiver>
 
         <receiver
+            android:name=".widget.SpendSummaryWidgetReceiver"
+            android:exported="true"
+            android:label="@string/summary_widget_label">
+            <intent-filter>
+                <action android:name="android.appwidget.action.APPWIDGET_UPDATE" />
+            </intent-filter>
+            <meta-data
+                android:name="android.appwidget.provider"
+                android:resource="@xml/spend_summary_widget_info" />
+        </receiver>
+
+        <receiver
             android:name=".worker.NotificationActionReceiver"
             android:exported="false">
             <intent-filter>
                 <action android:name="com.alpha.spendtracker.ACTION_MARK_AS_READ" />
+                <action android:name="com.alpha.spendtracker.ACTION_MARK_AS_PAID" />
             </intent-filter>
         </receiver>
 

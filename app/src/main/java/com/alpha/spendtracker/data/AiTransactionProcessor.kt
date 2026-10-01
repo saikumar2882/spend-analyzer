@@ -8,15 +8,16 @@ import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.remoteConfigSettings
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
-import org.json.JSONObject
 import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
 import javax.inject.Singleton
 
 /**
- * Turns a natural-language expense sentence into an [AiTransactionResponse].
+ * Turns a natural-language expense sentence into the [AiTransactionResponse]s it describes — one
+ * for "lunch 250", several for "tea 20, auto 80 and lunch 150".
  *
  * Lives outside the ViewModel because two entry points need it: the in-app AI sheet
  * (`SpendViewModel`) and the home-screen widget's overlay, which must not instantiate
@@ -28,6 +29,7 @@ import javax.inject.Singleton
 class AiTransactionProcessor @Inject constructor(
     private val groqApiService: GroqApiService,
     private val aiPrefsRepository: AiPreferencesRepository,
+    private val correctionRepository: AiCorrectionRepository,
 ) {
 
     companion object {
@@ -52,7 +54,15 @@ class AiTransactionProcessor @Inject constructor(
         }
     }
 
-    suspend fun parse(text: String, prefs: AiPreferences): Result<AiTransactionResponse> {
+    /**
+     * @param allowMultiple false asks for exactly one expense — used for a payment receipt shared
+     * from another app, which is one payment however many amounts its text mentions.
+     */
+    suspend fun parse(
+        text: String,
+        prefs: AiPreferences,
+        allowMultiple: Boolean = true
+    ): Result<List<AiTransactionResponse>> {
         if (prefs.dailyUsageCount >= DAILY_LIMIT) {
             return Result.failure(Exception("Daily limit reached ($DAILY_LIMIT/day). Please try again tomorrow."))
         }
@@ -65,8 +75,9 @@ class AiTransactionProcessor @Inject constructor(
 
         // Run the local heuristic parser first — gives us a deterministic
         // baseline (and a usable response even if the LLM is down).
-        val baseline = AiParser.parseToBaseline(text, prefs.defaultApp, prefs.defaultPurpose)
+        val baselines = AiBatchParser.baselines(text, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
         val localCurrency = AiParser.extractCurrency(text) ?: prefs.defaultCurrency.ifBlank { "INR" }
+        val learnedRules = correctionRepository.rules.first()
 
         var responseText: String? = null
         var lastError: Exception? = null
@@ -77,7 +88,7 @@ class AiTransactionProcessor @Inject constructor(
             try {
                 remoteConfig.fetchAndActivate().await()
                 val groqKey = remoteConfig.getString("groq_api_key")
-                val systemPrompt = buildSystemPrompt(localCurrency, prefs)
+                val systemPrompt = buildSystemPrompt(localCurrency, prefs, allowMultiple)
 
                 if (groqKey.isNotBlank()) {
                     Log.d(TAG, "Input: Calling Groq (${GroqModels.FAST})")
@@ -92,7 +103,9 @@ class AiTransactionProcessor @Inject constructor(
                         // land in `content` — it would break the strict-JSON contract below.
                         reasoning_effort = "low",
                         include_reasoning = false,
-                        max_completion_tokens = 512
+                        // `reasoning_effort` shares this ceiling, and every extra expense adds a
+                        // ~70-token JSON entry, so several need more room than the one-object reply.
+                        max_completion_tokens = if (allowMultiple) 1536 else 512
                     )
                     val response = groqApiService.getCompletion("Bearer $groqKey", groqRequest)
                     if (response.isSuccessful) {
@@ -110,7 +123,7 @@ class AiTransactionProcessor @Inject constructor(
                     val geminiKey = remoteConfig.getString("gemini_api_key")
                     if (geminiKey.isBlank()) {
                         Log.w(TAG, "AI API Keys are missing in Remote Config")
-                        return Result.success(baseline)
+                        return Result.success(withLearnedCorrections(baselines, learnedRules))
                     }
                     val generativeModel = GenerativeModel(modelName = GEMINI_MODEL, apiKey = geminiKey)
                     responseText = generativeModel.generateContent(content {
@@ -140,43 +153,57 @@ class AiTransactionProcessor @Inject constructor(
 
         if (BuildConfig.DEBUG) Log.d(TAG, "AI Raw Response: $responseText")
 
-        val merged = if (responseText.isNullOrBlank()) {
+        val parsed = if (responseText.isNullOrBlank()) {
             if (lastError != null) {
                 Log.e(TAG, "AI Error after retries: ${lastError.message}", lastError)
             }
-            baseline
+            baselines
         } else {
             aiPrefsRepository.incrementUsage()
-            parseAndMerge(responseText, baseline, text, prefs.defaultApp)
+            AiBatchParser.parse(responseText, text, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
+                ?: run {
+                    // Don't log the raw payload (PII) in release; length is enough to diagnose.
+                    Log.e(TAG, "JSON Parse Failed (len=${responseText.length})")
+                    baselines
+                }
         }
 
-        return Result.success(merged)
+        return Result.success(withLearnedCorrections(parsed, learnedRules))
     }
 
-    private fun buildSystemPrompt(localCurrency: String, prefs: AiPreferences): String {
+    /** Each expense is matched against the user's learned corrections using its own words. */
+    private fun withLearnedCorrections(parsed: List<AiBatchParser.Parsed>, rules: List<CorrectionRule>) =
+        parsed.map { AiCorrectionMemory.apply(it.response, it.source, rules) }
+
+    private fun buildSystemPrompt(localCurrency: String, prefs: AiPreferences, multi: Boolean): String {
         val appList = com.alpha.spendtracker.ui.components.APP_PRESETS
             .joinToString(", ") { it.displayName }
         val purposeList = com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
             .joinToString(", ")
-        val todayStr = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            .format(System.currentTimeMillis())
+        val dayFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val todayStr = dayFormat.format(System.currentTimeMillis())
+        val yesterdayStr = dayFormat.format(Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }.time)
 
         return """
             You are a strict JSON extractor for an Indian expense tracker. Parse the user's sentence and return ONE JSON object. Output ONLY valid JSON — no markdown, no code fences, no commentary.
 
             USER DEFAULTS (apply when not explicitly stated):
             - Currency: $localCurrency
-            - Platform: ${prefs.defaultApp}
             - Purpose: ${prefs.defaultPurpose}
             - Today: $todayStr
 
-            PLATFORM MAPPING — resolve any fuzzy variant to a canonical name from [$appList]:
+            PLATFORM MAPPING — resolve any fuzzy variant, misspelling, voice-transcription error, or Telugu/Hindi-script spelling to a canonical name from [$appList]:
+            "swiggi" / "swigy" / "sweegy" / "instamart" / "స్విగ్గీ" / "स्विगी" → "Swiggy"
+            "zapto" / "jepto" / "జెప్టో" / "ज़ेप्टो" → "Zepto"
+            "zomoto" / "jomato" / "జొమాటో" / "ज़ोमैटो" → "Zomato"
+            "blink it" / "grofers" → "Blinkit"
             "pp" / "phone pay" / "phonepay" → "PhonePe"
             "gpay" / "g pay" / "g-pay" / "tez" → "Google Pay"
             "amzn" / "amazon pay" → "Amazon"
             "cred pay" → "CRED"
             "paytm upi" → "Paytm"
-            "upi" / unknown → use default platform above
+            "upi" / no platform mentioned → "" (empty string — do NOT guess, the app fills in the user's default)
+            IMPORTANT: a food/grocery app name (Swiggy, Zomato, Zepto, Blinkit) IS the platform — never replace it with a UPI app.
 
             PURPOSE MAPPING — output EXACT string from [$purposeList]:
             Food/drinks: biryani, pizza, lunch, dinner, breakfast, coffee, chai, swiggy, zomato, blinkit, zepto, groceries → "Groceries & Food"
@@ -192,105 +219,34 @@ class AiTransactionProcessor @Inject constructor(
 
             FIELD RULES:
             - LANGUAGE TRANSLATION: The input may be in English, Telugu (e.g., "భోజనం కోసం 500 ఖర్చు చేశాను"), or Teluglish/Bilingual (e.g., "500 dinner ki karchu chesa"). ALWAYS translate Telugu words and context into clear, concise ENGLISH for `notes` and `purpose`. NEVER output Telugu script or unparsed Teluglish in JSON fields.
-            - amount: largest monetary number found; null if absent.
-            - appName: canonical platform name from the mapping above.
+            - amount: ${if (multi) "the monetary amount of THIS expense" else "largest monetary number found"}; null if absent.
+            - appName: canonical platform name from the mapping above, ONLY if the user mentioned one; otherwise "".
             - purpose: exact string from the purpose mapping above.
-            - notes: 1-4 Title Case words describing WHAT in ENGLISH. Exclude amount, app name, and verbs ("spent","paid","bought"). For lending/borrowing include the person name: "Lent to Rahul", "From Mom". Empty string if nothing identifiable.
+            - notes: 1-4 Title Case words describing WHAT in ENGLISH. Exclude amount, app name, and verbs ("spent","paid","bought"). For Lending/Borrowing, notes is ONLY the optional reason/detail ("Rent", "Trip Expenses") and must NOT contain the person's name or words like "Lent to"/"From"; empty string if no reason is given. Empty string if nothing identifiable.
+            - personName: ONLY for purpose "Lending" or "Borrowing" — the other person's name in Title Case ENGLISH/Latin script, without relations prefixes like "my" ("lent 500 to rahul" → "Rahul", "borrowed 2k from my mom for rent" → "Mom"). Empty string for every other purpose or when no person is named.
             - date: YYYY-MM-DD relative to today ($todayStr). "yesterday" → today−1; "last friday" → most recent past Friday; partial date with no year → this year, shift back 1 year if result is in the future. No date → today.
             - needsAmount: true only when amount is null.
 
-            OUTPUT (no extra keys):
-            {"amount": number|null, "appName": string, "purpose": string, "notes": string, "date": string, "needsAmount": boolean}
+            ${if (multi) """OUTPUT (no extra keys):
+            {"transactions": [{"src": string, "amount": number|null, "appName": string, "purpose": string, "notes": string, "personName": string, "date": string, "needsAmount": boolean}]}
+
+            MULTIPLE EXPENSES:
+            - One entry in "transactions" per separate expense, in the order the user said them. Most inputs hold exactly one.
+            - "tea 20, auto 80 and lunch 150" is THREE entries. "500 for lunch and chai" is ONE entry: a single amount covering several items.
+            - "src": the words of the user's sentence this entry came from, copied exactly — not translated, not reworded.
+            - A payment app or date said once for the whole sentence ("... all on gpay", "yesterday I spent ...") applies to every entry. One said next to a single expense applies to that expense only.
+            - Never invent an expense the user did not state. At most ${AiBatchParser.MAX_TRANSACTIONS} entries.
+
+            EXAMPLES:
+            "lent 500 to rahul for lunch via gpay" → {"transactions": [{"src": "lent 500 to rahul for lunch via gpay", "amount": 500, "appName": "Google Pay", "purpose": "Lending", "notes": "Lunch", "personName": "Rahul", "date": "$todayStr", "needsAmount": false}]}
+            "tea 20, auto 80 on phonepe yesterday" → {"transactions": [{"src": "tea 20", "amount": 20, "appName": "PhonePe", "purpose": "Groceries & Food", "notes": "Tea", "personName": "", "date": "$yesterdayStr", "needsAmount": false}, {"src": "auto 80", "amount": 80, "appName": "PhonePe", "purpose": "Travel & Commute", "notes": "Auto", "personName": "", "date": "$yesterdayStr", "needsAmount": false}]}
+            "borrowed 2000 from mom" → {"transactions": [{"src": "borrowed 2000 from mom", "amount": 2000, "appName": "", "purpose": "Borrowing", "notes": "", "personName": "Mom", "date": "$todayStr", "needsAmount": false}]}""" else """OUTPUT (no extra keys):
+            {"amount": number|null, "appName": string, "purpose": string, "notes": string, "personName": string, "date": string, "needsAmount": boolean}
+
+            EXAMPLES:
+            "lent 500 to rahul for lunch via gpay" → {"amount": 500, "appName": "Google Pay", "purpose": "Lending", "notes": "Lunch", "personName": "Rahul", "date": "$todayStr", "needsAmount": false}
+            "300 on groceries in zapto" → {"amount": 300, "appName": "Zepto", "purpose": "Groceries & Food", "notes": "Groceries", "personName": "", "date": "$todayStr", "needsAmount": false}
+            "borrowed 2000 from mom" → {"amount": 2000, "appName": "", "purpose": "Borrowing", "notes": "", "personName": "Mom", "date": "$todayStr", "needsAmount": false}"""}
         """.trimIndent()
-    }
-
-    /**
-     * Parse the LLM JSON and merge with the local-parser baseline. Per field:
-     * AI wins if it provided a non-blank, valid value; otherwise we keep baseline.
-     *
-     * [originalText] and [defaultApp] let us honor the user's configured default payment
-     * app: the small LLM tends to guess "Google Pay" whenever the input names no app, which
-     * would override the user's default. We only trust an LLM-detected app when it is actually
-     * grounded in the input; otherwise we fall back to the user's default, not the guess.
-     */
-    private fun parseAndMerge(
-        responseText: String,
-        baseline: AiTransactionResponse,
-        originalText: String,
-        defaultApp: String
-    ): AiTransactionResponse {
-        val jsonString = run {
-            val start = responseText.indexOf("{")
-            val end = responseText.lastIndexOf("}")
-            if (start in 0 until end) responseText.substring(start, end + 1) else responseText
-        }
-        val json = try {
-            JSONObject(jsonString)
-        } catch (e: Exception) {
-            // Don't log the raw payload (PII) in release; length is enough to diagnose.
-            Log.e(TAG, "JSON Parse Failed (len=${responseText.length})", e)
-            return baseline
-        }
-
-        val aiAmount = if (json.isNull("amount")) null else json.optDouble("amount", Double.NaN)
-            .takeIf { !it.isNaN() }
-        val aiAppRaw = json.optString("appName", "").ifBlank { null }
-        val aiPurposeRaw = json.optString("purpose", "").ifBlank { null }
-        val aiNotesRaw = json.optString("notes", "").trim()
-        val aiDate = json.optString("date", "").ifBlank { baseline.date }
-        val aiNeedsAmount = json.optBoolean("needsAmount", false)
-
-        val aiPreset = AiParser.normalizeAppToPreset(aiAppRaw)
-        // Resolve the payment app in priority order:
-        //  1. An app the user actually named in the input (local alias match is ground truth).
-        //  2. An app the LLM detected that ALSO literally appears in the input — catches apps
-        //     the local matcher doesn't know, while ignoring the LLM's ungrounded guesses.
-        //  3. Neither — the user named no app, so use their configured default, NOT the LLM guess.
-        val localApp = AiParser.findAppPreset(originalText)
-        val llmAppGrounded = aiPreset != null && run {
-            val hay = " ${originalText.lowercase()} "
-            hay.contains(" ${aiPreset.displayName.lowercase()} ") ||
-                (!aiAppRaw.isNullOrBlank() && hay.contains(aiAppRaw.lowercase()))
-        }
-        val finalPreset = localApp
-            ?: aiPreset?.takeIf { llmAppGrounded }
-            ?: AiParser.normalizeAppToPreset(defaultApp)
-            ?: aiPreset
-            ?: AiParser.normalizeAppToPreset(baseline.appName)
-        val finalPurpose = AiParser.normalizePurpose(aiPurposeRaw) ?: baseline.purpose
-        val finalNotes = aiNotesRaw.ifBlank { baseline.notes }
-        val finalAmount = aiAmount ?: baseline.amount
-        val finalTimestamp = parseIsoDate(aiDate) ?: baseline.timestamp
-
-        return AiTransactionResponse(
-            amount = finalAmount,
-            appName = finalPreset?.displayName ?: aiAppRaw ?: baseline.appName,
-            appPresetId = finalPreset?.id,
-            purpose = finalPurpose,
-            notes = finalNotes,
-            date = aiDate,
-            timestamp = finalTimestamp,
-            needsAmount = aiNeedsAmount || finalAmount == null
-        )
-    }
-
-    /** Parse "YYYY-MM-DD" emitted by the LLM into an epoch millis. */
-    private fun parseIsoDate(date: String?): Long? {
-        if (date.isNullOrBlank()) return null
-        return try {
-            val sdf = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
-            sdf.isLenient = false
-            sdf.parse(date)?.let { parsed ->
-                Calendar.getInstance().apply {
-                    time = parsed
-                    set(Calendar.HOUR_OF_DAY, 12)
-                    set(Calendar.MINUTE, 0)
-                    set(Calendar.SECOND, 0)
-                    set(Calendar.MILLISECOND, 0)
-                }.timeInMillis
-            }
-        } catch (_: Exception) {
-            null
-        }
     }
 }

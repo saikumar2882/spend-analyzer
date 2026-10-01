@@ -106,10 +106,14 @@ import com.alpha.spendtracker.data.SyncStatus
 import com.alpha.spendtracker.data.userMessageOrGeneric
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.AiConfirmationScreen
+import com.alpha.spendtracker.ui.components.AiBatchConfirmationScreen
+import com.alpha.spendtracker.ui.components.toDraft
 import com.alpha.spendtracker.ui.components.AiInputBottomSheet
 import com.alpha.spendtracker.ui.components.VoiceInputOverlay
 import com.alpha.spendtracker.util.VoiceInputHelper
 import com.alpha.spendtracker.ui.components.AppNotification
+import com.alpha.spendtracker.ui.components.BannerNotification
+import com.alpha.spendtracker.ui.components.NotificationAction
 import com.alpha.spendtracker.ui.components.BillTrackingBottomSheet
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.icons.AppIcons
@@ -147,6 +151,9 @@ import androidx.appcompat.app.AppCompatActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
+
+/** How long an undo-bearing banner ("Deleted · Undo", "Saved · Undo") stays up. */
+private const val UNDO_WINDOW_MS = 5000L
 
 enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, HISTORY_TRASH, ADD_SPEND, LEND_BORROW_HISTORY, RECURRING_BILLS, NOTES, NOTES_HISTORY, SETTINGS }
 
@@ -379,10 +386,10 @@ fun MainContainer(
     val context = LocalContext.current
     val scope = rememberCoroutineScope()
     
-    var currentNotification by remember { mutableStateOf<Pair<String, NotificationType>?>(null) }
+    var currentNotification by remember { mutableStateOf<BannerNotification?>(null) }
 
     fun showNotification(message: String, type: NotificationType = NotificationType.INFO) {
-        currentNotification = message to type
+        currentNotification = BannerNotification(message, type)
     }
 
     /**
@@ -404,9 +411,50 @@ fun MainContainer(
         )
     }
 
+    /**
+     * Like [notifyResult], but the banner carries an "Undo" action for [UNDO_WINDOW_MS]. [onUndo]
+     * receives the mutation's result (e.g. the Recycle Bin entry a delete created) and must itself
+     * write a fresh soft-delete / restore — undo is just another last-write-wins mutation.
+     */
+    fun <T> notifyUndoable(
+        result: Result<T>,
+        message: String,
+        tone: NotificationType = NotificationType.INFO,
+        onUndo: (T) -> Unit
+    ) {
+        result.fold(
+            onSuccess = { value ->
+                currentNotification = BannerNotification(
+                    message = message,
+                    type = tone,
+                    action = NotificationAction(context.getString(R.string.undo)) {
+                        currentNotification = null
+                        onUndo(value)
+                    }
+                )
+            },
+            onFailure = { showNotification(it.userMessageOrGeneric(), NotificationType.ERROR) }
+        )
+    }
+
+    // The outcome of tapping Undo; a quiet confirmation, or the error if the reversal failed.
+    fun notifyUndone(result: Result<Unit>) =
+        notifyResult(result, context.getString(R.string.undo_done), NotificationType.INFO)
+
+    // Every spend delete goes through here so History, Dues and the Dashboard all offer Undo.
+    // Undo reuses the trash screen's Restore (restoreFromHistory), which also clears the bin entry.
+    fun deleteSpendWithUndo(spend: Spend) {
+        viewModel.deleteSpendUndoable(spend) { result ->
+            notifyUndoable(result, context.getString(R.string.undo_deleted)) { history ->
+                viewModel.restoreSpend(history) { notifyUndone(it) }
+            }
+        }
+    }
+
     LaunchedEffect(currentNotification) {
         if (currentNotification != null) {
-            delay(3000)
+            // Undo-bearing banners stay longer so the action is actually reachable.
+            delay(if (currentNotification?.action != null) UNDO_WINDOW_MS else 3000L)
             currentNotification = null
         }
     }
@@ -522,7 +570,8 @@ LaunchedEffect(Unit) {
     var showAiInput by remember { mutableStateOf(false) }
     var showVoiceInput by remember { mutableStateOf(false) }
     var showAiHistoryAssistant by remember { mutableStateOf(false) }
-    var aiProcessingResult by remember { mutableStateOf<AiTransactionResponse?>(null) }
+    // One entry for an ordinary sentence; several when it described more than one expense.
+    var aiProcessingResult by remember { mutableStateOf<List<AiTransactionResponse>?>(null) }
     var showDiscardDialog by remember { mutableStateOf(false) }
     var discardCallback by remember { mutableStateOf<(() -> Unit)?>(null) }
 
@@ -546,6 +595,8 @@ LaunchedEffect(Unit) {
     var editingSpend by remember { mutableStateOf<Spend?>(null) }
     var prefilledBillSpend by remember { mutableStateOf<NewSpend?>(null) }
     var showBillTrackingSheet by remember { mutableStateOf(false) }
+    // `yyyy-MM` of the month the Wrapped sheet shows; null while it is closed.
+    var wrappedMonthKey by rememberSaveable { mutableStateOf<String?>(null) }
     // Set when a note-linked transaction is tapped in History; NotesScreen consumes it to
     // auto-open that note, then clears it.
     var pendingNoteUuid by rememberSaveable { mutableStateOf<String?>(null) }
@@ -604,6 +655,8 @@ LaunchedEffect(Unit) {
 
     // Split trash/update history so the lend/borrow screen and the main-history trash each
     // show only their own records (SpendHistory carries the purpose used for lend/borrow).
+    // Whether the assistant has any Lending/Borrowing to be asked about (it hides those suggestions otherwise).
+    val hasDues = remember(allSpends) { allSpends.any { it.purpose == "Lending" || it.purpose == "Borrowing" } }
     val lendBorrowDeleted = remember(deletedHistory) { deletedHistory.filter { it.purpose == "Lending" || it.purpose == "Borrowing" } }
     val lendBorrowUpdated = remember(updatedHistory) { updatedHistory.filter { it.purpose == "Lending" || it.purpose == "Borrowing" } }
     val regularDeleted = remember(deletedHistory) { deletedHistory.filter { it.purpose != "Lending" && it.purpose != "Borrowing" } }
@@ -681,10 +734,13 @@ LaunchedEffect(Unit) {
             
             // Clear extras to avoid re-triggering on rotation/recomposition
             intent.removeExtra("BILL_UUID")
+        } else if (intent?.hasExtra(com.alpha.spendtracker.worker.RecapWorker.EXTRA_WRAPPED_MONTH) == true) {
+            wrappedMonthKey = intent.getStringExtra(com.alpha.spendtracker.worker.RecapWorker.EXTRA_WRAPPED_MONTH)
+            intent.removeExtra(com.alpha.spendtracker.worker.RecapWorker.EXTRA_WRAPPED_MONTH)
         } else if (intent != null && AiResultIntent.isPresent(intent)) {
             // Parsed by the widget's overlay before the app was opened — go straight to
             // confirmation. The sheet stays gated behind the app lock below.
-            aiProcessingResult = AiResultIntent.read(intent)
+            aiProcessingResult = AiResultIntent.read(intent).takeIf { it.isNotEmpty() }
             AiResultIntent.clear(intent)
         } else if (intent?.getBooleanExtra("SHOW_AI_INPUT", false) == true) {
             android.util.Log.d("MainActivity", "Showing AI input via widget.")
@@ -694,6 +750,19 @@ LaunchedEffect(Unit) {
             Log.d("MainActivity", "Showing Voice input via widget.")
             showVoiceInput = true
             intent.removeExtra("SHOW_VOICE_INPUT")
+        } else if (intent?.getBooleanExtra("OPEN_ADD_SPEND", false) == true) {
+            // The "Add expense" launcher shortcut: straight to the manual form. Return to
+            // wherever the app already was (Dashboard on a cold start).
+            editingSpend = null
+            prefilledBillSpend = null
+            returnTo = when (activeView) {
+                ActiveView.ADD_SPEND -> returnTo
+                // Detail screens aren't a place to come back to after saving.
+                ActiveView.HISTORY_TRASH, ActiveView.LEND_BORROW_HISTORY, ActiveView.NOTES_HISTORY -> ActiveView.DASHBOARD
+                else -> activeView
+            }
+            activeView = ActiveView.ADD_SPEND
+            intent.removeExtra("OPEN_ADD_SPEND")
         }
     }
 
@@ -1240,11 +1309,7 @@ LaunchedEffect(Unit) {
                                 returnTo = activeView
                                 activeView = ActiveView.ADD_SPEND
                             },
-                            onDeleteSpend = { spend ->
-                                viewModel.deleteSpend(spend) {
-                                    notifyResult(it, "Record moved to trash", NotificationType.INFO)
-                                }
-                            }
+                            onDeleteSpend = { spend -> deleteSpendWithUndo(spend) }
                         )
                         ActiveView.LEND_BORROW -> LendBorrowScreen(
                             allSpends = allSpends,
@@ -1255,11 +1320,7 @@ LaunchedEffect(Unit) {
                                 returnTo = activeView
                                 activeView = ActiveView.ADD_SPEND
                             },
-                            onDeleteSpend = { spend ->
-                                viewModel.deleteSpend(spend) {
-                                    notifyResult(it, "Record moved to trash", NotificationType.INFO)
-                                }
-                            },
+                            onDeleteSpend = { spend -> deleteSpendWithUndo(spend) },
                             onShowHistory = {
                                 activeView = ActiveView.LEND_BORROW_HISTORY
                             }
@@ -1317,6 +1378,8 @@ LaunchedEffect(Unit) {
                         )
                         ActiveView.RECURRING_BILLS -> RecurringBillsScreen(
                             bills = recurringBills,
+                            suggestions = viewModel.subscriptionSuggestions.collectAsStateWithLifecycle().value,
+                            onDismissSuggestion = viewModel::dismissSubscriptionSuggestion,
                             onBack = goBackMajor,
                             onAddBill = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4 ->
                                 viewModel.addRecurringBill(
@@ -1332,7 +1395,15 @@ LaunchedEffect(Unit) {
                                 )
                             },
                             onUpdateBill = viewModel::updateRecurringBill,
-                            onDeleteBill = viewModel::deleteRecurringBill
+                            onDeleteBill = { bill ->
+                                // Bills have no Recycle Bin; undo re-writes the original with
+                                // deleted=false (updateRecurringBill stamps a fresh updatedAt).
+                                viewModel.deleteRecurringBill(bill) { result ->
+                                    notifyUndoable(result, context.getString(R.string.undo_deleted)) {
+                                        viewModel.updateRecurringBill(bill.copy(deleted = false)) { notifyUndone(it) }
+                                    }
+                                }
+                            }
                         )
                         ActiveView.NOTES -> NotesScreen(
                             notes = notes,
@@ -1343,7 +1414,14 @@ LaunchedEffect(Unit) {
                             onBack = goBackMajor,
                             onAddNote = viewModel::addNote,
                             onUpdateNote = viewModel::updateNote,
-                            onDeleteNote = viewModel::deleteNote,
+                            onDeleteNote = { note ->
+                                viewModel.deleteNoteUndoable(note) { result ->
+                                    notifyUndoable(result, context.getString(R.string.undo_deleted)) { history ->
+                                        // Same restore as the Notes Recycle Bin — brings the entries back too.
+                                        viewModel.restoreNoteHistory(history) { notifyUndone(it) }
+                                    }
+                                }
+                            },
                             onAddEntry = viewModel::addNoteEntry,
                             onUpdateEntry = viewModel::updateNoteEntry,
                             onDeleteEntry = viewModel::deleteNoteEntry,
@@ -1403,6 +1481,12 @@ LaunchedEffect(Unit) {
                                 onAiAssistantClick = { showAiHistoryAssistant = true },
                                 onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
                                 onNotesClick = { goToMajor(ActiveView.NOTES) },
+                                onWrappedClick = {
+                                    val cal = java.util.Calendar.getInstance()
+                                    wrappedMonthKey = com.alpha.spendtracker.data.SpendRecap.monthKey(
+                                        cal.get(java.util.Calendar.YEAR), cal.get(java.util.Calendar.MONTH)
+                                    )
+                                },
                                 onShareApp = {
                                     val sendIntent: Intent = Intent().apply {
                                         action = Intent.ACTION_SEND
@@ -1429,11 +1513,7 @@ LaunchedEffect(Unit) {
                                 returnTo = activeView
                                 activeView = ActiveView.ADD_SPEND
                             },
-                            onDeleteSpend = { spend ->
-                                viewModel.deleteSpend(spend) {
-                                    notifyResult(it, "Spend deleted", NotificationType.INFO)
-                                }
-                            },
+                            onDeleteSpend = { spend -> deleteSpendWithUndo(spend) },
                             onShowHistory = { activeView = ActiveView.HISTORY_TRASH },
                             onOpenNote = { noteUuid ->
                                 pendingNoteUuid = noteUuid
@@ -1454,9 +1534,10 @@ LaunchedEffect(Unit) {
                                 val appName = if (newSpend.preset.id == "other")
                                     newSpend.customAppName.trim() else newSpend.preset.displayName
                                 
-                                if (editingSpend != null) {
+                                val previous = editingSpend
+                                if (previous != null) {
                                     viewModel.updateSpend(
-                                        editingSpend!!.copy(
+                                        previous.copy(
                                             appName = appName,
                                             amount = newSpend.amount,
                                             purpose = newSpend.purpose,
@@ -1464,16 +1545,28 @@ LaunchedEffect(Unit) {
                                             notes = newSpend.notes,
                                             timestamp = newSpend.timestamp
                                         )
-                                    ) { notifyResult(it, "Spending updated successfully!") }
+                                    ) { result ->
+                                        // Undo writes the pre-edit values back as a normal update
+                                        // (fresh updatedAt, logged in Update History like any edit).
+                                        notifyUndoable(result, context.getString(R.string.undo_updated), NotificationType.SUCCESS) {
+                                            viewModel.updateSpend(previous) { notifyUndone(it) }
+                                        }
+                                    }
                                 } else {
+                                    val newUuid = java.util.UUID.randomUUID().toString()
                                     viewModel.addSpend(
                                         appName = appName,
                                         amount = newSpend.amount,
                                         purpose = newSpend.purpose,
                                         category = newSpend.preset.category,
                                         notes = newSpend.notes,
-                                        timestamp = newSpend.timestamp
-                                    ) { notifyResult(it, "Spending logged successfully!") }
+                                        timestamp = newSpend.timestamp,
+                                        uuid = newUuid
+                                    ) { result ->
+                                        notifyUndoable(result, context.getString(R.string.undo_saved), NotificationType.SUCCESS) {
+                                            viewModel.undoAddSpend(newUuid) { notifyUndone(it) }
+                                        }
+                                    }
                                     // No need to manually clear prefilledBillSpend here as it's done in onDismiss
                                     // and we also clear it below
                                 }
@@ -1520,8 +1613,8 @@ LaunchedEffect(Unit) {
                     exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
                     modifier = Modifier.align(Alignment.TopCenter)
                 ) {
-                    currentNotification?.let { (msg, type) ->
-                        AppNotification(message = msg, type = type)
+                    currentNotification?.let { n ->
+                        AppNotification(message = n.message, type = n.type, action = n.action)
                     }
                 }
             }
@@ -1569,32 +1662,83 @@ LaunchedEffect(Unit) {
                 sheetState = aiConfirmationSheetState,
                 dragHandle = { BottomSheetDefaults.DragHandle() }
             ) {
-                AiConfirmationScreen(
-                    extractedData = currentAiConfirmationResult,
-                    defaultApp = aiPrefs.defaultApp,
-                    defaultPurpose = aiPrefs.defaultPurpose,
-                    currencySymbol = aiPrefs.defaultCurrency.let { if (it.isBlank() || it.length > 2) "₹" else it },
-                    onShowNotification = { msg, type -> showNotification(msg, type) },
-                    onConfirm = { newSpend ->
-                        viewModel.addSpend(
-                            appName = if (newSpend.preset.id == "other") newSpend.customAppName else newSpend.preset.displayName,
-                            amount = newSpend.amount,
-                            purpose = newSpend.purpose,
-                            category = newSpend.preset.category,
-                            notes = newSpend.notes,
-                            timestamp = newSpend.timestamp
-                        ) { notifyResult(it, "Logged via AI!") }
-                        scope.launch {
-                            runCatching {
-                                if (aiConfirmationSheetState.isVisible) aiConfirmationSheetState.hide()
-                            }
-                            aiProcessingResult = null
-                            viewModel.clearAiResult()
+                val aiCurrency = aiPrefs.defaultCurrency.let { if (it.isBlank() || it.length > 2) "₹" else it }
+                val finishAiConfirmation: () -> Unit = {
+                    scope.launch {
+                        runCatching {
+                            if (aiConfirmationSheetState.isVisible) aiConfirmationSheetState.hide()
                         }
-                    },
-                    onCancel = dismissAiConfirmation
-                )
+                        aiProcessingResult = null
+                        viewModel.clearAiResult()
+                    }
+                }
+                if (currentAiConfirmationResult.size == 1) {
+                    AiConfirmationScreen(
+                        extractedData = currentAiConfirmationResult.first(),
+                        defaultApp = aiPrefs.defaultApp,
+                        defaultPurpose = aiPrefs.defaultPurpose,
+                        currencySymbol = aiCurrency,
+                        onShowNotification = { msg, type -> showNotification(msg, type) },
+                        onLearnCorrection = viewModel::learnAiCorrection,
+                        onConfirm = { newSpend ->
+                            val newUuid = java.util.UUID.randomUUID().toString()
+                            viewModel.addSpend(
+                                appName = if (newSpend.preset.id == "other") newSpend.customAppName else newSpend.preset.displayName,
+                                amount = newSpend.amount,
+                                purpose = newSpend.purpose,
+                                category = newSpend.preset.category,
+                                notes = newSpend.notes,
+                                timestamp = newSpend.timestamp,
+                                uuid = newUuid
+                            ) { result ->
+                                notifyUndoable(result, context.getString(R.string.undo_saved), NotificationType.SUCCESS) {
+                                    viewModel.undoAddSpend(newUuid) { notifyUndone(it) }
+                                }
+                            }
+                            finishAiConfirmation()
+                        },
+                        onCancel = dismissAiConfirmation
+                    )
+                } else {
+                    // One sentence, several expenses: list every log that will be saved.
+                    AiBatchConfirmationScreen(
+                        extracted = currentAiConfirmationResult,
+                        defaultApp = aiPrefs.defaultApp,
+                        defaultPurpose = aiPrefs.defaultPurpose,
+                        currencySymbol = aiCurrency,
+                        onShowNotification = { msg, type -> showNotification(msg, type) },
+                        onLearnCorrection = viewModel::learnAiCorrection,
+                        onConfirm = { newSpends ->
+                            val drafts = newSpends.map { it.toDraft(java.util.UUID.randomUUID().toString()) }
+                            viewModel.addSpends(drafts) { result ->
+                                notifyUndoable(
+                                    result,
+                                    context.resources.getQuantityString(R.plurals.undo_saved_many, drafts.size, drafts.size),
+                                    NotificationType.SUCCESS
+                                ) { savedUuids ->
+                                    viewModel.undoAddSpends(savedUuids) { notifyUndone(it) }
+                                }
+                            }
+                            finishAiConfirmation()
+                        },
+                        onCancel = dismissAiConfirmation
+                    )
+                }
             }
+        }
+
+        val wrappedMonth = com.alpha.spendtracker.data.SpendRecap.parseMonthKey(wrappedMonthKey)
+        // Same lock gate as the AI confirmation sheet: a ModalBottomSheet floats above LockedOverlay.
+        if (wrappedMonth != null && (!needsBiometric || isBiometricAuthenticated)) {
+            val wrappedSheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
+            com.alpha.spendtracker.ui.components.WrappedSheet(
+                spends = allSpends,
+                initialYear = wrappedMonth.first,
+                initialMonth = wrappedMonth.second,
+                currency = aiPrefs.defaultCurrency,
+                sheetState = wrappedSheetState,
+                onDismiss = { wrappedMonthKey = null }
+            )
         }
 
         val currentBillToTrack = prefilledBillSpend
@@ -1629,9 +1773,10 @@ LaunchedEffect(Unit) {
             com.alpha.spendtracker.ui.components.AiHistoryAssistantSheet(
                 messages = chatHistory,
                 status = historyStatus,
-                onSendMessage = { viewModel.askAiAboutHistory(it) },
+                onSendMessage = { question, scopeText -> viewModel.askAiAboutHistory(question, scopeText) },
                 onDismiss = { showAiHistoryAssistant = false },
-                sheetState = aiHistorySheetState
+                sheetState = aiHistorySheetState,
+                hasDues = hasDues
             )
         }
 

@@ -14,6 +14,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
+import com.alpha.spendtracker.ui.theme.Spacing
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 
@@ -21,10 +23,25 @@ enum class NotificationType {
     SUCCESS, ERROR, INFO
 }
 
+/** Optional trailing action on the banner, e.g. "Undo" after a delete or save. */
+data class NotificationAction(val label: String, val onClick: () -> Unit)
+
+/**
+ * What the banner overlay in MainContainer is currently showing. A data class rather than a
+ * Pair so an [action] can ride along; the lambda inside it also makes each undo-bearing
+ * notification a distinct value, which restarts the auto-dismiss timer for back-to-back deletes.
+ */
+data class BannerNotification(
+    val message: String,
+    val type: NotificationType = NotificationType.INFO,
+    val action: NotificationAction? = null
+)
+
 @Composable
 fun AppNotification(
     message: String,
-    type: NotificationType = NotificationType.INFO
+    type: NotificationType = NotificationType.INFO,
+    action: NotificationAction? = null
 ) {
     val isDarkTheme = MaterialTheme.colorScheme.surface.red < 0.4f
 
@@ -84,6 +101,26 @@ fun AppNotification(
                     color = MaterialTheme.colorScheme.onSurface,
                     modifier = Modifier.weight(1f)
                 )
+
+                if (action != null) {
+                    // Same plain TextButton the app's dialogs use; primary so it reads as the
+                    // one actionable thing on the banner in both light and dark themes.
+                    TextButton(
+                        onClick = action.onClick,
+                        contentPadding = PaddingValues(horizontal = Spacing.md, vertical = Spacing.xs),
+                        colors = ButtonDefaults.textButtonColors(
+                            contentColor = MaterialTheme.colorScheme.primary
+                        )
+                    ) {
+                        Text(
+                            text = action.label,
+                            style = MaterialTheme.typography.labelLarge,
+                            fontWeight = FontWeight.Bold,
+                            maxLines = 1,
+                            overflow = TextOverflow.Ellipsis
+                        )
+                    }
+                }
             }
         }
     }
