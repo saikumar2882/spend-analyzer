@@ -1,5 +1,6 @@
 <resources>
     <string name="app_name">స్పెంట్లీ</string>
+    <string name="voice_privacy_notice">వాయిస్ Google స్పీచ్ సర్వీస్ ద్వారా ప్రాసెస్ చేయబడుతుంది</string>
 
     <!-- Navigation & Common -->
     <string name="cancel">రద్దు చేయి</string>
@@ -432,7 +433,19 @@
     <string name="budget_spent_fmt">%2$s లో %1$s ఖర్చయింది</string>
     <string name="recommended_daily_budget">సిఫార్సు చేసిన రోజువారీ బడ్జెట్: %1$s/రోజు</string>
     <string name="remaining_days_fmt">మిగిలిన %1$d రోజులకు</string>
-    <string name="over_budget_by">బడ్జెట్ కంటే %1$s ఎక్కువ</string>
     <string name="budget_updated_success">బడ్జెట్ నవీకరించబడింది</string>
     <string name="budget_removed_success">బడ్జెట్ తీసివేయబడింది</string>
+    <string name="over_budget_by">బడ్జెట్ కంటే %1$s ఎక్కువ</string>
+
+    <!-- PDF Export & Reports -->
+    <string name="pdf_budget_exceeded">బడ్జెట్ దాటింది</string>
+
+    <!-- Quick Filters -->
+    <string name="quick_filter_all">అన్నీ</string>
+    <string name="quick_filter_food">ఆహారం</string>
+    <string name="quick_filter_shopping">షాపింగ్</string>
+    <string name="quick_filter_travel">ప్రయాణం</string>
+    <string name="quick_filter_bills">బిల్లులు</string>
+    <string name="quick_filter_high_spends">ఎక్కువ ఖర్చులు (> ₹1000)</string>
+    <string name="quick_filter_credit_cards">క్రెడిట్ కార్డ్‌లు</string>
 </resources>

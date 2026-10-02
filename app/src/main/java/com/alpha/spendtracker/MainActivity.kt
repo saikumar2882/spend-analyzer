@@ -10,6 +10,7 @@ import android.os.Build
 import android.os.Bundle
 import android.util.Log
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.res.pluralStringResource
 import com.alpha.spendtracker.R
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
@@ -83,6 +84,7 @@ import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.input.pointer.positionChange
 import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalResources
 import androidx.compose.ui.platform.LocalDensity
 import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.unit.IntOffset
@@ -388,6 +390,12 @@ fun MainContainer(
     var isRegistering by remember { mutableStateOf(value = false) }
     
     val context = LocalContext.current
+    val resources = LocalResources.current
+    val stringUndo = stringResource(R.string.undo)
+    val stringUndoDone = stringResource(R.string.undo_done)
+    val stringUndoDeleted = stringResource(R.string.undo_deleted)
+    val stringUndoUpdated = stringResource(R.string.undo_updated)
+    val stringUndoSaved = stringResource(R.string.undo_saved)
     val scope = rememberCoroutineScope()
     
     var currentNotification by remember { mutableStateOf<BannerNotification?>(null) }
@@ -420,7 +428,6 @@ fun MainContainer(
      * receives the mutation's result (e.g. the Recycle Bin entry a delete created) and must itself
      * write a fresh soft-delete / restore — undo is just another last-write-wins mutation.
      */
-    @Suppress("ContextGetResource")
     fun <T> notifyUndoable(
         result: Result<T>,
         message: String,
@@ -432,7 +439,7 @@ fun MainContainer(
                 currentNotification = BannerNotification(
                     message = message,
                     type = tone,
-                    action = NotificationAction(context.getString(R.string.undo)) {
+                    action = NotificationAction(stringUndo) {
                         currentNotification = null
                         onUndo(value)
                     }
@@ -444,13 +451,13 @@ fun MainContainer(
 
     // The outcome of tapping Undo; a quiet confirmation, or the error if the reversal failed.
     fun notifyUndone(result: Result<Unit>) =
-        notifyResult(result, context.getString(R.string.undo_done), NotificationType.INFO)
+        notifyResult(result, stringUndoDone, NotificationType.INFO)
 
     // Every spend delete goes through here so History, Dues and the Dashboard all offer Undo.
     // Undo reuses the trash screen's Restore (restoreFromHistory), which also clears the bin entry.
     fun deleteSpendWithUndo(spend: Spend) {
         viewModel.deleteSpendUndoable(spend) { result ->
-            notifyUndoable(result, context.getString(R.string.undo_deleted)) { history ->
+            notifyUndoable(result, stringUndoDeleted) { history ->
                 viewModel.restoreSpend(history) { notifyUndone(it) }
             }
         }
@@ -1454,7 +1461,7 @@ LaunchedEffect(Unit) {
                                 // Bills have no Recycle Bin; undo re-writes the original with
                                 // deleted=false (updateRecurringBill stamps a fresh updatedAt).
                                 viewModel.deleteRecurringBill(bill) { result ->
-                                    notifyUndoable(result, context.getString(R.string.undo_deleted)) {
+                                    notifyUndoable(result, stringUndoDeleted) {
                                         viewModel.updateRecurringBill(bill.copy(deleted = false)) { notifyUndone(it) }
                                     }
                                 }
@@ -1471,7 +1478,7 @@ LaunchedEffect(Unit) {
                             onUpdateNote = viewModel::updateNote,
                             onDeleteNote = { note ->
                                 viewModel.deleteNoteUndoable(note) { result ->
-                                    notifyUndoable(result, context.getString(R.string.undo_deleted)) { history ->
+                                    notifyUndoable(result, stringUndoDeleted) { history ->
                                         // Same restore as the Notes Recycle Bin — brings the entries back too.
                                         viewModel.restoreNoteHistory(history) { notifyUndone(it) }
                                     }
@@ -1606,7 +1613,7 @@ LaunchedEffect(Unit) {
                                     ) { result ->
                                         // Undo writes the pre-edit values back as a normal update
                                         // (fresh updatedAt, logged in Update History like any edit).
-                                        notifyUndoable(result, context.getString(R.string.undo_updated), NotificationType.SUCCESS) {
+                                        notifyUndoable(result, stringUndoUpdated, NotificationType.SUCCESS) {
                                             viewModel.updateSpend(previous) { notifyUndone(it) }
                                         }
                                     }
@@ -1621,7 +1628,7 @@ LaunchedEffect(Unit) {
                                         timestamp = newSpend.timestamp,
                                         uuid = newUuid
                                     ) { result ->
-                                        notifyUndoable(result, context.getString(R.string.undo_saved), NotificationType.SUCCESS) {
+                                        notifyUndoable(result, stringUndoSaved, NotificationType.SUCCESS) {
                                             viewModel.undoAddSpend(newUuid) { notifyUndone(it) }
                                         }
                                     }
@@ -1749,7 +1756,7 @@ LaunchedEffect(Unit) {
                                 timestamp = newSpend.timestamp,
                                 uuid = newUuid
                             ) { result ->
-                                notifyUndoable(result, context.getString(R.string.undo_saved), NotificationType.SUCCESS) {
+                                notifyUndoable(result, stringUndoSaved, NotificationType.SUCCESS) {
                                     viewModel.undoAddSpend(newUuid) { notifyUndone(it) }
                                 }
                             }
@@ -1771,7 +1778,7 @@ LaunchedEffect(Unit) {
                             viewModel.addSpends(drafts) { result ->
                                 notifyUndoable(
                                     result,
-                                    context.resources.getQuantityString(R.plurals.undo_saved_many, drafts.size, drafts.size),
+                                    resources.getQuantityString(R.plurals.undo_saved_many, drafts.size, drafts.size),
                                     NotificationType.SUCCESS
                                 ) { savedUuids ->
                                     viewModel.undoAddSpends(savedUuids) { notifyUndone(it) }

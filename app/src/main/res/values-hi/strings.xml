@@ -434,7 +434,19 @@
     <string name="budget_spent_fmt">%2$s में से %1$s खर्च</string>
     <string name="recommended_daily_budget">अनुशंसित दैनिक बजट: %1$s/दिन</string>
     <string name="remaining_days_fmt">शेष %1$d दिनों के लिए</string>
-    <string name="over_budget_by">बजट से %1$s अधिक</string>
     <string name="budget_updated_success">बजट अद्यतन किया गया</string>
     <string name="budget_removed_success">बजट हटा दिया गया</string>
+    <string name="over_budget_by">बजट से %1$s अधिक</string>
+
+    <!-- PDF Export & Reports -->
+    <string name="pdf_budget_exceeded">बजट से अधिक</string>
+
+    <!-- Quick Filters -->
+    <string name="quick_filter_all">सभी</string>
+    <string name="quick_filter_food">भोजन</string>
+    <string name="quick_filter_shopping">शॉपिंग</string>
+    <string name="quick_filter_travel">यात्रा</string>
+    <string name="quick_filter_bills">बिल</string>
+    <string name="quick_filter_high_spends">उच्च खर्च (> ₹1000)</string>
+    <string name="quick_filter_credit_cards">क्रेडिट कार्ड</string>
 </resources>
