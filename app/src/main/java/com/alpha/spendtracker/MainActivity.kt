@@ -420,6 +420,7 @@ fun MainContainer(
      * receives the mutation's result (e.g. the Recycle Bin entry a delete created) and must itself
      * write a fresh soft-delete / restore — undo is just another last-write-wins mutation.
      */
+    @Suppress("ContextGetResource")
     fun <T> notifyUndoable(
         result: Result<T>,
         message: String,
@@ -668,6 +669,7 @@ LaunchedEffect(Unit) {
     }
 
     val analyticsState by viewModel.uiState.collectAsStateWithLifecycle()
+    val currentMonthSpent by viewModel.currentMonthSpent.collectAsStateWithLifecycle()
     val currentFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
     val customDateRange by viewModel.customDateRange.collectAsStateWithLifecycle()
     val aiResult by viewModel.aiResult.collectAsStateWithLifecycle()
@@ -740,6 +742,7 @@ LaunchedEffect(Unit) {
     val isAiProcessing by viewModel.isAiProcessing.collectAsStateWithLifecycle()
 
     val recurringBills by viewModel.recurringBills.collectAsStateWithLifecycle()
+    val upcomingBills by viewModel.upcomingBills.collectAsStateWithLifecycle()
     val notes by viewModel.notes.collectAsStateWithLifecycle()
     val noteEntries by viewModel.noteEntries.collectAsStateWithLifecycle()
     val noteDeletedHistory by viewModel.noteDeletedHistory.collectAsStateWithLifecycle()
@@ -1311,6 +1314,7 @@ LaunchedEffect(Unit) {
                             currentFilter = currentFilter,
                             analytics = analyticsState,
                             recentSpends = recentSpends,
+                            upcomingBills = upcomingBills,
                             themePreference = themePreference,
                             onCycleTheme = onCycleTheme,
                             onFilterSelect = viewModel::setFilter,
@@ -1339,6 +1343,8 @@ LaunchedEffect(Unit) {
                             },
                             onAiAssistantClick = { showAiHistoryAssistant = true },
                             onNotesClick = { goToMajor(ActiveView.NOTES) },
+                            onMarkBillPaid = { bill -> viewModel.markBillAsPaid(bill) },
+                            onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
                             onEditSpend = { spend ->
                                 editingSpend = spend
                                 returnTo = activeView
@@ -1347,6 +1353,9 @@ LaunchedEffect(Unit) {
                             onDeleteSpend = { spend -> deleteSpendWithUndo(spend) },
                             wrappedBanner = wrappedBanner,
                             currency = aiPrefs.defaultCurrency,
+                            monthlyBudget = aiPrefs.monthlyBudget,
+                            monthlySpent = currentMonthSpent,
+                            onUpdateMonthlyBudget = viewModel::updateMonthlyBudget,
                             onWrappedBannerClick = {
                                 wrappedBanner?.let { wrappedMonthKey = SpendRecap.monthKey(it.year, it.month) }
                             },
@@ -1425,7 +1434,7 @@ LaunchedEffect(Unit) {
                             suggestions = viewModel.subscriptionSuggestions.collectAsStateWithLifecycle().value,
                             onDismissSuggestion = viewModel::dismissSubscriptionSuggestion,
                             onBack = goBackMajor,
-                            onAddBill = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate ->
+                            onAddBill = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate, frequency ->
                                 viewModel.addRecurringBill(
                                     name = name,
                                     purpose = purpose,
@@ -1436,7 +1445,8 @@ LaunchedEffect(Unit) {
                                     notes = notes,
                                     isCreditCard = isCreditCard,
                                     cardLast4 = cardLast4,
-                                    untilDate = untilDate
+                                    untilDate = untilDate,
+                                    frequency = frequency
                                 )
                             },
                             onUpdateBill = viewModel::updateRecurringBill,
@@ -1522,6 +1532,7 @@ LaunchedEffect(Unit) {
                                 onCycleTheme = onCycleTheme,
                                 onShowNotification = { msg, type -> showNotification(msg, type) },
                                 onUpdateAiPreferences = viewModel::updateAiPreferences,
+                                onUpdateMonthlyBudget = viewModel::updateMonthlyBudget,
                                 onToggleBiometrics = viewModel::updateBiometricEnabled,
                                 onAiAssistantClick = { showAiHistoryAssistant = true },
                                 onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
@@ -1553,6 +1564,7 @@ LaunchedEffect(Unit) {
                             initialCategoryFilter = historyCategoryFilter,
                             initialTimeFilter = historyTimeFilter,
                             initialDateRange = customDateRange,
+                            monthlyBudget = aiPrefs.monthlyBudget,
                             monthChoices = historyMonthChoices,
                             onEditSpend = { spend ->
                                 editingSpend = spend

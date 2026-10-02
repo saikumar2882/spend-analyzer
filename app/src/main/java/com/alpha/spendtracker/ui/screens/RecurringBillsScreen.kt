@@ -31,6 +31,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
+import com.alpha.spendtracker.data.BillFrequency
 import com.alpha.spendtracker.data.RecurringBill
 import com.alpha.spendtracker.data.SubscriptionSuggestion
 import com.alpha.spendtracker.ui.components.APP_COLOR_BY_NAME
@@ -63,7 +64,8 @@ fun RecurringBillsScreen(
         notes: String,
         isCreditCard: Boolean,
         cardLast4: String,
-        untilDate: Long?
+        untilDate: Long?,
+        frequency: String
     ) -> Unit,
     onUpdateBill: (RecurringBill) -> Unit,
     onDeleteBill: (RecurringBill) -> Unit,
@@ -288,7 +290,7 @@ fun RecurringBillsScreen(
                     editingBill = null
                     acceptingSuggestion = null
                 },
-                onSave = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate ->
+                onSave = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate, frequency ->
                     val currentEditing = editingBill
                     if (currentEditing != null) {
                         onUpdateBill(
@@ -302,11 +304,12 @@ fun RecurringBillsScreen(
                                 notes = notes,
                                 isCreditCard = isCreditCard,
                                 cardLast4 = cardLast4,
-                                untilDate = untilDate
+                                untilDate = untilDate,
+                                frequency = frequency
                             )
                         )
                     } else {
-                        onAddBill(name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate)
+                        onAddBill(name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate, frequency)
                     }
                     showAddDialog = false
                     editingBill = null
@@ -426,11 +429,12 @@ fun RecurringBillItem(
 
                 Spacer(modifier = Modifier.height(2.dp))
 
-                // Bottom Row: App Name / Card Info + Until Date
+                // Bottom Row: App Name / Card Info + Frequency + Until Date
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
+                    val hasAppOrCard = (bill.isCreditCardBill && bill.cardLast4.isNotBlank()) || bill.appName.isNotBlank()
                     if (bill.isCreditCardBill && bill.cardLast4.isNotBlank()) {
                         Surface(
                             color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
@@ -453,14 +457,29 @@ fun RecurringBillItem(
                         )
                     }
 
+                    if (hasAppOrCard) {
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
+                    }
+
+                    val freq = BillFrequency.fromString(bill.frequency)
+                    Text(
+                        text = getLocalizedPresetName(freq.displayName),
+                        style = MaterialTheme.typography.bodySmall,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant,
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis
+                    )
+
                     if (bill.untilDate != null && !bill.isExpired) {
-                        if (bill.isCreditCardBill && bill.cardLast4.isNotBlank() || (!bill.isCreditCardBill && bill.appName.isNotBlank())) {
-                            Text(
-                                text = "•",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
-                            )
-                        }
+                        Text(
+                            text = "•",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.4f)
+                        )
                         val locale = LocalConfiguration.current.locales[0]
                         val untilCal = remember(bill.untilDate) {
                             Calendar.getInstance().apply { timeInMillis = bill.untilDate }
@@ -591,7 +610,8 @@ fun BillEditDialog(
         notes: String,
         isCreditCard: Boolean,
         cardLast4: String,
-        untilDate: Long?
+        untilDate: Long?,
+        frequency: String
     ) -> Unit
 ) {
     val context = LocalContext.current
@@ -620,6 +640,10 @@ fun BillEditDialog(
     }
     var isCreditCardMode by remember(purpose, defaultIsCreditCard) {
         mutableStateOf(purpose.contains("Credit Card", ignoreCase = true) || defaultIsCreditCard || initial?.isCreditCardBill == true)
+    }
+
+    var frequency by remember(initial) {
+        mutableStateOf(BillFrequency.fromString(initial?.frequency))
     }
 
     var name by remember(initial) { mutableStateOf(initial?.name ?: "") }
@@ -667,6 +691,32 @@ fun BillEditDialog(
                                     purpose = p
                                     isCreditCardMode = p.contains("Credit Card", ignoreCase = true)
                                     purposeExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+
+                // 2. Frequency Dropdown
+                var frequencyExpanded by remember { mutableStateOf(false) }
+                ExposedDropdownMenuBox(expanded = frequencyExpanded, onExpandedChange = { frequencyExpanded = it }) {
+                    OutlinedTextField(
+                        value = getLocalizedPresetName(frequency.displayName),
+                        onValueChange = {},
+                        readOnly = true,
+                        label = { Text(stringResource(R.string.frequency)) },
+                        trailingIcon = { ExposedDropdownMenuDefaults.TrailingIcon(expanded = frequencyExpanded) },
+                        modifier = Modifier.menuAnchor(ExposedDropdownMenuAnchorType.PrimaryNotEditable).fillMaxWidth(),
+                        shape = RoundedCornerShape(14.dp),
+                        colors = cleanTextFieldColors
+                    )
+                    ExposedDropdownMenu(expanded = frequencyExpanded, onDismissRequest = { frequencyExpanded = false }) {
+                        BillFrequency.entries.forEach { f ->
+                            DropdownMenuItem(
+                                text = { Text(getLocalizedPresetName(f.displayName)) },
+                                onClick = {
+                                    frequency = f
+                                    frequencyExpanded = false
                                 }
                             )
                         }
@@ -894,7 +944,7 @@ fun BillEditDialog(
                     val isCard = isCreditCardMode || purpose.contains("Credit Card", ignoreCase = true) || cardLast4.isNotBlank() || defaultIsCreditCard
                     val category = if (isCard) "Credit Card" else (APP_PRESETS.find { it.displayName == appName }?.category ?: "Other")
                     val finalPurpose = if (isCard) "Credit Card Bill" else purpose
-                    onSave(name, finalPurpose, category, appName, a, d, notes, isCard, cardLast4, untilDate)
+                    onSave(name, finalPurpose, category, appName, a, d, notes, isCard, cardLast4, untilDate, frequency.name)
                 },
                 enabled = name.isNotBlank() && day.isNotBlank()
             ) {

@@ -55,6 +55,27 @@
     <string name="lend_borrow_tab">Lend &amp; Borrow</string>
     <string name="notes_tab">Notes</string>
 
+    <!-- Budget Features -->
+    <string name="edit_monthly_budget">Edit Budget</string>
+    <string name="set_monthly_budget">Set Budget</string>
+    <string name="monthly_budget_subtitle">Set a limit to track your spending</string>
+    <string name="budget_amount">Budget Amount</string>
+    <string name="remove_budget">Remove</string>
+    <string name="budget_updated_success">Budget updated</string>
+    <string name="budget_removed_success">Budget removed</string>
+    <string name="monthly_budget_title">Monthly Budget</string>
+    <string name="monthly_budget_disabled">Disabled · Tap to set budget</string>
+    <string name="pdf_budget_exceeded">Exceeded Budget</string>
+    <string name="budget_unset_description">Set a monthly budget to track your spending limits</string>
+    <string name="budget_status_on_track">On Track</string>
+    <string name="budget_status_warning">Nearing Limit</string>
+    <string name="budget_status_exceeded">Exceeded</string>
+    <string name="budget_status_alert">Budget Alert</string>
+    <string name="budget_spent_fmt">Spent %1$s of %2$s</string>
+    <string name="recommended_daily_budget">Recommended Daily Budget: %1$s/day</string>
+    <string name="remaining_days_fmt">for remaining %1$d days</string>
+    <string name="over_budget_by">Over budget by %1$s</string>
+
     <!-- Date & Time Filters -->
     <string name="today">Today</string>
     <string name="yesterday">Yesterday</string>
@@ -105,6 +126,13 @@
     <string name="history_expand_month">Show this month\'s logs</string>
     <string name="history_collapse_month">Hide this month\'s logs</string>
     <string name="total_spend">Total Spend</string>
+    <string name="quick_filter_all">All</string>
+    <string name="quick_filter_food">Food</string>
+    <string name="quick_filter_shopping">Shopping</string>
+    <string name="quick_filter_travel">Travel</string>
+    <string name="quick_filter_bills">Bills</string>
+    <string name="quick_filter_high_spends">High Spends (> ₹1000)</string>
+    <string name="quick_filter_credit_cards">Credit Cards</string>
 
     <!-- Notes Screen -->
     <string name="subtotal">Subtotal</string>
@@ -182,6 +210,12 @@
     <string name="share_pdf_chooser">Share PDF Report</string>
     <string name="app_or_platform">App / Platform</string>
     <string name="purpose_or_notes">Purpose / Notes</string>
+    <string name="pdf_total_spent" translatable="false">Total Spent</string>
+    <string name="pdf_avg_per_tx" translatable="false">Avg: %s / Tx</string>
+    <string name="pdf_transactions" translatable="false">Transactions</string>
+    <string name="pdf_budget_progress" translatable="false">Budget Progress</string>
+    <string name="pdf_budget_on_track" translatable="false">On Track</string>
+    <string name="pdf_top_categories" translatable="false">Top Categories</string>
 
     <!-- Filters & Search -->
     <string name="apply_filters">Apply Filters</string>
@@ -256,11 +290,20 @@
     <string name="card_name">Card Name</string>
     <string name="last_4_digits">Last 4 Digits</string>
     <string name="due_day_of_month">Due Day of Month</string>
+    <string name="frequency">Frequency</string>
+    <string name="frequency_monthly">Monthly</string>
+    <string name="frequency_bimonthly">Bi-monthly</string>
+    <string name="frequency_quarterly">Quarterly</string>
+    <string name="frequency_halfyearly">Half-yearly</string>
+    <string name="frequency_yearly">Yearly</string>
     <string name="no_bills_tracked">No recurring bills tracked yet</string>
     <string name="add_bill_hint">Tap + to add a subscription or credit card bill</string>
     <string name="due_today">Due today</string>
     <string name="due_in_days">Due in %d days</string>
     <string name="overdue_by_days">Overdue by %d days</string>
+    <string name="upcoming_bills">Upcoming Bills</string>
+    <string name="due_in_next_7_days">Due in the next 7 days</string>
+    <string name="bill_marked_paid_notification">Marked %1$s as paid &amp; logged ₹%2$s</string>
 
     <!-- Biometric & Lock -->
     <string name="app_lock_title">App Lock</string>

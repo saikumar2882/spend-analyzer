@@ -5,6 +5,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.RectF
 import android.graphics.Typeface
 import android.graphics.pdf.PdfDocument
 import android.os.Build
@@ -16,6 +17,7 @@ import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.formatCurrency
+import com.alpha.spendtracker.ui.components.formatCurrencyRounded
 import com.alpha.spendtracker.ui.components.getLocalizedPresetName
 import java.io.File
 import java.io.FileOutputStream
@@ -33,6 +35,8 @@ object PdfExporter {
         spends: List<Spend>,
         reportTitle: String = context.getString(R.string.pdf_report_title),
         filePrefix: String = "spend_report",
+        monthlyBudget: Double? = null,
+        includeSummaryCards: Boolean = true,
         share: Boolean = false,
         onShowNotification: (String, NotificationType) -> Unit
     ) {
@@ -81,10 +85,75 @@ object PdfExporter {
                 color = Color.GRAY
             }
 
+            // Paints for Financial Summary Header
+            val cardBgPaint = Paint().apply {
+                isAntiAlias = true
+                color = Color.parseColor("#F8FAFC")
+                style = Paint.Style.FILL
+            }
+            val cardBorderPaint = Paint().apply {
+                isAntiAlias = true
+                color = Color.parseColor("#E2E8F0")
+                style = Paint.Style.STROKE
+                strokeWidth = 0.8f
+            }
+            val cardLabelPaint = TextPaint().apply {
+                isAntiAlias = true
+                textSize = 7.5f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                color = Color.parseColor("#64748B")
+            }
+            val cardValuePaint = TextPaint().apply {
+                isAntiAlias = true
+                textSize = 12f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                color = Color.parseColor("#0F172A")
+            }
+            val cardSubtextPaint = TextPaint().apply {
+                isAntiAlias = true
+                textSize = 7.5f
+                color = Color.parseColor("#64748B")
+            }
+            val progressBgPaint = Paint().apply {
+                isAntiAlias = true
+                color = Color.parseColor("#E2E8F0")
+                style = Paint.Style.FILL
+            }
+            val progressFillPaint = Paint().apply {
+                isAntiAlias = true
+                color = Color.parseColor("#0F766E")
+                style = Paint.Style.FILL
+            }
+            val categoryRankPaint = TextPaint().apply {
+                isAntiAlias = true
+                textSize = 8f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                color = Color.parseColor("#0F172A")
+            }
+            val categoryAmtPaint = TextPaint().apply {
+                isAntiAlias = true
+                textSize = 8f
+                typeface = Typeface.create(Typeface.DEFAULT, Typeface.BOLD)
+                color = Color.parseColor("#0F172A")
+            }
+
             val locale = activeAppLocale
             val sdf = SimpleDateFormat("dd MMM yy", locale)
             val generatedDate = SimpleDateFormat("dd MMM yyyy, hh:mm a", locale).format(Date())
             val totalAmount = spends.sumOf { it.amount }
+            val transactionCount = spends.size
+            val avgPerTx = if (transactionCount > 0) totalAmount / transactionCount else 0.0
+
+            // Top 3 spending categories
+            val topCategories = spends
+                .groupBy { spend ->
+                    val rawName = spend.purpose.ifBlank { spend.category.ifBlank { "Others" } }
+                    getLocalizedPresetName(rawName)
+                }
+                .mapValues { entry -> entry.value.sumOf { it.amount } }
+                .entries
+                .sortedByDescending { it.value }
+                .take(3)
 
             var currentPageNumber = 1
             var pageInfo = PdfDocument.PageInfo.Builder(pageWidth, pageHeight, currentPageNumber).create()
@@ -93,24 +162,120 @@ object PdfExporter {
 
             var y = margin
 
-            // Draw Minimal Document Header
+            // Draw Document Header
             fun drawDocumentHeader() {
                 canvas.drawText(reportTitle, margin, y + 16f, titlePaint)
                 y += 22f
 
                 canvas.drawText(context.getString(R.string.generated_on, generatedDate), margin, y + 8f, subtitlePaint)
-                y += 20f
+                y += 18f
 
-                // Clean Summary Row (No heavy background fill boxes or heavy borders)
-                canvas.drawText(context.getString(R.string.total_amount_capital), margin, y + 10f, notesPaint)
-                val formattedTotal = "₹${formatCurrency(totalAmount)}"
-                canvas.drawText(formattedTotal, margin, y + 28f, titlePaint)
+                if (includeSummaryCards) {
+                    // Clean Summary Cards Row
+                    val contentWidth = pageWidth - 2 * margin // 523pt
+                    val cardGap = 10f
+                    val cardWidth = (contentWidth - 2 * cardGap) / 3f
+                    val cardHeight = 50f
 
-                val txCountText = context.getString(R.string.transactions_count, spends.size)
-                val txWidth = boldTextPaint.measureText(txCountText)
-                canvas.drawText(txCountText, pageWidth - margin - txWidth, y + 24f, boldTextPaint)
+                    val formattedTotal = "₹${formatCurrency(totalAmount)}"
+                    val formattedAvg = "₹${formatCurrencyRounded(avgPerTx)}"
 
-                y += 38f
+                    // Card 1: Total Spent
+                    val card1Rect = RectF(margin, y, margin + cardWidth, y + cardHeight)
+                    canvas.drawRoundRect(card1Rect, 6f, 6f, cardBgPaint)
+                    canvas.drawRoundRect(card1Rect, 6f, 6f, cardBorderPaint)
+
+                    val labelTotalSpent = context.getString(R.string.pdf_total_spent)
+                    val subTotalSpent = context.getString(R.string.pdf_avg_per_tx, formattedAvg)
+
+                    canvas.drawText(labelTotalSpent, margin + 8f, y + 14f, cardLabelPaint)
+                    canvas.drawText(formattedTotal, margin + 8f, y + 30f, cardValuePaint)
+                    canvas.drawText(subTotalSpent, margin + 8f, y + 43f, cardSubtextPaint)
+
+                    // Card 2: Transactions
+                    val card2Left = margin + cardWidth + cardGap
+                    val card2Rect = RectF(card2Left, y, card2Left + cardWidth, y + cardHeight)
+                    canvas.drawRoundRect(card2Rect, 6f, 6f, cardBgPaint)
+                    canvas.drawRoundRect(card2Rect, 6f, 6f, cardBorderPaint)
+
+                    val labelTx = context.getString(R.string.pdf_transactions)
+                    val valTx = "$transactionCount"
+                    val subTx = context.getString(R.string.transactions_count, transactionCount)
+
+                    canvas.drawText(labelTx, card2Left + 8f, y + 14f, cardLabelPaint)
+                    canvas.drawText(valTx, card2Left + 8f, y + 30f, cardValuePaint)
+                    canvas.drawText(subTx, card2Left + 8f, y + 43f, cardSubtextPaint)
+
+                    // Card 3: Budget Progress
+                    val card3Left = margin + 2 * (cardWidth + cardGap)
+                    val card3Rect = RectF(card3Left, y, card3Left + cardWidth, y + cardHeight)
+                    canvas.drawRoundRect(card3Rect, 6f, 6f, cardBgPaint)
+                    canvas.drawRoundRect(card3Rect, 6f, 6f, cardBorderPaint)
+
+                    val labelBudget = context.getString(R.string.pdf_budget_progress)
+                    val (valBudget, subBudget) = if (monthlyBudget != null && monthlyBudget > 0.0) {
+                        val pct = ((totalAmount / monthlyBudget) * 100).toInt().coerceAtMost(999)
+                        val status = if (totalAmount <= monthlyBudget) context.getString(R.string.pdf_budget_on_track) else context.getString(R.string.pdf_budget_exceeded)
+                        val sub = "₹${formatCurrencyRounded(totalAmount)} / ₹${formatCurrencyRounded(monthlyBudget)} ($pct%)"
+                        Pair(status, sub)
+                    } else {
+                        val status = context.getString(R.string.pdf_budget_on_track)
+                        val sub = context.getString(R.string.pdf_avg_per_tx, formattedAvg)
+                        Pair(status, sub)
+                    }
+
+                    canvas.drawText(labelBudget, card3Left + 8f, y + 14f, cardLabelPaint)
+                    canvas.drawText(valBudget, card3Left + 8f, y + 30f, cardValuePaint)
+                    canvas.drawText(subBudget, card3Left + 8f, y + 43f, cardSubtextPaint)
+
+                    y += cardHeight + 10f
+
+                    // Top 3 Categories Section
+                    if (topCategories.isNotEmpty()) {
+                        val categoryCardHeight = 20f + topCategories.size * 13f
+                        val catCardRect = RectF(margin, y, margin + contentWidth, y + categoryCardHeight)
+                        canvas.drawRoundRect(catCardRect, 6f, 6f, cardBgPaint)
+                        canvas.drawRoundRect(catCardRect, 6f, 6f, cardBorderPaint)
+
+                        val catHeaderLabel = context.getString(R.string.pdf_top_categories)
+                        canvas.drawText(catHeaderLabel, margin + 8f, y + 13f, cardLabelPaint)
+
+                        var catY = y + 25f
+                        topCategories.forEachIndexed { index, entry ->
+                            val pct = if (totalAmount > 0) (entry.value / totalAmount * 100).toInt() else 0
+                            val rankStr = "${index + 1}. ${entry.key.take(22)}"
+                            val amtPctStr = "₹${formatCurrency(entry.value)} ($pct%)"
+
+                            canvas.drawText(rankStr, margin + 8f, catY, categoryRankPaint)
+
+                            val barTrackWidth = 65f
+                            val barRight = margin + contentWidth - 8f
+                            val barLeft = barRight - barTrackWidth
+                            val amtWidth = categoryAmtPaint.measureText(amtPctStr)
+
+                            canvas.drawText(amtPctStr, barLeft - amtWidth - 8f, catY, categoryAmtPaint)
+
+                            val barY = catY - 5f
+                            val trackRect = RectF(barLeft, barY, barRight, barY + 3.5f)
+                            canvas.drawRoundRect(trackRect, 2f, 2f, progressBgPaint)
+
+                            val fillWidth = (barTrackWidth * (pct.coerceIn(0, 100) / 100f)).coerceAtLeast(2f)
+                            val fillRect = RectF(barLeft, barY, barLeft + fillWidth, barY + 3.5f)
+                            canvas.drawRoundRect(fillRect, 2f, 2f, progressFillPaint)
+
+                            catY += 13f
+                        }
+
+                        y += categoryCardHeight + 12f
+                    } else {
+                        y += 6f
+                    }
+                } else {
+                    val formattedTotal = "₹${formatCurrency(totalAmount)}"
+                    val summaryLine = "Total Amount: $formattedTotal  |  Transactions: $transactionCount"
+                    canvas.drawText(summaryLine, margin, y + 8f, boldTextPaint)
+                    y += 18f
+                }
 
                 paint.color = Color.parseColor("#E0E0E0")
                 paint.strokeWidth = 0.8f

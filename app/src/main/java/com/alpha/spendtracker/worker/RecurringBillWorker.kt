@@ -60,6 +60,11 @@ class RecurringBillWorker @AssistedInject constructor(
                 continue
             }
 
+            if (!bill.isDueInMonth(calendar)) {
+                Log.d(TAG, "Bill ${bill.name} is not due in current month (frequency=${bill.frequency}). Skipping reminder.")
+                continue
+            }
+
             // 1. Reset flags if it's a new day
             var updatedBill = if (bill.lastNotifiedDate != todayStr) {
                 bill.copy(lastNotifiedDate = todayStr, notifiedAt1230 = false, notifiedAt2200 = false)

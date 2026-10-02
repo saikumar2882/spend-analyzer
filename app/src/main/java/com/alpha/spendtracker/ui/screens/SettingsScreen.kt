@@ -47,13 +47,16 @@ import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
 import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.ui.components.AiSettingsDialog
 import com.alpha.spendtracker.ui.components.AppAvatar
+import com.alpha.spendtracker.ui.components.BudgetEditorDialog
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.ProfileDialog
+import com.alpha.spendtracker.ui.components.formatCurrencyRounded
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.ThemePreference
@@ -75,13 +78,15 @@ fun SettingsScreen(
     onNotesClick: () -> Unit,
     onWrappedClick: () -> Unit,
     onShareApp: () -> Unit,
-    onLogout: () -> Unit
+    onLogout: () -> Unit,
+    onUpdateMonthlyBudget: (Double) -> Unit = {}
 ) {
     var showSecurityOptions by remember { mutableStateOf(false) }
     var showPasswordUpdateDialog by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
     var showAiSettingsDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
+    var showBudgetEditorDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val currentLocales = AppCompatDelegate.getApplicationLocales()
@@ -318,6 +323,26 @@ fun SettingsScreen(
         )
     }
 
+    val budgetUpdatedMsg = stringResource(R.string.budget_updated_success)
+    val budgetRemovedMsg = stringResource(R.string.budget_removed_success)
+
+    if (showBudgetEditorDialog) {
+        BudgetEditorDialog(
+            currentBudget = aiPreferences.monthlyBudget,
+            currency = aiPreferences.defaultCurrency,
+            onSave = { newBudget ->
+                onUpdateMonthlyBudget(newBudget)
+                showBudgetEditorDialog = false
+                if (newBudget > 0.0) {
+                    onShowNotification(budgetUpdatedMsg, NotificationType.SUCCESS)
+                } else {
+                    onShowNotification(budgetRemovedMsg, NotificationType.INFO)
+                }
+            },
+            onDismiss = { showBudgetEditorDialog = false }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -486,6 +511,32 @@ fun SettingsScreen(
                             title = stringResource(R.string.app_defaults_title),
                             subtitle = "${aiPreferences.defaultCurrency} · ${aiPreferences.defaultApp} · ${aiPreferences.defaultPurpose}",
                             onClick = { showAiSettingsDialog = true }
+                        )
+                        SettingsDivider()
+                        val isBudgetEnabled = aiPreferences.monthlyBudget > 0.0
+                        val budgetSubtitle = if (isBudgetEnabled) {
+                            "${aiPreferences.defaultCurrency}${formatCurrencyRounded(aiPreferences.monthlyBudget)} / month"
+                        } else {
+                            stringResource(R.string.monthly_budget_disabled)
+                        }
+                        SettingsRow(
+                            icon = Icons.Rounded.AccountBalanceWallet,
+                            title = stringResource(R.string.monthly_budget_title),
+                            subtitle = budgetSubtitle,
+                            onClick = { showBudgetEditorDialog = true },
+                            trailing = {
+                                Switch(
+                                    checked = isBudgetEnabled,
+                                    onCheckedChange = { checked ->
+                                        if (checked) {
+                                            showBudgetEditorDialog = true
+                                        } else {
+                                            onUpdateMonthlyBudget(0.0)
+                                            onShowNotification(budgetRemovedMsg, NotificationType.INFO)
+                                        }
+                                    }
+                                )
+                            }
                         )
                     }
                 }

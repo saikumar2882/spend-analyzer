@@ -165,7 +165,14 @@ private val TELUGU_PRESET_MAP = mapOf(
     "Travel & Commute" to "ప్రయాణం & రవాణా",
     "Subscription & Leisure" to "సబ్‌స్క్రిప్షన్‌లు & వినోదం",
     "Healthcare & Medical" to "ఆరోగ్యం & వైద్యం",
-    "Others" to "ఇతరములు"
+    "Others" to "ఇతరములు",
+
+    // Frequencies
+    "Monthly" to "నెలవారీ",
+    "Bi-monthly" to "ద్వైమాసిక",
+    "Quarterly" to "త్రైమాసిక",
+    "Half-yearly" to "అర-వార్షిక",
+    "Yearly" to "వార్షిక"
 )
 
 private val HINDI_PRESET_MAP = mapOf(
@@ -245,7 +252,14 @@ private val HINDI_PRESET_MAP = mapOf(
     "Travel & Commute" to "यात्रा और आवागमन",
     "Subscription & Leisure" to "सदस्यता और मनोरंजन",
     "Healthcare & Medical" to "स्वास्थ्य और चिकित्सा",
-    "Others" to "अन्य"
+    "Others" to "अन्य",
+
+    // Frequencies
+    "Monthly" to "मासिक",
+    "Bi-monthly" to "द्विमासिक",
+    "Quarterly" to "त्रैमासिक",
+    "Half-yearly" to "अर्धवार्षिक",
+    "Yearly" to "वार्षिक"
 )
 
 fun getLocalizedPresetName(text: String): String {

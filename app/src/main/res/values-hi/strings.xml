@@ -256,6 +256,12 @@
     <string name="card_name">कार्ड का नाम</string>
     <string name="last_4_digits">अंतिम 4 अंक</string>
     <string name="due_day_of_month">भुगतान की तारीख</string>
+    <string name="frequency">आवृत्ति</string>
+    <string name="frequency_monthly">मासिक</string>
+    <string name="frequency_bimonthly">द्विमासिक</string>
+    <string name="frequency_quarterly">त्रैमासिक</string>
+    <string name="frequency_halfyearly">अर्धवार्षिक</string>
+    <string name="frequency_yearly">वार्षिक</string>
     <string name="no_bills_tracked">अभी तक कोई आवर्ती बिल नहीं है</string>
     <string name="add_bill_hint">सदस्यता या क्रेडिट कार्ड बिल जोड़ने के लिए + दबाएं</string>
     <string name="due_today">आज ही देय है</string>
@@ -292,6 +298,9 @@
     <!-- Bill mark as paid -->
     <string name="bill_mark_as_paid">भुगतान हो गया</string>
     <string name="bill_logged_confirmation">%2$s के लिए ₹%1$s दर्ज किया गया</string>
+    <string name="upcoming_bills">आगामी बिल</string>
+    <string name="due_in_next_7_days">अगले 7 दिनों में देय</string>
+    <string name="bill_marked_paid_notification">%1$s का भुगतान हो गया और ₹%2$s दर्ज किया गया</string>
     <!-- Undo -->
     <string name="undo">पूर्ववत करें</string>
     <string name="undo_deleted">हटाया गया</string>
@@ -408,4 +417,24 @@
     <string name="ai_multi_hint">सुझाव: एक साथ कई जोड़ें, जैसे “चाय 20, ऑटो 80 और लंच 150”</string>
     <string name="voice_multi_hint">आप एक से ज़्यादा खर्च बोल सकते हैं, जैसे “चाय 20, ऑटो 80”</string>
     <string name="ai_reading_input">आपके खर्च पढ़े जा रहे हैं…</string>
+
+    <!-- Monthly Budget -->
+    <string name="monthly_budget_title">मासिक बजट</string>
+    <string name="monthly_budget_disabled">अक्षम · बजट निर्धारित करने के लिए टैप करें</string>
+    <string name="monthly_budget_subtitle">खर्च की सीमा निर्धारित करें</string>
+    <string name="set_monthly_budget">बजट निर्धारित करें</string>
+    <string name="edit_monthly_budget">बजट संपादित करें</string>
+    <string name="remove_budget">हटाएं</string>
+    <string name="budget_amount">बजट राशि</string>
+    <string name="budget_unset_description">अपनी खर्च सीमा पर नज़र रखने के लिए मासिक बजट निर्धारित करें</string>
+    <string name="budget_status_on_track">नियंत्रण में</string>
+    <string name="budget_status_warning">सीमा के करीब</string>
+    <string name="budget_status_exceeded">सीमा पार</string>
+    <string name="budget_status_alert">बजट चेतावनी</string>
+    <string name="budget_spent_fmt">%2$s में से %1$s खर्च</string>
+    <string name="recommended_daily_budget">अनुशंसित दैनिक बजट: %1$s/दिन</string>
+    <string name="remaining_days_fmt">शेष %1$d दिनों के लिए</string>
+    <string name="over_budget_by">बजट से %1$s अधिक</string>
+    <string name="budget_updated_success">बजट अद्यतन किया गया</string>
+    <string name="budget_removed_success">बजट हटा दिया गया</string>
 </resources>

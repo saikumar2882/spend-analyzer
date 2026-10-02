@@ -4,6 +4,7 @@ import android.content.Context
 import android.content.Intent
 import android.graphics.Bitmap
 import android.util.Log
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -12,6 +13,7 @@ import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.navigationBarsPadding
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
@@ -26,11 +28,11 @@ import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.ChevronLeft
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.EventAvailable
-import androidx.compose.material.icons.rounded.Payments
 import androidx.compose.material.icons.rounded.Share
 import androidx.compose.material.icons.rounded.ShoppingBasket
 import androidx.compose.material3.BottomSheetDefaults
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -52,6 +54,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.drawWithContent
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.asAndroidBitmap
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
@@ -67,9 +70,12 @@ import androidx.core.content.FileProvider
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.data.SpendRecap
+import com.alpha.spendtracker.ui.theme.BrandAccentMint
 import com.alpha.spendtracker.ui.theme.Radius
+import com.alpha.spendtracker.ui.theme.Sizes
 import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.asMoney
+import com.alpha.spendtracker.ui.theme.isAppInDarkTheme
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -82,6 +88,7 @@ import kotlin.math.roundToInt
 
 /**
  * Monthly "Wrapped": a recap of one month, opened from the Wrapped notification or Settings.
+ * Clean, minimal layout adhering to theme color standards.
  * The card is drawn into a graphics layer so "Share" can export exactly what is on screen.
  */
 @OptIn(ExperimentalMaterial3Api::class)
@@ -177,8 +184,16 @@ fun WrappedSheet(
                     }
                 },
                 enabled = !wrapped.isEmpty,
-                modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(Radius.md)
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .heightIn(min = Sizes.minTouchTarget),
+                shape = RoundedCornerShape(Radius.md),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,
+                    contentColor = MaterialTheme.colorScheme.onSurface,
+                    disabledContainerColor = MaterialTheme.colorScheme.surfaceContainer,
+                    disabledContentColor = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f)
+                )
             ) {
                 Icon(Icons.Rounded.Share, contentDescription = null, modifier = Modifier.size(18.dp))
                 Spacer(modifier = Modifier.width(Spacing.sm))
@@ -194,13 +209,18 @@ private fun WrappedCard(
     monthLabel: String,
     money: (Double) -> String
 ) {
+    val isDark = isAppInDarkTheme
+    val decreaseColor = if (isDark) BrandAccentMint else Color(0xFF0C8174)
+    val purposeColors = getPurposeColors()
+
     Card(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radius.lg),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.04f),
             contentColor = MaterialTheme.colorScheme.onSurface
         ),
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(Spacing.lg)) {
@@ -210,7 +230,7 @@ private fun WrappedCard(
                     monthLabel
                 ),
                 style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Medium),
-                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.85f)
+                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
             Spacer(modifier = Modifier.height(Spacing.xs))
             Text(
@@ -231,28 +251,51 @@ private fun WrappedCard(
                 },
                 style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
                 color = when {
-                    change == null || wrapped.isEmpty -> MaterialTheme.colorScheme.onSurfaceVariant
-                    change <= 0 -> MaterialTheme.colorScheme.secondary
+                    change == null || wrapped.isEmpty || abs(change) < 0.5 -> MaterialTheme.colorScheme.onSurfaceVariant
+                    change < 0 -> decreaseColor
                     else -> MaterialTheme.colorScheme.error
                 }
             )
 
             if (!wrapped.isEmpty) {
                 Spacer(modifier = Modifier.height(Spacing.md))
-                HorizontalDivider(color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.12f), thickness = 1.dp)
+                HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.4f), thickness = 1.dp)
                 Spacer(modifier = Modifier.height(Spacing.xs))
 
                 wrapped.topCategory?.let { (purpose, total) ->
+                    val purposeColor = purposeColors[purpose] ?: MaterialTheme.colorScheme.onSurfaceVariant
                     WrappedStatRow(
-                        icon = Icons.Rounded.Category,
+                        leadingIcon = {
+                            Surface(
+                                shape = CircleShape,
+                                color = purposeColor.copy(alpha = 0.15f),
+                                modifier = Modifier.size(36.dp)
+                            ) {
+                                Box(contentAlignment = Alignment.Center) {
+                                    Icon(
+                                        Icons.Rounded.Category,
+                                        contentDescription = null,
+                                        tint = purposeColor,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                }
+                            }
+                        },
                         label = stringResource(R.string.wrapped_top_category),
                         value = getLocalizedPresetName(purpose),
                         detail = money(total)
                     )
                 }
                 wrapped.topApp?.let { app ->
+                    val fallbackColor = APP_COLOR_BY_NAME[app.appName] ?: MaterialTheme.colorScheme.primary
                     WrappedStatRow(
-                        icon = Icons.Rounded.Payments,
+                        leadingIcon = {
+                            AppIconImage(
+                                appName = app.appName,
+                                fallbackColor = fallbackColor,
+                                modifier = Modifier.size(36.dp)
+                            )
+                        },
                         label = stringResource(R.string.wrapped_top_app),
                         value = app.appName,
                         detail = pluralStringResource(R.plurals.wrapped_times, app.count, app.count)
@@ -293,7 +336,13 @@ private fun WrappedCard(
 }
 
 @Composable
-private fun WrappedStatRow(icon: ImageVector, label: String, value: String, detail: String) {
+private fun WrappedStatRow(
+    label: String,
+    value: String,
+    detail: String,
+    icon: ImageVector? = null,
+    leadingIcon: (@Composable () -> Unit)? = null
+) {
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -301,13 +350,22 @@ private fun WrappedStatRow(icon: ImageVector, label: String, value: String, deta
         verticalAlignment = Alignment.CenterVertically,
         horizontalArrangement = Arrangement.spacedBy(Spacing.md)
     ) {
-        Surface(
-            shape = CircleShape,
-            color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f),
-            modifier = Modifier.size(36.dp)
-        ) {
-            Box(contentAlignment = Alignment.Center) {
-                Icon(icon, contentDescription = null, tint = MaterialTheme.colorScheme.onSurfaceVariant, modifier = Modifier.size(18.dp))
+        if (leadingIcon != null) {
+            leadingIcon()
+        } else if (icon != null) {
+            Surface(
+                shape = CircleShape,
+                color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                modifier = Modifier.size(36.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        icon,
+                        contentDescription = null,
+                        tint = MaterialTheme.colorScheme.onSurfaceVariant,
+                        modifier = Modifier.size(18.dp)
+                    )
+                }
             }
         }
         Column(modifier = Modifier.weight(1f)) {

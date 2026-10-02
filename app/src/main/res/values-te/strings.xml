@@ -254,6 +254,12 @@
     <string name="card_name">కార్డ్ పేరు</string>
     <string name="last_4_digits">చివరి 4 అంకెలు</string>
     <string name="due_day_of_month">నెలవారీ చెల్లింపు తేదీ</string>
+    <string name="frequency">ఫ్రీక్వెన్సీ</string>
+    <string name="frequency_monthly">నెలవారీ</string>
+    <string name="frequency_bimonthly">ద్వైమాసిక</string>
+    <string name="frequency_quarterly">త్రైమాసిక</string>
+    <string name="frequency_halfyearly">అర-వార్షిక</string>
+    <string name="frequency_yearly">వార్షిక</string>
     <string name="no_bills_tracked">ఇంకా పునరావృత బిల్లులు లేవు</string>
     <string name="add_bill_hint">సబ్‌స్క్రిప్షన్ లేదా క్రెడిట్ కార్డ్ బిల్లును జోడించడానికి + నొక్కండి</string>
     <string name="due_today">ఈరోజే చెల్లించాలి</string>
@@ -290,6 +296,9 @@
     <!-- Bill mark as paid -->
     <string name="bill_mark_as_paid">చెల్లించినట్లు గుర్తించు</string>
     <string name="bill_logged_confirmation">%2$s కోసం ₹%1$s నమోదు చేయబడింది</string>
+    <string name="upcoming_bills">రాబోయే బిల్లులు</string>
+    <string name="due_in_next_7_days">తదుపరి 7 రోజుల్లో చెల్లించాల్సింది</string>
+    <string name="bill_marked_paid_notification">%1$s చెల్లించినట్లు గుర్తించబడింది &amp; ₹%2$s నమోదు చేయబడింది</string>
     <!-- Undo -->
     <string name="undo">రద్దు చేయి</string>
     <string name="undo_deleted">తొలగించబడింది</string>
@@ -406,4 +415,24 @@
     <string name="ai_multi_hint">సూచన: ఒకేసారి చాలా జోడించండి, ఉదా. “టీ 20, ఆటో 80, లంచ్ 150”</string>
     <string name="voice_multi_hint">మీరు ఒకటి కంటే ఎక్కువ ఖర్చులు చెప్పవచ్చు, ఉదా. “టీ 20, ఆటో 80”</string>
     <string name="ai_reading_input">మీ ఖర్చులను చదువుతోంది…</string>
+
+    <!-- Monthly Budget -->
+    <string name="monthly_budget_title">నెలవారీ బడ్జెట్</string>
+    <string name="monthly_budget_disabled">నిలిపివేయబడింది · బడ్జెట్ సెట్ చేయడానికి నొక్కండి</string>
+    <string name="monthly_budget_subtitle">మీ ఖర్చు పరిమితిని నిర్వహించడానికి ఒక బడ్జెట్ సెట్ చేయండి</string>
+    <string name="set_monthly_budget">బడ్జెట్ సెట్ చేయండి</string>
+    <string name="edit_monthly_budget">బడ్జెట్ సవరించండి</string>
+    <string name="remove_budget">తీసివేయి</string>
+    <string name="budget_amount">బడ్జెట్ మొత్తం</string>
+    <string name="budget_unset_description">మీ ఖర్చు పరిమితిని ట్రాక్ చేయడానికి నెలవారీ బడ్జెట్ సెట్ చేయండి</string>
+    <string name="budget_status_on_track">పరిమితిలో ఉంది</string>
+    <string name="budget_status_warning">పరిమితికి దగ్గరగా</string>
+    <string name="budget_status_exceeded">పరిమితి దాటింది</string>
+    <string name="budget_status_alert">బడ్జెట్ హెచ్చరిక</string>
+    <string name="budget_spent_fmt">%2$s లో %1$s ఖర్చయింది</string>
+    <string name="recommended_daily_budget">సిఫార్సు చేసిన రోజువారీ బడ్జెట్: %1$s/రోజు</string>
+    <string name="remaining_days_fmt">మిగిలిన %1$d రోజులకు</string>
+    <string name="over_budget_by">బడ్జెట్ కంటే %1$s ఎక్కువ</string>
+    <string name="budget_updated_success">బడ్జెట్ నవీకరించబడింది</string>
+    <string name="budget_removed_success">బడ్జెట్ తీసివేయబడింది</string>
 </resources>

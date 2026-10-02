@@ -22,7 +22,8 @@ data class AiPreferences(
     // prompt never nags again after the user enables or dismisses it.
     val hasPromptedBiometric: Boolean = false,
     val dismissedUpdateVersion: String = "",
-    val lastVoiceLanguage: String = "te-IN"
+    val lastVoiceLanguage: String = "te-IN",
+    val monthlyBudget: Double = 0.0
 )
 
 class AiPreferencesRepository(private val context: Context) {
@@ -38,6 +39,7 @@ class AiPreferencesRepository(private val context: Context) {
         val HAS_PROMPTED_BIOMETRIC = booleanPreferencesKey("has_prompted_biometric")
         val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
         val LAST_VOICE_LANGUAGE = stringPreferencesKey("last_voice_language")
+        val MONTHLY_BUDGET = doublePreferencesKey("monthly_budget")
     }
 
     val aiPreferencesFlow: Flow<AiPreferences> = context.dataStore.data
@@ -59,7 +61,8 @@ class AiPreferencesRepository(private val context: Context) {
                 isBiometricEnabled = preferences[PreferencesKeys.IS_BIOMETRIC_ENABLED] ?: false,
                 hasPromptedBiometric = preferences[PreferencesKeys.HAS_PROMPTED_BIOMETRIC] ?: false,
                 dismissedUpdateVersion = preferences[PreferencesKeys.DISMISSED_UPDATE_VERSION] ?: "",
-                lastVoiceLanguage = preferences[PreferencesKeys.LAST_VOICE_LANGUAGE] ?: "te-IN"
+                lastVoiceLanguage = preferences[PreferencesKeys.LAST_VOICE_LANGUAGE] ?: "te-IN",
+                monthlyBudget = preferences[PreferencesKeys.MONTHLY_BUDGET] ?: 0.0
             )
         }
 
@@ -95,6 +98,12 @@ class AiPreferencesRepository(private val context: Context) {
     suspend fun updateVoiceLanguage(language: String) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.LAST_VOICE_LANGUAGE] = language
+        }
+    }
+
+    suspend fun updateMonthlyBudget(budget: Double) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.MONTHLY_BUDGET] = budget
         }
     }
 

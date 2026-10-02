@@ -18,6 +18,7 @@ import androidx.compose.foundation.Canvas
 import androidx.compose.foundation.LocalIndication
 import androidx.compose.foundation.background
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.interaction.MutableInteractionSource
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
@@ -35,13 +36,23 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
+import androidx.compose.material.icons.rounded.Check
+import androidx.compose.material.icons.rounded.CreditCard
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
+import androidx.compose.material3.LinearProgressIndicator
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
+import androidx.compose.material3.TextButton
+import com.alpha.spendtracker.data.RecurringBill
+import com.alpha.spendtracker.data.getDueStatus
+import com.alpha.spendtracker.ui.icons.AppIcons
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
@@ -66,6 +77,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.ui.theme.MotionDuration
 import com.alpha.spendtracker.ui.theme.Radius
+import com.alpha.spendtracker.ui.theme.Sizes
 import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.asMoney
 import com.alpha.spendtracker.ui.theme.motionDuration
@@ -75,6 +87,8 @@ import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.alpha.spendtracker.ui.viewmodel.TrendPoint
 import java.text.SimpleDateFormat
+import java.util.Calendar
+import java.util.Locale
 import kotlin.math.abs
 
 private val SegmentedCellHeight = 40.dp
@@ -694,6 +708,308 @@ private fun ChartToggle(selected: Int, onSelect: (Int) -> Unit) {
                     }
                 }
             }
+        }
+    }
+}
+
+/**
+ * Interactive card displaying current monthly budget progress, safe daily allowance, and 1-tap budget editor trigger.
+ */
+/**
+ * Simple, clean card displaying monthly budget progress and daily safe allowance recommendation.
+ */
+@Composable
+fun MonthlyBudgetCard(
+    monthlyBudget: Double,
+    monthlySpent: Double,
+    currency: String,
+    onEditBudgetClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val haptic = LocalHapticFeedback.current
+    val interactionSource = remember { MutableInteractionSource() }
+    val pressScale = rememberPressScale(interactionSource)
+
+    val isBudgetSet = monthlyBudget > 0.0
+
+    val calendar = remember { Calendar.getInstance() }
+    val currentDay = calendar.get(Calendar.DAY_OF_MONTH)
+    val totalDays = calendar.getActualMaximum(Calendar.DAY_OF_MONTH)
+    val remainingDays = (totalDays - currentDay + 1).coerceAtLeast(1)
+
+    Card(
+        modifier = modifier
+            .fillMaxWidth()
+            .scale(pressScale)
+            .clickable(
+                interactionSource = interactionSource,
+                indication = null,
+                onClick = {
+                    runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+                    onEditBudgetClick()
+                }
+            ),
+        shape = RoundedCornerShape(Radius.lg),
+        colors = CardDefaults.cardColors(
+            containerColor = MaterialTheme.colorScheme.surfaceContainer,
+            contentColor = MaterialTheme.colorScheme.onSurface
+        ),
+        border = null,
+        elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
+    ) {
+        Column(
+            modifier = Modifier
+                .fillMaxWidth()
+                .padding(Spacing.md)
+        ) {
+            if (!isBudgetSet) {
+                // Clean & simple Unset Budget row
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = stringResource(R.string.monthly_budget_title),
+                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+
+                    TextButton(
+                        onClick = {
+                            runCatching { haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove) }
+                            onEditBudgetClick()
+                        },
+                        contentPadding = PaddingValues(horizontal = 8.dp, vertical = 0.dp)
+                    ) {
+                        Text(
+                            text = stringResource(R.string.set_monthly_budget),
+                            style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.Bold)
+                        )
+                    }
+                }
+            } else {
+                // Clean & simple Budget Set state
+                val progressRatio = (monthlySpent / monthlyBudget).toFloat()
+                val reduceMotion = rememberReduceMotion()
+                val animatedProgress by animateFloatAsState(
+                    targetValue = progressRatio.coerceIn(0f, 1f),
+                    animationSpec = tween(if (reduceMotion) 0 else MotionDuration.MEDIUM),
+                    label = "budget_progress"
+                )
+
+                val (statusText, statusColor, progressColor) = when {
+                    progressRatio < 0.75f -> Triple(
+                        stringResource(R.string.budget_status_on_track),
+                        MaterialTheme.colorScheme.onSurfaceVariant,
+                        MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    progressRatio <= 0.90f -> Triple(
+                        stringResource(R.string.budget_status_warning),
+                        MaterialTheme.colorScheme.tertiary,
+                        MaterialTheme.colorScheme.tertiary
+                    )
+                    monthlySpent > monthlyBudget -> Triple(
+                        stringResource(R.string.budget_status_exceeded),
+                        MaterialTheme.colorScheme.error,
+                        MaterialTheme.colorScheme.error
+                    )
+                    else -> Triple(
+                        stringResource(R.string.budget_status_alert),
+                        MaterialTheme.colorScheme.error,
+                        MaterialTheme.colorScheme.error
+                    )
+                }
+
+                Text(
+                    text = stringResource(R.string.monthly_budget_title),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                
+                Spacer(modifier = Modifier.height(Spacing.sm))
+
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(start = Spacing.xl),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.xs)
+                ) {
+                    // Spent vs Budget and Status text
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Text(
+                            text = stringResource(
+                                R.string.budget_spent_fmt,
+                                "$currency${formatCurrencyRounded(monthlySpent)}",
+                                "$currency${formatCurrencyRounded(monthlyBudget)}"
+                            ),
+                            style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Medium),
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        Text(
+                            text = statusText,
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = statusColor
+                        )
+                    }
+
+                    // Progress Bar
+                    LinearProgressIndicator(
+                        progress = { animatedProgress },
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .height(6.dp),
+                        color = progressColor,
+                        trackColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                        strokeCap = StrokeCap.Round
+                    )
+
+                    // Daily Pace
+                    val remainingBudget = monthlyBudget - monthlySpent
+                    if (remainingBudget >= 0) {
+                        val dailyAllowance = remainingBudget / remainingDays
+                        Text(
+                            text = stringResource(
+                                R.string.recommended_daily_budget,
+                                "$currency${formatCurrencyRounded(dailyAllowance)}"
+                            ),
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    } else {
+                        Text(
+                            text = stringResource(
+                                R.string.over_budget_by,
+                                "$currency${formatCurrencyRounded(abs(remainingBudget))}"
+                            ),
+                            style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+/**
+ * Clean & minimal Dashboard card displaying bill reminders (due soon & missed/overdue).
+ */
+@Composable
+fun UpcomingBillsCard(
+    bills: List<RecurringBill>,
+    onViewAllClick: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    Surface(
+        modifier = modifier.fillMaxWidth(),
+        color = MaterialTheme.colorScheme.surfaceContainer,
+        shape = RoundedCornerShape(Radius.lg),
+        border = null
+    ) {
+        Column(modifier = Modifier.padding(Spacing.md)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Text(
+                    text = stringResource(R.string.upcoming_bills),
+                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+
+                val viewAllInteraction = remember { MutableInteractionSource() }
+                val viewAllScale = rememberPressScale(viewAllInteraction)
+                Text(
+                    text = stringResource(R.string.see_all),
+                    style = MaterialTheme.typography.labelMedium.copy(fontWeight = FontWeight.SemiBold),
+                    color = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier
+                        .scale(viewAllScale)
+                        .clickable(
+                            interactionSource = viewAllInteraction,
+                            indication = LocalIndication.current,
+                            onClick = onViewAllClick
+                        )
+                        .padding(horizontal = 4.dp, vertical = 2.dp)
+                )
+            }
+
+            Spacer(modifier = Modifier.height(Spacing.sm))
+
+            bills.forEachIndexed { index, bill ->
+                UpcomingBillItemRow(
+                    bill = bill,
+                    modifier = Modifier.clickable(onClick = onViewAllClick)
+                )
+                if (index < bills.size - 1) {
+                    HorizontalDivider(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                        modifier = Modifier
+                            .padding(start = 20.dp)
+                            .padding(vertical = Spacing.xs)
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun UpcomingBillItemRow(
+    bill: RecurringBill,
+    modifier: Modifier = Modifier
+) {
+    val dueStatus = bill.getDueStatus()
+    val isDark = MaterialTheme.colorScheme.background.red < 0.5f
+
+    val greenFg = if (isDark) Color(0xFF4FD188) else Color(0xFF2F9E5E)
+    val redFg = if (isDark) Color(0xFFFF6F7E) else Color(0xFFC32B3A)
+
+    val statusFg = if (dueStatus.isOverdue) redFg else greenFg
+    val statusBg = statusFg.copy(alpha = 0.12f)
+
+    Row(
+        modifier = modifier
+            .fillMaxWidth()
+            .padding(start = 20.dp)
+            .padding(vertical = Spacing.xs),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = bill.name,
+            style = MaterialTheme.typography.bodyMedium.copy(
+                fontSize = 13.sp,
+                fontWeight = FontWeight.Medium
+            ),
+            color = MaterialTheme.colorScheme.onSurface,
+            maxLines = 1,
+            overflow = TextOverflow.Ellipsis,
+            modifier = Modifier.weight(1f, fill = false)
+        )
+
+        Spacer(modifier = Modifier.width(Spacing.md))
+
+        Surface(
+            shape = RoundedCornerShape(Radius.xs),
+            color = statusBg
+        ) {
+            Text(
+                text = dueStatus.statusText,
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = FontWeight.Bold
+                ),
+                color = statusFg,
+                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
+                maxLines = 1,
+                overflow = TextOverflow.Ellipsis
+            )
         }
     }
 }

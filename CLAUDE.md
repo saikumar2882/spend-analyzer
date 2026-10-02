@@ -182,3 +182,28 @@ The app has to survive the system font-size setting (Settings → Display → Fo
 ### Notes → transaction
 
 Notes (`Note` + `NoteEntry`) are a standalone collection whose entry amounts never touch spend analytics — until the user chooses to roll a whole note up into the main log. "Log as transaction" (in a note tile's 3-dot menu and in the open-note toolbar) calls `SpendViewModel.logNoteAsTransaction(note, defaultApp)`, which **upserts** a single `Spend` per note (keyed by `noteUuid` via `SpendDao.getActiveSpendByNoteUuid`, so re-logging updates rather than duplicates): `amount` = sum of the note's entry amounts, `purpose` = note title, `appName` = the user's default payment app (`AiPreferences.defaultApp`, "Google Pay" by default), `category` derived from that app's preset, `noteUuid` = the note. In `HistoryScreen`, note-linked spends (`noteUuid` non-blank) show a small note glyph and are tappable — `onOpenNote` sets `pendingNoteUuid` and navigates to `NOTES`, where `NotesScreen`'s `initialNoteUuid` auto-opens that note. A Notes shortcut icon also sits next to the AI button in the Dashboard header.
+
+### UI/UX Design Standards & Clean Minimal Memory Rules (CRITICAL)
+
+All future UI additions, screens, dialogs, cards, sheets, or component modifications MUST strictly follow these rules:
+
+1. **Clean & Minimal Aesthetic**:
+   - Keep all screens clutter-free, minimal, and focused on core user tasks.
+   - Maintain clear visual hierarchy without introducing unnecessary decorative containers, redundant text, or visual noise.
+
+2. **Strict Reuse of Existing UI/UX Patterns**:
+   - **Reuse Established Components**: Use existing components (`TotalSpentHeroCard`, `EmptyStateCard`, `QuickStatsRow`, `SearchField`, `AppAvatar`, `WhereItWentCard`, `SpendCards`, `AiConfirmationScreen`, etc.) rather than introducing custom one-off designs.
+   - **System Color Palette Only**: Never use arbitrary hardcoded colors or unstyled boxes. Always use `MaterialTheme.colorScheme` tokens (`surface`, `surfaceContainer`, `onSurface`, `primary`, `outlineVariant`, etc.) and established alpha levels (`0.05f`, `0.12f`, `0.85f`).
+   - **Shapes & Elevation**: Use `RoundedCornerShape(Radius.sm / Radius.md / Radius.lg)` matching `Theme.kt` and `Dimens.kt`. Avoid heavy drop shadows or bright outlines — rely on subtle surface container tones and border alphas.
+
+3. **Typography & Formatting Consistency**:
+   - Use standard `MaterialTheme.typography` styles (`headlineMedium`, `titleMedium`, `labelMedium`, `bodyMedium`).
+   - Format monetary figures with `.asMoney()`, `formatCurrency()`, or `formatCurrencyRounded()`.
+   - Maintain `maxLines = 1` with `overflow = TextOverflow.Ellipsis` for constrained text fields.
+   - Use `heightIn(min = ...)` rather than hardcoded fixed container heights to support system font scaling.
+
+4. **Interaction Patterns & Localized Strings**:
+   - Apply `rememberPressScale` and subtle haptic feedback (`HapticFeedbackType.TextHandleMove`) on interactive cards and buttons.
+   - Keep touch targets at least 44–48dp (`Sizes.minTouchTarget`).
+   - Store all user-visible strings in `res/values/strings.xml` (and corresponding `strings.xml` for Hindi and Telugu).
+

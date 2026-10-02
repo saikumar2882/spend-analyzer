@@ -43,14 +43,18 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.alpha.spendtracker.R
+import com.alpha.spendtracker.data.RecurringBill
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.AppAvatar
+import com.alpha.spendtracker.ui.components.BudgetEditorDialog
 import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.EmptyStateCard
+import com.alpha.spendtracker.ui.components.MonthlyBudgetCard
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.ProfileDialog
 import com.alpha.spendtracker.ui.components.WrappedBanner
@@ -60,7 +64,9 @@ import com.alpha.spendtracker.ui.components.RecentSpendRow
 import com.alpha.spendtracker.ui.components.SwipeableLogCard
 import com.alpha.spendtracker.ui.components.TimeFilterSelectorRow
 import com.alpha.spendtracker.ui.components.TotalSpentHeroCard
+import com.alpha.spendtracker.ui.components.UpcomingBillsCard
 import com.alpha.spendtracker.ui.components.WhereItWentCard
+import com.alpha.spendtracker.ui.components.formatCurrency
 import com.alpha.spendtracker.ui.icons.AppIcons
 import androidx.compose.ui.draw.scale
 import com.alpha.spendtracker.ui.theme.Radius
@@ -79,6 +85,7 @@ fun DashboardScreen(
     currentFilter: TimeFilter,
     analytics: SpendingAnalytics,
     recentSpends: List<Spend>,
+    upcomingBills: List<RecurringBill> = emptyList(),
     themePreference: ThemePreference,
     onCycleTheme: () -> Unit,
     onFilterSelect: (TimeFilter) -> Unit,
@@ -90,16 +97,23 @@ fun DashboardScreen(
     onTransactionsClick: () -> Unit,
     onAiAssistantClick: () -> Unit,
     onNotesClick: () -> Unit,
+    onMarkBillPaid: (RecurringBill) -> Unit = {},
+    onRecurringBillsClick: () -> Unit = {},
     onEditSpend: ((Spend) -> Unit)? = null,
     onDeleteSpend: ((Spend) -> Unit)? = null,
     // Non-null in the first days of a month while last month's Wrapped hasn't been looked at.
     wrappedBanner: WrappedBannerInfo? = null,
     currency: String = "",
+    monthlyBudget: Double = 0.0,
+    monthlySpent: Double = 0.0,
+    onUpdateMonthlyBudget: (Double) -> Unit = {},
     onWrappedBannerClick: () -> Unit = {},
     onWrappedBannerDismiss: () -> Unit = {}
 ) {
+    val context = LocalContext.current
     var showDatePicker by remember { mutableStateOf(false) }
     var showProfileDialog by remember { mutableStateOf(false) }
+    var showBudgetEditorDialog by remember { mutableStateOf(false) }
 
     val auth = remember { FirebaseAuth.getInstance() }
     var displayName by remember { mutableStateOf(auth.currentUser?.displayName.orEmpty()) }
@@ -183,6 +197,26 @@ fun DashboardScreen(
         )
     }
 
+    val budgetUpdatedMsg = stringResource(R.string.budget_updated_success)
+    val budgetRemovedMsg = stringResource(R.string.budget_removed_success)
+
+    if (showBudgetEditorDialog) {
+        BudgetEditorDialog(
+            currentBudget = monthlyBudget,
+            currency = currency.ifBlank { "₹" },
+            onSave = { newBudget ->
+                onUpdateMonthlyBudget(newBudget)
+                showBudgetEditorDialog = false
+                if (newBudget > 0.0) {
+                    onShowNotification(budgetUpdatedMsg, NotificationType.SUCCESS)
+                } else {
+                    onShowNotification(budgetRemovedMsg, NotificationType.INFO)
+                }
+            },
+            onDismiss = { showBudgetEditorDialog = false }
+        )
+    }
+
     Box(modifier = Modifier.fillMaxSize()) {
         LazyColumn(
             state = lazyListState,
@@ -258,6 +292,26 @@ fun DashboardScreen(
                 }
             } else {
                 item { EmptyStateCard() }
+            }
+
+            if (upcomingBills.isNotEmpty()) {
+                item(key = "upcoming-bills-card") {
+                    UpcomingBillsCard(
+                        bills = upcomingBills,
+                        onViewAllClick = onRecurringBillsClick
+                    )
+                }
+            }
+
+            if (monthlyBudget > 0.0) {
+                item(key = "monthly-budget-card") {
+                    MonthlyBudgetCard(
+                        monthlyBudget = monthlyBudget,
+                        monthlySpent = monthlySpent,
+                        currency = currency.ifBlank { "₹" },
+                        onEditBudgetClick = { showBudgetEditorDialog = true }
+                    )
+                }
             }
 
             if (recentSpends.isNotEmpty()) {
@@ -366,19 +420,11 @@ fun DashboardScreen(
 
 @Composable
 private fun SectionHeader(title: String) {
-    Row(verticalAlignment = Alignment.CenterVertically) {
-        Box(
-            modifier = Modifier
-                .size(width = Spacing.xs, height = Spacing.ml)
-                .background(MaterialTheme.colorScheme.primary, RoundedCornerShape(2.dp))
-        )
-        Spacer(modifier = Modifier.width(Spacing.md))
-        Text(
-            text = title,
-            style = MaterialTheme.typography.titleMedium,
-            color = MaterialTheme.colorScheme.onSurface
-        )
-    }
+    Text(
+        text = title,
+        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+        color = MaterialTheme.colorScheme.onSurface
+    )
 }
 
 @Composable

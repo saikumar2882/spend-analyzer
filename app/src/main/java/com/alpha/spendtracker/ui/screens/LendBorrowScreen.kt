@@ -37,6 +37,8 @@ import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextAlign
+import androidx.compose.material3.LinearProgressIndicator
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -135,6 +137,7 @@ fun LendBorrowScreen(
                                 spends = exportSpends,
                                 reportTitle = "Dues & Borrowing Report",
                                 filePrefix = "dues_report",
+                                includeSummaryCards = false,
                                 share = true,
                                 onShowNotification = onShowNotification
                             )
@@ -157,6 +160,7 @@ fun LendBorrowScreen(
                                 spends = exportSpends,
                                 reportTitle = "Dues & Borrowing Report",
                                 filePrefix = "dues_report",
+                                includeSummaryCards = false,
                                 share = false,
                                 onShowNotification = onShowNotification
                             )
@@ -868,6 +872,7 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
     val generatedDate = remember(locale) {
         SimpleDateFormat("dd MMM yyyy, hh:mm a", locale).format(System.currentTimeMillis())
     }
+
     Column(
         modifier = modifier
             .fillMaxWidth()
@@ -879,14 +884,14 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
             color = MaterialTheme.colorScheme.onSurface
         )
         Text(
-            "Generated on $generatedDate",
+            stringResource(R.string.generated_on, generatedDate),
             style = MaterialTheme.typography.labelSmall,
             color = MaterialTheme.colorScheme.onSurfaceVariant
         )
 
         Spacer(modifier = Modifier.height(14.dp))
 
-        // Clean Minimal Summary Section (No heavy box fill or borders)
+        // Simple Summary Header (Without financial cards)
         Row(
             modifier = Modifier
                 .fillMaxWidth()
@@ -908,7 +913,7 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
             }
             Column(horizontalAlignment = Alignment.End) {
                 Text(
-                    "RECORDS",
+                    "TRANSACTIONS",
                     style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
@@ -969,3 +974,5 @@ private fun ExportTable(spends: List<Spend>, total: Double, modifier: Modifier =
         )
     }
 }
+
+

@@ -8,6 +8,7 @@ import androidx.compose.runtime.Immutable
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alpha.spendtracker.data.*
+import com.alpha.spendtracker.ui.components.APP_PRESETS
 import com.alpha.spendtracker.util.activeAppLocale
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
@@ -25,11 +26,15 @@ import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
 import kotlinx.coroutines.flow.flatMapLatest
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.tasks.await
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
+import java.util.UUID
 import javax.inject.Inject
 
 /** One log of a batch save. The uuid is chosen by the caller so the whole batch can be undone. */
@@ -225,6 +230,7 @@ class SpendViewModel @Inject constructor(
         isCreditCard: Boolean = false,
         cardLast4: String = "",
         untilDate: Long? = null,
+        frequency: String = "MONTHLY",
         onResult: (Result<Unit>) -> Unit = {}
     ) {
         mutate(onResult) {
@@ -241,6 +247,7 @@ class SpendViewModel @Inject constructor(
                 isCreditCard = isCreditCard,
                 cardLast4 = cardLast4,
                 untilDate = untilDate,
+                frequency = frequency,
                 updatedAt = System.currentTimeMillis()
             )
             repository.insertRecurringBill(bill)
@@ -252,6 +259,37 @@ class SpendViewModel @Inject constructor(
 
     fun deleteRecurringBill(bill: RecurringBill, onResult: (Result<Unit>) -> Unit = {}) =
         mutate(onResult) { repository.deleteRecurringBill(bill) }
+
+    fun markBillAsPaid(bill: RecurringBill, onResult: (Result<Unit>) -> Unit = {}) {
+        val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+        val now = System.currentTimeMillis()
+        val appPreset = APP_PRESETS.find { it.displayName == bill.appName }
+            ?: APP_PRESETS.last()
+        val category = if (bill.isCreditCardBill) "Credit Card" else appPreset.category.ifBlank { bill.category }
+        val spend = Spend(
+            uuid = UUID.randomUUID().toString(),
+            userId = _userId.value,
+            appName = bill.appName.ifBlank { "Other" },
+            amount = bill.amount,
+            purpose = bill.purpose.ifBlank { bill.name },
+            category = category,
+            timestamp = now,
+            notes = bill.notes ?: "",
+            updatedAt = now
+        )
+        val updatedBill = bill.copy(
+            lastNotifiedDate = todayStr,
+            updatedAt = now
+        )
+        mutate(onResult) {
+            val res = repository.insert(spend)
+            if (res.isSuccess) {
+                repository.updateRecurringBill(updatedBill)
+            } else {
+                res
+            }
+        }
+    }
 
     // ---- Notes ----
     // Notes are custom collections; noteEntries holds every entry for the user and the UI
@@ -788,6 +826,12 @@ class SpendViewModel @Inject constructor(
         }
     }
 
+    fun updateMonthlyBudget(budget: Double) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateMonthlyBudget(budget)
+        }
+    }
+
     fun updateVoiceLanguage(language: String) {
         viewModelScope.launch {
             aiPrefsRepository.updateVoiceLanguage(language)
@@ -872,6 +916,25 @@ class SpendViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
+    val currentMonthSpent: StateFlow<Double> = allSpendsFlow.map { spends ->
+        val startOfMonth = Calendar.getInstance().apply {
+            set(Calendar.DAY_OF_MONTH, 1)
+            set(Calendar.HOUR_OF_DAY, 0)
+            set(Calendar.MINUTE, 0)
+            set(Calendar.SECOND, 0)
+            set(Calendar.MILLISECOND, 0)
+        }.timeInMillis
+        spends.filter {
+            it.purpose != "Lending" &&
+            it.purpose != "Borrowing" &&
+            it.timestamp >= startOfMonth
+        }.sumOf { it.amount }
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = 0.0
+    )
+
     // Spends that look like a monthly bill, offered at the top of Recurring Bills.
     val subscriptionSuggestions: StateFlow<List<SubscriptionSuggestion>> = combine(
         allSpendsFlow,
@@ -879,6 +942,26 @@ class SpendViewModel @Inject constructor(
         subscriptionDismissalRepository.dismissedKeys
     ) { spends, bills, dismissed ->
         SubscriptionFinder.find(spends, bills, dismissed, System.currentTimeMillis())
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = emptyList()
+    )
+
+    val upcomingBills: StateFlow<List<RecurringBill>> = combine(
+        recurringBills,
+        allSpendsFlow
+    ) { bills, spends ->
+        val cal = Calendar.getInstance()
+        bills.filter { bill ->
+            if (bill.isExpired || bill.deleted) return@filter false
+            val status = bill.getDueStatus(cal)
+            if (status.daysDiff !in -7..7) return@filter false
+
+            !bill.isPaidForCurrentCycle(spends, cal)
+        }.sortedWith(compareBy {
+            it.getDueStatus(cal).daysDiff
+        })
     }.stateIn(
         scope = viewModelScope,
         started = SharingStarted.WhileSubscribed(5000),
@@ -993,8 +1076,28 @@ class SpendViewModel @Inject constructor(
     fun updateSpend(spend: Spend, onResult: (Result<Unit>) -> Unit = {}) =
         mutate(onResult) { repository.insert(spend) }
 
+    private suspend fun resetMatchingBillNotificationIfAny(spend: Spend) {
+        val matchingBill = recurringBills.value.find { bill ->
+            bill.appName.equals(spend.appName, ignoreCase = true) ||
+            bill.purpose.equals(spend.purpose, ignoreCase = true) ||
+            bill.name.equals(spend.purpose, ignoreCase = true)
+        }
+        if (matchingBill != null && matchingBill.lastNotifiedDate.isNotBlank()) {
+            val updated = matchingBill.copy(
+                lastNotifiedDate = "",
+                notifiedAt1230 = false,
+                notifiedAt2200 = false,
+                updatedAt = System.currentTimeMillis()
+            )
+            repository.updateRecurringBill(updated)
+        }
+    }
+
     fun deleteSpend(spend: Spend, onResult: (Result<Unit>) -> Unit = {}) =
-        mutate(onResult) { repository.delete(spend) }
+        mutate(onResult) {
+            resetMatchingBillNotificationIfAny(spend)
+            repository.delete(spend)
+        }
 
     // ---- Undo ----
     // Undo never hard-deletes or rewinds rows: every step is a fresh soft-delete / restore with a
@@ -1002,7 +1105,10 @@ class SpendViewModel @Inject constructor(
 
     /** [deleteSpend] for the "Deleted · Undo" banner: yields the bin entry that [restoreSpend] undoes. */
     fun deleteSpendUndoable(spend: Spend, onResult: (Result<SpendHistory>) -> Unit) {
-        viewModelScope.launch { onResult(repository.deleteWithHistory(spend)) }
+        viewModelScope.launch {
+            resetMatchingBillNotificationIfAny(spend)
+            onResult(repository.deleteWithHistory(spend))
+        }
     }
 
     /** Undoes a just-saved new spend by soft-deleting it (it lands in the Recycle Bin like any delete). */
