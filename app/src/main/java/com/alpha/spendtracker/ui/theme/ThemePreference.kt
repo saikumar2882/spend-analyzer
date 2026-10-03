@@ -12,7 +12,7 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.ui.platform.LocalContext
 
-enum class ThemePreference { SYSTEM, LIGHT, DARK }
+enum class ThemePreference { SYSTEM, LIGHT, DARK, OLED }
 
 private const val PREFS_NAME = "spend_tracker_settings"
 private const val KEY_THEME = "theme_preference"
@@ -40,10 +40,12 @@ fun ThemePreference.isDark(): Boolean = when (this) {
     ThemePreference.SYSTEM -> isSystemInDarkTheme()
     ThemePreference.LIGHT -> false
     ThemePreference.DARK -> true
+    ThemePreference.OLED -> true
 }
 
 fun ThemePreference.next(): ThemePreference = when (this) {
     ThemePreference.SYSTEM -> ThemePreference.LIGHT
     ThemePreference.LIGHT -> ThemePreference.DARK
-    ThemePreference.DARK -> ThemePreference.SYSTEM
+    ThemePreference.DARK -> ThemePreference.OLED
+    ThemePreference.OLED -> ThemePreference.SYSTEM
 }

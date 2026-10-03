@@ -442,12 +442,14 @@ fun SettingsScreen(
                                 ThemePreference.SYSTEM -> AppIcons.ThemeAuto
                                 ThemePreference.LIGHT -> AppIcons.ThemeLight
                                 ThemePreference.DARK -> AppIcons.ThemeDark
+                                ThemePreference.OLED -> AppIcons.ThemeDark
                             },
                             title = stringResource(R.string.theme_title),
                             subtitle = when (themePreference) {
-                                ThemePreference.SYSTEM -> stringResource(R.string.theme_system)
+                                ThemePreference.SYSTEM -> "System Default (Material You dynamic color)"
                                 ThemePreference.LIGHT -> stringResource(R.string.theme_light)
                                 ThemePreference.DARK -> stringResource(R.string.theme_dark)
+                                ThemePreference.OLED -> "OLED Pitch-Black Mode"
                             },
                             onClick = onCycleTheme
                         )

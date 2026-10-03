@@ -119,7 +119,8 @@ import android.view.ViewGroup
 import android.widget.FrameLayout
 import androidx.compose.ui.platform.ComposeView
 import androidx.compose.ui.unit.IntSize
-import androidx.compose.ui.graphics.asImageBitmap
+import com.alpha.spendtracker.ui.theme.WindowWidthSizeClass
+import com.alpha.spendtracker.ui.theme.rememberWindowWidthSizeClass
 import androidx.compose.ui.graphics.layer.drawLayer
 import androidx.compose.ui.graphics.rememberGraphicsLayer
 import androidx.compose.ui.graphics.drawscope.drawIntoCanvas
@@ -240,6 +241,10 @@ fun HistoryScreen(
     onShowNotification: (String, NotificationType) -> Unit = { _, _ -> },
 ) {
     val context = LocalContext.current
+    val windowWidthClass = rememberWindowWidthSizeClass()
+    val isCompact = windowWidthClass == WindowWidthSizeClass.COMPACT
+    var selectedSpendForDetails by remember { mutableStateOf<Spend?>(null) }
+
     var searchQuery by rememberSaveable(initialSearchQuery) { mutableStateOf(initialSearchQuery) }
     var isSearchActive by rememberSaveable { mutableStateOf(initialSearchQuery.isNotBlank()) }
     var selectedCategory by rememberSaveable(initialCategoryFilter) { mutableStateOf(initialCategoryFilter) }
@@ -805,52 +810,306 @@ fun HistoryScreen(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        if (filteredHistory.isNotEmpty()) {
-            FilterSummaryBar(
-                total = filteredTotal
-            )
-            Spacer(modifier = Modifier.height(12.dp))
-        }
+        if (isCompact) {
+            if (filteredHistory.isNotEmpty()) {
+                FilterSummaryBar(
+                    total = filteredTotal
+                )
+                Spacer(modifier = Modifier.height(12.dp))
+            }
 
-        if (filteredHistory.isEmpty()) {
-            EmptyHistoryState(modifier = Modifier.weight(1f))
-        } else {
-            LazyColumn(
-                modifier = Modifier.weight(1f),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                contentPadding = PaddingValues(bottom = 120.dp)
-            ) {
-                groupedHistory.forEach { group ->
-                    val monthHeader = group.monthHeader
-                    val spends = group.spends
-                    val expanded = sections.isExpanded(monthHeader)
-                    item(key = "header-$monthHeader") {
-                        MonthHeader(
-                            month = monthHeader,
-                            total = group.total,
-                            expanded = expanded,
-                            onToggle = { sections.toggle(monthHeader) }
-                        )
-                    }
-                    if (expanded) {
-                        items(spends, key = { it.uuid }) { spend ->
-                            SwipeableLogCard(
-                                onEdit = { onEditSpend(spend) },
-                                onDelete = { spendToDelete = spend },
-                                modifier = Modifier.animateItem()
-                            ) {
-                                HistorySpendCard(
-                                    spend = spend,
+            if (filteredHistory.isEmpty()) {
+                EmptyHistoryState(modifier = Modifier.weight(1f))
+            } else {
+                LazyColumn(
+                    modifier = Modifier.weight(1f),
+                    verticalArrangement = Arrangement.spacedBy(8.dp),
+                    contentPadding = PaddingValues(bottom = 120.dp)
+                ) {
+                    groupedHistory.forEach { group ->
+                        val monthHeader = group.monthHeader
+                        val spends = group.spends
+                        val expanded = sections.isExpanded(monthHeader)
+                        item(key = "header-$monthHeader") {
+                            MonthHeader(
+                                month = monthHeader,
+                                total = group.total,
+                                expanded = expanded,
+                                onToggle = { sections.toggle(monthHeader) }
+                            )
+                        }
+                        if (expanded) {
+                            items(spends, key = { it.uuid }) { spend ->
+                                SwipeableLogCard(
                                     onEdit = { onEditSpend(spend) },
                                     onDelete = { spendToDelete = spend },
-                                    onClick = if (spend.noteUuid.isNotBlank()) {
-                                        { onOpenNote(spend.noteUuid) }
-                                    } else null
-                                )
+                                    modifier = Modifier.animateItem()
+                                ) {
+                                    HistorySpendCard(
+                                        spend = spend,
+                                        onEdit = { onEditSpend(spend) },
+                                        onDelete = { spendToDelete = spend },
+                                        onClick = {
+                                            selectedSpendForDetails = spend
+                                            if (spend.noteUuid.isNotBlank()) {
+                                                onOpenNote(spend.noteUuid)
+                                            }
+                                        }
+                                    )
+                                }
                             }
                         }
                     }
                 }
+            }
+        } else {
+            // Dual-Pane Responsive Layout
+            Row(
+                modifier = Modifier
+                    .weight(1f)
+                    .fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // Left Pane: History List
+                Column(
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .fillMaxSize()
+                ) {
+                    if (filteredHistory.isNotEmpty()) {
+                        FilterSummaryBar(total = filteredTotal)
+                        Spacer(modifier = Modifier.height(8.dp))
+                    }
+
+                    if (filteredHistory.isEmpty()) {
+                        EmptyHistoryState(modifier = Modifier.weight(1f))
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.weight(1f),
+                            verticalArrangement = Arrangement.spacedBy(8.dp),
+                            contentPadding = PaddingValues(bottom = 120.dp)
+                        ) {
+                            groupedHistory.forEach { group ->
+                                val monthHeader = group.monthHeader
+                                val spends = group.spends
+                                val expanded = sections.isExpanded(monthHeader)
+                                item(key = "header-$monthHeader") {
+                                    MonthHeader(
+                                        month = monthHeader,
+                                        total = group.total,
+                                        expanded = expanded,
+                                        onToggle = { sections.toggle(monthHeader) }
+                                    )
+                                }
+                                if (expanded) {
+                                    items(spends, key = { it.uuid }) { spend ->
+                                        SwipeableLogCard(
+                                            onEdit = { onEditSpend(spend) },
+                                            onDelete = { spendToDelete = spend },
+                                            modifier = Modifier.animateItem()
+                                        ) {
+                                            HistorySpendCard(
+                                                spend = spend,
+                                                onEdit = { onEditSpend(spend) },
+                                                onDelete = { spendToDelete = spend },
+                                                onClick = {
+                                                    selectedSpendForDetails = spend
+                                                    if (spend.noteUuid.isNotBlank()) {
+                                                        onOpenNote(spend.noteUuid)
+                                                    }
+                                                }
+                                            )
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                // Right Pane: Details & Insights
+                Column(
+                    modifier = Modifier
+                        .weight(0.9f)
+                        .fillMaxSize()
+                ) {
+                    HistoryDetailPaneCard(
+                        selectedSpend = selectedSpendForDetails,
+                        spends = filteredHistory,
+                        total = filteredTotal,
+                        onEditSpend = onEditSpend,
+                        onDeleteSpend = { spend ->
+                            spendToDelete = spend
+                            if (selectedSpendForDetails?.uuid == spend.uuid) {
+                                selectedSpendForDetails = null
+                            }
+                        },
+                        onOpenNote = onOpenNote,
+                        onExportPdf = {
+                            exportSpends = filteredHistory
+                            showExportPreview = true
+                        }
+                    )
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun HistoryDetailPaneCard(
+    selectedSpend: Spend?,
+    spends: List<Spend>,
+    total: Double,
+    onEditSpend: (Spend) -> Unit,
+    onDeleteSpend: (Spend) -> Unit,
+    onOpenNote: (String) -> Unit,
+    onExportPdf: () -> Unit
+) {
+    Surface(
+        color = MaterialTheme.colorScheme.surfaceContainerHigh,
+        shape = RoundedCornerShape(16.dp),
+        modifier = Modifier.fillMaxWidth()
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp),
+            verticalArrangement = Arrangement.spacedBy(14.dp)
+        ) {
+            Text(
+                text = "Transaction Details & Insights",
+                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                color = MaterialTheme.colorScheme.onSurface
+            )
+
+            if (selectedSpend != null) {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Column(
+                        modifier = Modifier.padding(14.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        Text(
+                            text = getLocalizedPresetName(selectedSpend.appName),
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                        Text(
+                            text = "₹${formatCurrency(selectedSpend.amount)}",
+                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Text(
+                            text = "Purpose: ${getLocalizedPresetName(selectedSpend.purpose)} · Category: ${selectedSpend.category}",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                        if (selectedSpend.notes.isNotBlank()) {
+                            Text(
+                                text = "Notes: ${selectedSpend.notes}",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                        Text(
+                            text = "Date: ${formatShortDate(selectedSpend.timestamp)}",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            modifier = Modifier.padding(top = 8.dp)
+                        ) {
+                            Button(
+                                onClick = { onEditSpend(selectedSpend) },
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Edit")
+                            }
+                            Button(
+                                onClick = { onDeleteSpend(selectedSpend) },
+                                colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
+                                modifier = Modifier.weight(1f),
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text("Delete")
+                            }
+                        }
+                    }
+                }
+            } else {
+                Surface(
+                    color = MaterialTheme.colorScheme.surfaceContainerLow,
+                    shape = RoundedCornerShape(12.dp),
+                    modifier = Modifier.fillMaxWidth()
+                ) {
+                    Box(
+                        modifier = Modifier.padding(20.dp),
+                        contentAlignment = Alignment.Center
+                    ) {
+                        Text(
+                            text = "Select any transaction on the left to view detailed insights.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+
+            // Quick Stats summary
+            Surface(
+                color = MaterialTheme.colorScheme.surfaceContainerLow,
+                shape = RoundedCornerShape(12.dp),
+                modifier = Modifier.fillMaxWidth()
+            ) {
+                Column(
+                    modifier = Modifier.padding(14.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    Text(
+                        text = "Filtered Set Summary",
+                        style = MaterialTheme.typography.labelLarge.copy(fontWeight = FontWeight.Bold),
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Amount:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("₹${formatCurrency(total)}", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                    }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text("Total Count:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                        Text("${spends.size}", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+                    }
+                    if (spends.isNotEmpty()) {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween
+                        ) {
+                            Text("Average:", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                            Text("₹${formatCurrency(total / spends.size)}", style = MaterialTheme.typography.bodySmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+                        }
+                    }
+                }
+            }
+
+            Button(
+                onClick = onExportPdf,
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(12.dp)
+            ) {
+                Icon(Icons.Rounded.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Export PDF Report")
             }
         }
     }

@@ -154,6 +154,8 @@ import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.firebase.auth.FirebaseAuth
 import androidx.appcompat.app.AppCompatActivity
+import com.alpha.spendtracker.ui.theme.WindowWidthSizeClass
+import com.alpha.spendtracker.ui.theme.rememberWindowWidthSizeClass
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.launch
@@ -194,7 +196,9 @@ class MainActivity : AppCompatActivity() {
         enableEdgeToEdge()
         setContent {
             val themePref = rememberThemePreference()
-            MyApplicationTheme(darkTheme = themePref.value.isDark()) {
+            MyApplicationTheme(
+                themePreference = themePref.value
+            ) {
                 MainContainer(
                     viewModel = spendViewModel,
                     themePreference = themePref.value,
@@ -962,11 +966,52 @@ LaunchedEffect(Unit) {
         }
     }
 
-    Box(modifier = Modifier.fillMaxSize()) {
-        Scaffold(
-            modifier = Modifier.fillMaxSize(),
-            bottomBar = {
-                if (activeView != ActiveView.ADD_SPEND) {
+    val windowWidthClass = rememberWindowWidthSizeClass()
+    val isCompact = windowWidthClass == WindowWidthSizeClass.COMPACT
+
+    Row(modifier = Modifier.fillMaxSize()) {
+        if (!isCompact && activeView != ActiveView.ADD_SPEND) {
+            NavigationRail(
+                containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
+            ) {
+                Spacer(modifier = Modifier.height(16.dp))
+                NavigationRailItem(
+                    selected = activeView == ActiveView.DASHBOARD,
+                    onClick = { goToMajor(ActiveView.DASHBOARD) },
+                    icon = { Icon(AppIcons.Dashboard, contentDescription = stringResource(R.string.dashboard_tab)) },
+                    label = { Text(stringResource(R.string.dashboard_tab)) }
+                )
+                NavigationRailItem(
+                    selected = activeView == ActiveView.LEND_BORROW,
+                    onClick = { goToMajor(ActiveView.LEND_BORROW) },
+                    icon = { Icon(Icons.Outlined.Handshake, contentDescription = stringResource(R.string.lend_borrow_tab)) },
+                    label = { Text(stringResource(R.string.lend_borrow_tab)) }
+                )
+                NavigationRailItem(
+                    selected = activeView == ActiveView.HISTORY,
+                    onClick = {
+                        historySearchQuery = ""
+                        historyCategoryFilter = "All"
+                        historyTimeFilter = TimeFilter.ALL
+                        goToMajor(ActiveView.HISTORY)
+                    },
+                    icon = { Icon(AppIcons.History, contentDescription = stringResource(R.string.history_tab)) },
+                    label = { Text(stringResource(R.string.history_tab)) }
+                )
+                NavigationRailItem(
+                    selected = activeView == ActiveView.SETTINGS,
+                    onClick = { goToMajor(ActiveView.SETTINGS) },
+                    icon = { Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings_title)) },
+                    label = { Text(stringResource(R.string.settings_title)) }
+                )
+            }
+        }
+
+        Box(modifier = Modifier.weight(1f).fillMaxSize()) {
+            Scaffold(
+                modifier = Modifier.fillMaxSize(),
+                bottomBar = {
+                    if (isCompact && activeView != ActiveView.ADD_SPEND) {
                     NavigationBar(tonalElevation = 8.dp) {
                         val dashboardInteraction = remember { MutableInteractionSource() }
                         NavigationBarItem(
@@ -1643,47 +1688,17 @@ LaunchedEffect(Unit) {
                     }
                 }
 
-                AnimatedVisibility(
-                    visible = showFabMenu,
-                    enter = fadeIn(animationSpec = tween(200)),
-                    exit = fadeOut(animationSpec = tween(200))
-                ) {
-                    Box(
-                        modifier = Modifier
-                            .fillMaxSize()
-                            .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
-                            .clickable(
-                                interactionSource = remember { MutableInteractionSource() },
-                                indication = null
-                            ) { showFabMenu = false }
-                    )
-                }
+                FabOverlay(visible = showFabMenu, onClick = { showFabMenu = false })
 
                 // Cloud-sync trouble is a standing condition, not a moment, so it gets a
                 // persistent bar rather than a 3-second toast. Deliberately non-alarming: the
                 // user's data is safe locally, it just isn't mirrored yet.
-                AnimatedVisibility(
-                    visible = syncStatus.isDegraded,
-                    enter = expandVertically() + fadeIn(),
-                    exit = shrinkVertically() + fadeOut(),
-                    modifier = Modifier.align(Alignment.BottomCenter)
-                ) {
-                    SyncDegradedBar(syncStatus)
-                }
+                SyncDegradedOverlay(visible = syncStatus.isDegraded, status = syncStatus, modifier = Modifier.align(Alignment.BottomCenter))
 
-                // Notification Banner Overlay
-                AnimatedVisibility(
-                    visible = currentNotification != null,
-                    enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
-                    exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
-                    modifier = Modifier.align(Alignment.TopCenter)
-                ) {
-                    currentNotification?.let { n ->
-                        AppNotification(message = n.message, type = n.type, action = n.action)
-                    }
-                }
+                NotificationOverlay(notification = currentNotification, modifier = Modifier.align(Alignment.TopCenter))
             }
         }
+    }
 
         // AI Sheets
         if (showAiInput) {
@@ -1945,5 +1960,51 @@ private fun SyncDegradedBar(status: SyncStatus) {
                 color = MaterialTheme.colorScheme.onTertiaryContainer
             )
         }
+    }
+}
+
+@Composable
+private fun SyncDegradedOverlay(visible: Boolean, status: SyncStatus, modifier: Modifier = Modifier) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = expandVertically() + fadeIn(),
+        exit = shrinkVertically() + fadeOut(),
+        modifier = modifier
+    ) {
+        SyncDegradedBar(status)
+    }
+}
+
+@Composable
+private fun NotificationOverlay(notification: BannerNotification?, modifier: Modifier = Modifier) {
+    AnimatedVisibility(
+        visible = notification != null,
+        enter = slideInVertically(initialOffsetY = { -it }) + fadeIn(),
+        exit = slideOutVertically(targetOffsetY = { -it }) + fadeOut(),
+        modifier = modifier
+    ) {
+        notification?.let { n ->
+            AppNotification(message = n.message, type = n.type, action = n.action)
+        }
+    }
+}
+
+@Composable
+private fun FabOverlay(visible: Boolean, onClick: () -> Unit) {
+    AnimatedVisibility(
+        visible = visible,
+        enter = fadeIn(animationSpec = tween(200)),
+        exit = fadeOut(animationSpec = tween(200))
+    ) {
+        Box(
+            modifier = Modifier
+                .fillMaxSize()
+                .background(MaterialTheme.colorScheme.scrim.copy(alpha = 0.45f))
+                .clickable(
+                    interactionSource = remember { MutableInteractionSource() },
+                    indication = null,
+                    onClick = onClick
+                )
+        )
     }
 }

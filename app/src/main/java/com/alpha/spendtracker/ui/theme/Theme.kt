@@ -16,6 +16,7 @@ import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.ReadOnlyComposable
 import androidx.compose.runtime.SideEffect
 import androidx.compose.runtime.staticCompositionLocalOf
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.core.view.WindowCompat
@@ -111,16 +112,36 @@ val isAppInDarkTheme: Boolean
 
 @Composable
 fun MyApplicationTheme(
-    darkTheme: Boolean = isSystemInDarkTheme(),
-    dynamicColor: Boolean = false,
+    themePreference: ThemePreference = ThemePreference.SYSTEM,
+    darkTheme: Boolean = themePreference.isDark(),
     content: @Composable () -> Unit,
 ) {
     val context = LocalContext.current
-    val colorScheme = when {
-        dynamicColor && Build.VERSION.SDK_INT >= Build.VERSION_CODES.S ->
-            if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
-        darkTheme -> DarkColorScheme
-        else -> LightColorScheme
+    val colorScheme = when (themePreference) {
+        ThemePreference.SYSTEM -> {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+            } else {
+                if (darkTheme) DarkColorScheme else LightColorScheme
+            }
+        }
+        ThemePreference.LIGHT -> LightColorScheme
+        ThemePreference.DARK -> DarkColorScheme
+        ThemePreference.OLED -> {
+            val oledBlackColor = Color(0xFF000000)
+            DarkColorScheme.copy(
+                background = oledBlackColor,
+                surface = oledBlackColor,
+                surfaceDim = oledBlackColor,
+                surfaceBright = Color(0xFF0D0D0D),
+                surfaceContainerLowest = oledBlackColor,
+                surfaceContainerLow = oledBlackColor,
+                surfaceContainer = oledBlackColor,
+                surfaceContainerHigh = Color(0xFF121212),
+                surfaceContainerHighest = Color(0xFF181818),
+                scrim = oledBlackColor
+            )
+        }
     }
 
     val view = LocalView.current

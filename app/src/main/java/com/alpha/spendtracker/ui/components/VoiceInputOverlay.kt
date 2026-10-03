@@ -127,6 +127,8 @@ fun VoiceInputOverlay(
     Surface(
         modifier = modifier
             .fillMaxWidth()
+            .navigationBarsPadding()
+            .imePadding()
             .padding(horizontal = 8.dp, vertical = 4.dp),
         shape = RoundedCornerShape(24.dp),
         color = MaterialTheme.colorScheme.surfaceContainerLow

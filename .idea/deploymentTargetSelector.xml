@@ -4,10 +4,10 @@
     <selectionStates>
       <SelectionState runConfigName="spendly">
         <option name="selectionMode" value="DROPDOWN" />
-        <DropdownSelection timestamp="2026-09-26T06:31:10.116359Z">
+        <DropdownSelection timestamp="2026-10-03T12:05:00.661305Z">
           <Target type="DEFAULT_BOOT">
             <handle>
-              <DeviceId pluginId="PhysicalDevice" identifier="serial=57081FDCR00DK4" />
+              <DeviceId pluginId="LocalEmulator" identifier="path=/Users/tsaikumar/.android/avd/Medium_Tablet.avd" />
             </handle>
           </Target>
         </DropdownSelection>

@@ -73,7 +73,9 @@ import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.Sizes
 import com.alpha.spendtracker.ui.theme.Spacing
 import com.alpha.spendtracker.ui.theme.ThemePreference
+import com.alpha.spendtracker.ui.theme.WindowWidthSizeClass
 import com.alpha.spendtracker.ui.theme.rememberPressScale
+import com.alpha.spendtracker.ui.theme.rememberWindowWidthSizeClass
 import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
 import com.google.firebase.auth.FirebaseAuth
@@ -217,140 +219,304 @@ fun DashboardScreen(
         )
     }
 
+    val windowWidthClass = rememberWindowWidthSizeClass()
+    val isCompact = windowWidthClass == WindowWidthSizeClass.COMPACT
+
     Box(modifier = Modifier.fillMaxSize()) {
-        LazyColumn(
-            state = lazyListState,
-            modifier = Modifier
-                .fillMaxSize()
-                .statusBarsPadding()
-                .padding(horizontal = Spacing.lg),
-            verticalArrangement = Arrangement.spacedBy(Spacing.md),
-            contentPadding = PaddingValues(top = Spacing.md, bottom = 120.dp)
-        ) {
-            item {
-                DashboardHeader(
-                    displayName = effectiveDisplayName,
-                    photoUrl = photoUrl,
-                    themePreference = themePreference,
-                    onCycleTheme = onCycleTheme,
-                    onProfileClick = { showProfileDialog = true },
-                    onAiAssistantClick = onAiAssistantClick,
-                    onNotesClick = onNotesClick
-                )
-            }
-
-            if (wrappedBanner != null) {
-                item(key = "wrapped-banner") {
-                    WrappedBanner(
-                        info = wrappedBanner,
-                        currency = currency,
-                        onOpen = onWrappedBannerClick,
-                        onDismiss = onWrappedBannerDismiss
-                    )
-                }
-            }
-
-            item {
-                TimeFilterSelectorRow(
-                    selected = currentFilter,
-                    onSelect = onFilterSelect,
-                    onCustomClick = { showDatePicker = true }
-                )
-            }
-
-            item {
-                val periodDeltaPct = if (currentFilter != TimeFilter.ALL && analytics.previousPeriodTotal > 0.0) {
-                    ((analytics.totalAmount - analytics.previousPeriodTotal) / analytics.previousPeriodTotal) * 100.0
-                } else null
-                TotalSpentHeroCard(
-                    filterType = currentFilter,
-                    totalAmount = analytics.totalAmount,
-                    transactionCount = analytics.transactionCount,
-                    dateRange = analytics.dateRange,
-                    periodDeltaPct = periodDeltaPct,
-                    onLentClick = onLentClick,
-                    onTransactionsClick = onTransactionsClick
-                )
-            }
-
-            if (analytics.transactionCount > 0) {
-                item { QuickStatsRow(analytics = analytics) }
-
+        if (isCompact) {
+            LazyColumn(
+                state = lazyListState,
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(horizontal = Spacing.lg),
+                verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                contentPadding = PaddingValues(top = Spacing.md, bottom = 120.dp)
+            ) {
                 item {
-                    WhereItWentCard(
-                        categoryBreakdown = analytics.categoryBreakdown,
-                        purposeBreakdown = analytics.purposeBreakdown,
-                        trendPoints = analytics.trendPoints,
-                        onCategoryClick = { category ->
-                            onShowNotification("Filtering by $category", NotificationType.INFO)
-                        },
-                        onPurposeClick = { purpose ->
-                            onShowNotification("Filtering by $purpose", NotificationType.INFO)
-                        },
-                        onViewAllClick = onShowAllClick
+                    DashboardHeader(
+                        displayName = effectiveDisplayName,
+                        photoUrl = photoUrl,
+                        themePreference = themePreference,
+                        onCycleTheme = onCycleTheme,
+                        onProfileClick = { showProfileDialog = true },
+                        onAiAssistantClick = onAiAssistantClick,
+                        onNotesClick = onNotesClick
                     )
                 }
-            } else {
-                item { EmptyStateCard() }
-            }
 
-            if (upcomingBills.isNotEmpty()) {
-                item(key = "upcoming-bills-card") {
-                    UpcomingBillsCard(
-                        bills = upcomingBills,
-                        onViewAllClick = onRecurringBillsClick
-                    )
-                }
-            }
-
-            if (monthlyBudget > 0.0) {
-                item(key = "monthly-budget-card") {
-                    MonthlyBudgetCard(
-                        monthlyBudget = monthlyBudget,
-                        monthlySpent = monthlySpent,
-                        currency = currency.ifBlank { "₹" },
-                        onEditBudgetClick = { showBudgetEditorDialog = true }
-                    )
-                }
-            }
-
-            if (recentSpends.isNotEmpty()) {
-                item {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        horizontalArrangement = Arrangement.SpaceBetween,
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        SectionHeader(title = stringResource(R.string.recent_activity))
-                        TextButton(onClick = onShowAllClick) {
-                            Text(stringResource(R.string.see_all), style = MaterialTheme.typography.labelLarge)
-                            Spacer(modifier = Modifier.width(Spacing.xs))
-                            Icon(
-                                AppIcons.History,
-                                contentDescription = null,
-                                modifier = Modifier.size(Sizes.iconInline)
-                            )
-                        }
+                if (wrappedBanner != null) {
+                    item(key = "wrapped-banner") {
+                        WrappedBanner(
+                            info = wrappedBanner,
+                            currency = currency,
+                            onOpen = onWrappedBannerClick,
+                            onDismiss = onWrappedBannerDismiss
+                        )
                     }
                 }
 
-                items(recentSpends, key = { it.uuid }) { spend ->
-                    if (onEditSpend != null && onDeleteSpend != null) {
-                        SwipeableLogCard(
-                            onEdit = { onEditSpend(spend) },
-                            onDelete = { onDeleteSpend(spend) },
-                            modifier = Modifier.animateItem()
+                item {
+                    TimeFilterSelectorRow(
+                        selected = currentFilter,
+                        onSelect = onFilterSelect,
+                        onCustomClick = { showDatePicker = true }
+                    )
+                }
+
+                item {
+                    val periodDeltaPct = if (currentFilter != TimeFilter.ALL && analytics.previousPeriodTotal > 0.0) {
+                        ((analytics.totalAmount - analytics.previousPeriodTotal) / analytics.previousPeriodTotal) * 100.0
+                    } else null
+                    TotalSpentHeroCard(
+                        filterType = currentFilter,
+                        totalAmount = analytics.totalAmount,
+                        transactionCount = analytics.transactionCount,
+                        dateRange = analytics.dateRange,
+                        periodDeltaPct = periodDeltaPct,
+                        onLentClick = onLentClick,
+                        onTransactionsClick = onTransactionsClick
+                    )
+                }
+
+                if (analytics.transactionCount > 0) {
+                    item { QuickStatsRow(analytics = analytics) }
+
+                    item {
+                        WhereItWentCard(
+                            categoryBreakdown = analytics.categoryBreakdown,
+                            purposeBreakdown = analytics.purposeBreakdown,
+                            trendPoints = analytics.trendPoints,
+                            onCategoryClick = { category ->
+                                onShowNotification("Filtering by $category", NotificationType.INFO)
+                            },
+                            onPurposeClick = { purpose ->
+                                onShowNotification("Filtering by $purpose", NotificationType.INFO)
+                            },
+                            onViewAllClick = onShowAllClick
+                        )
+                    }
+                } else {
+                    item { EmptyStateCard() }
+                }
+
+                if (upcomingBills.isNotEmpty()) {
+                    item(key = "upcoming-bills-card") {
+                        UpcomingBillsCard(
+                            bills = upcomingBills,
+                            onViewAllClick = onRecurringBillsClick
+                        )
+                    }
+                }
+
+                if (monthlyBudget > 0.0) {
+                    item(key = "monthly-budget-card") {
+                        MonthlyBudgetCard(
+                            monthlyBudget = monthlyBudget,
+                            monthlySpent = monthlySpent,
+                            currency = currency.ifBlank { "₹" },
+                            onEditBudgetClick = { showBudgetEditorDialog = true }
+                        )
+                    }
+                }
+
+                if (recentSpends.isNotEmpty()) {
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
                         ) {
+                            SectionHeader(title = stringResource(R.string.recent_activity))
+                            TextButton(onClick = onShowAllClick) {
+                                Text(stringResource(R.string.see_all), style = MaterialTheme.typography.labelLarge)
+                                Spacer(modifier = Modifier.width(Spacing.xs))
+                                Icon(
+                                    AppIcons.History,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(Sizes.iconInline)
+                                )
+                            }
+                        }
+                    }
+
+                    items(recentSpends, key = { it.uuid }) { spend ->
+                        if (onEditSpend != null && onDeleteSpend != null) {
+                            SwipeableLogCard(
+                                onEdit = { onEditSpend(spend) },
+                                onDelete = { onDeleteSpend(spend) },
+                                modifier = Modifier.animateItem()
+                            ) {
+                                RecentSpendRow(
+                                    spend = spend,
+                                    onClick = { onAppClick(spend.appName) }
+                                )
+                            }
+                        } else {
                             RecentSpendRow(
                                 spend = spend,
                                 onClick = { onAppClick(spend.appName) }
                             )
                         }
-                    } else {
-                        RecentSpendRow(
-                            spend = spend,
-                            onClick = { onAppClick(spend.appName) }
+                    }
+                }
+            }
+        } else {
+            // Dual-Pane Responsive Layout for Foldables, Tablets, Desktops
+            Row(
+                modifier = Modifier
+                    .fillMaxSize()
+                    .statusBarsPadding()
+                    .padding(horizontal = Spacing.lg),
+                horizontalArrangement = Arrangement.spacedBy(Spacing.lg)
+            ) {
+                // Left Pane: Overview & Charts
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    contentPadding = PaddingValues(top = Spacing.md, bottom = 120.dp)
+                ) {
+                    item {
+                        DashboardHeader(
+                            displayName = effectiveDisplayName,
+                            photoUrl = photoUrl,
+                            themePreference = themePreference,
+                            onCycleTheme = onCycleTheme,
+                            onProfileClick = { showProfileDialog = true },
+                            onAiAssistantClick = onAiAssistantClick,
+                            onNotesClick = onNotesClick
                         )
+                    }
+
+                    item {
+                        TimeFilterSelectorRow(
+                            selected = currentFilter,
+                            onSelect = onFilterSelect,
+                            onCustomClick = { showDatePicker = true }
+                        )
+                    }
+
+                    item {
+                        val periodDeltaPct = if (currentFilter != TimeFilter.ALL && analytics.previousPeriodTotal > 0.0) {
+                            ((analytics.totalAmount - analytics.previousPeriodTotal) / analytics.previousPeriodTotal) * 100.0
+                        } else null
+                        TotalSpentHeroCard(
+                            filterType = currentFilter,
+                            totalAmount = analytics.totalAmount,
+                            transactionCount = analytics.transactionCount,
+                            dateRange = analytics.dateRange,
+                            periodDeltaPct = periodDeltaPct,
+                            onLentClick = onLentClick,
+                            onTransactionsClick = onTransactionsClick
+                        )
+                    }
+
+                    if (analytics.transactionCount > 0) {
+                        item { QuickStatsRow(analytics = analytics) }
+
+                        item {
+                            WhereItWentCard(
+                                categoryBreakdown = analytics.categoryBreakdown,
+                                purposeBreakdown = analytics.purposeBreakdown,
+                                trendPoints = analytics.trendPoints,
+                                onCategoryClick = { category ->
+                                    onShowNotification("Filtering by $category", NotificationType.INFO)
+                                },
+                                onPurposeClick = { purpose ->
+                                    onShowNotification("Filtering by $purpose", NotificationType.INFO)
+                                },
+                                onViewAllClick = onShowAllClick
+                            )
+                        }
+                    } else {
+                        item { EmptyStateCard() }
+                    }
+
+                    if (monthlyBudget > 0.0) {
+                        item(key = "monthly-budget-card-dual") {
+                            MonthlyBudgetCard(
+                                monthlyBudget = monthlyBudget,
+                                monthlySpent = monthlySpent,
+                                currency = currency.ifBlank { "₹" },
+                                onEditBudgetClick = { showBudgetEditorDialog = true }
+                            )
+                        }
+                    }
+                }
+
+                // Right Pane: Activity & Secondary Modules
+                LazyColumn(
+                    modifier = Modifier
+                        .weight(1f)
+                        .fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(Spacing.md),
+                    contentPadding = PaddingValues(top = Spacing.md, bottom = 120.dp)
+                ) {
+                    if (wrappedBanner != null) {
+                        item(key = "wrapped-banner-dual") {
+                            WrappedBanner(
+                                info = wrappedBanner,
+                                currency = currency,
+                                onOpen = onWrappedBannerClick,
+                                onDismiss = onWrappedBannerDismiss
+                            )
+                        }
+                    }
+
+                    if (upcomingBills.isNotEmpty()) {
+                        item(key = "upcoming-bills-card-dual") {
+                            UpcomingBillsCard(
+                                bills = upcomingBills,
+                                onViewAllClick = onRecurringBillsClick
+                            )
+                        }
+                    }
+
+                    item {
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.SpaceBetween,
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            SectionHeader(title = stringResource(R.string.recent_activity))
+                            TextButton(onClick = onShowAllClick) {
+                                Text(stringResource(R.string.see_all), style = MaterialTheme.typography.labelLarge)
+                                Spacer(modifier = Modifier.width(Spacing.xs))
+                                Icon(
+                                    AppIcons.History,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(Sizes.iconInline)
+                                )
+                            }
+                        }
+                    }
+
+                    if (recentSpends.isNotEmpty()) {
+                        items(recentSpends, key = { "dual-${it.uuid}" }) { spend ->
+                            if (onEditSpend != null && onDeleteSpend != null) {
+                                SwipeableLogCard(
+                                    onEdit = { onEditSpend(spend) },
+                                    onDelete = { onDeleteSpend(spend) },
+                                    modifier = Modifier.animateItem()
+                                ) {
+                                    RecentSpendRow(
+                                        spend = spend,
+                                        onClick = { onAppClick(spend.appName) }
+                                    )
+                                }
+                            } else {
+                                RecentSpendRow(
+                                    spend = spend,
+                                    onClick = { onAppClick(spend.appName) }
+                                )
+                            }
+                        }
+                    } else {
+                        item {
+                            EmptyStateCard()
+                        }
                     }
                 }
             }
@@ -496,12 +662,14 @@ private fun DashboardHeader(
                     ThemePreference.SYSTEM -> AppIcons.ThemeAuto
                     ThemePreference.LIGHT -> AppIcons.ThemeLight
                     ThemePreference.DARK -> AppIcons.ThemeDark
+                    ThemePreference.OLED -> AppIcons.ThemeDark
                 },
                 onClick = onCycleTheme,
                 contentDescription = when (themePreference) {
-                    ThemePreference.SYSTEM -> "Theme: follow system. Tap to switch to light."
+                    ThemePreference.SYSTEM -> "Theme: follow system (Material You). Tap to switch to light."
                     ThemePreference.LIGHT -> "Theme: light. Tap to switch to dark."
-                    ThemePreference.DARK -> "Theme: dark. Tap to follow system."
+                    ThemePreference.DARK -> "Theme: dark. Tap to switch to OLED pitch-black."
+                    ThemePreference.OLED -> "Theme: OLED pitch-black. Tap to follow system."
                 },
                 tint = MaterialTheme.colorScheme.onSurface,
                 background = MaterialTheme.colorScheme.surfaceContainerHigh

@@ -844,6 +844,18 @@ class SpendViewModel @Inject constructor(
         }
     }
 
+    fun updateDynamicColorEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateDynamicColor(enabled)
+        }
+    }
+
+    fun updateOledBlackEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateOledBlack(enabled)
+        }
+    }
+
     /** Records that the one-time app-lock enable prompt has been shown. */
     fun setBiometricPrompted() {
         viewModelScope.launch {

@@ -23,7 +23,9 @@ data class AiPreferences(
     val hasPromptedBiometric: Boolean = false,
     val dismissedUpdateVersion: String = "",
     val lastVoiceLanguage: String = "te-IN",
-    val monthlyBudget: Double = 0.0
+    val monthlyBudget: Double = 0.0,
+    val isDynamicColorEnabled: Boolean = false,
+    val isOledBlackEnabled: Boolean = false
 )
 
 class AiPreferencesRepository(private val context: Context) {
@@ -40,6 +42,8 @@ class AiPreferencesRepository(private val context: Context) {
         val DISMISSED_UPDATE_VERSION = stringPreferencesKey("dismissed_update_version")
         val LAST_VOICE_LANGUAGE = stringPreferencesKey("last_voice_language")
         val MONTHLY_BUDGET = doublePreferencesKey("monthly_budget")
+        val IS_DYNAMIC_COLOR_ENABLED = booleanPreferencesKey("is_dynamic_color_enabled")
+        val IS_OLED_BLACK_ENABLED = booleanPreferencesKey("is_oled_black_enabled")
     }
 
     val aiPreferencesFlow: Flow<AiPreferences> = context.dataStore.data
@@ -62,7 +66,9 @@ class AiPreferencesRepository(private val context: Context) {
                 hasPromptedBiometric = preferences[PreferencesKeys.HAS_PROMPTED_BIOMETRIC] ?: false,
                 dismissedUpdateVersion = preferences[PreferencesKeys.DISMISSED_UPDATE_VERSION] ?: "",
                 lastVoiceLanguage = preferences[PreferencesKeys.LAST_VOICE_LANGUAGE] ?: "te-IN",
-                monthlyBudget = preferences[PreferencesKeys.MONTHLY_BUDGET] ?: 0.0
+                monthlyBudget = preferences[PreferencesKeys.MONTHLY_BUDGET] ?: 0.0,
+                isDynamicColorEnabled = preferences[PreferencesKeys.IS_DYNAMIC_COLOR_ENABLED] ?: false,
+                isOledBlackEnabled = preferences[PreferencesKeys.IS_OLED_BLACK_ENABLED] ?: false
             )
         }
 
@@ -104,6 +110,18 @@ class AiPreferencesRepository(private val context: Context) {
     suspend fun updateMonthlyBudget(budget: Double) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.MONTHLY_BUDGET] = budget
+        }
+    }
+
+    suspend fun updateDynamicColor(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_DYNAMIC_COLOR_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updateOledBlack(enabled: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.IS_OLED_BLACK_ENABLED] = enabled
         }
     }
 

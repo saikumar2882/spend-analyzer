@@ -52,6 +52,7 @@ import androidx.compose.material3.TextField
 import androidx.compose.material3.TextFieldDefaults
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import com.alpha.spendtracker.data.AiParser
 import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
 import androidx.compose.runtime.Composable
@@ -181,6 +182,14 @@ fun AddSpendScreen(
     LaunchedEffect(selectedPreset) {
         purposeInput = suggestedPurposeFor(selectedPreset, purposeInput)
         if (selectedPreset.id != "other") customAppError = null
+    }
+
+    LaunchedEffect(customAppNameInput) {
+        if (selectedPreset.id == "other" && customAppNameInput.isNotBlank()) {
+            AiParser.inferPurpose(customAppNameInput)?.let { inferred ->
+                purposeInput = inferred
+            }
+        }
     }
 
     Scaffold(
@@ -675,8 +684,9 @@ private fun formatPlainAmount(amount: Double): String {
 
 private fun suggestedPurposeFor(preset: AppPreset, current: String): String =
     when (preset.id) {
-        "swiggy", "zepto", "blinkit" -> "Groceries & Food"
+        "swiggy", "zomato", "zepto", "blinkit" -> "Groceries & Food"
         "amazon", "flipkart", "myntra", "ajio" -> "Shopping & Apparels"
+        "icici", "yono_sbi" -> "Banking & Cards"
         else -> current
     }
 
