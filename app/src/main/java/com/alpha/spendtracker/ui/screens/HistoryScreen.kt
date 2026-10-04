@@ -3,7 +3,6 @@
  */
 package com.alpha.spendtracker.ui.screens
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.core.animateFloatAsState
 import androidx.compose.animation.core.tween
 import androidx.compose.animation.expandVertically
@@ -372,7 +371,6 @@ fun HistoryScreen(
         searching = searchQuery.isNotBlank()
     )
 
-    val graphicsLayer = rememberGraphicsLayer()
     if (showExportPreview) {
         ModalBottomSheet(
             onDismissRequest = { showExportPreview = false },
@@ -1012,6 +1010,14 @@ private fun HistoryDetailPaneCard(
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
+                        }
+                        if (selectedSpend.noteUuid.isNotBlank()) {
+                            TextButton(
+                                onClick = { onOpenNote(selectedSpend.noteUuid) },
+                                modifier = Modifier.padding(top = 2.dp)
+                            ) {
+                                Text("View Attached Note")
+                            }
                         }
                         Text(
                             text = "Date: ${formatShortDate(selectedSpend.timestamp)}",
