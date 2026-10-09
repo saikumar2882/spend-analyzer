@@ -24,7 +24,6 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.CallMade
 import androidx.compose.material.icons.automirrored.rounded.CallReceived
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
-import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.material.icons.rounded.AutoAwesome
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.DirectionsCar
@@ -35,7 +34,6 @@ import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Savings
 import androidx.compose.material.icons.rounded.ShoppingBag
 import androidx.compose.material.icons.rounded.ShoppingBasket
-import androidx.compose.material.icons.rounded.SwapHoriz
 import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Text
@@ -255,14 +253,34 @@ private fun CategoryGridTile(
 ) {
     val interactionSource = remember { MutableInteractionSource() }
     val pressScale = rememberPressScale(interactionSource, pressedScale = 0.95f)
+    val isDark = isAppInDarkTheme
 
-    val activeColor = item.getColor()
-    val targetColor = if (isSelected) activeColor else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.55f)
+    val categoryColor = item.getColor()
 
-    val animatedColor by animateColorAsState(
-        targetValue = targetColor,
+    // Icon tint: Touch of category color
+    val targetIconTint = if (isSelected) {
+        categoryColor
+    } else {
+        categoryColor.copy(alpha = if (isDark) 0.95f else 0.88f)
+    }
+
+    val animatedIconTint by animateColorAsState(
+        targetValue = targetIconTint,
         animationSpec = spring(),
-        label = "categoryTileColor"
+        label = "categoryIconTint"
+    )
+
+    // Label text color: Crisp theme-aware black (light) / white (dark) text, category accent when selected
+    val targetTextColor = if (isSelected) {
+        categoryColor
+    } else {
+        MaterialTheme.colorScheme.onSurface
+    }
+
+    val animatedTextColor by animateColorAsState(
+        targetValue = targetTextColor,
+        animationSpec = spring(),
+        label = "categoryTextColor"
     )
 
     val scale by animateFloatAsState(
@@ -286,7 +304,7 @@ private fun CategoryGridTile(
         Icon(
             imageVector = item.icon,
             contentDescription = item.displayName,
-            tint = animatedColor,
+            tint = animatedIconTint,
             modifier = Modifier.size(26.dp)
         )
 
@@ -299,7 +317,7 @@ private fun CategoryGridTile(
                 fontSize = 11.sp,
                 lineHeight = 13.sp
             ),
-            color = animatedColor,
+            color = animatedTextColor,
             textAlign = TextAlign.Center,
             maxLines = 2,
             overflow = TextOverflow.Ellipsis,
@@ -317,6 +335,8 @@ fun CategoryDropdownItemContent(
     modifier: Modifier = Modifier
 ) {
     val item = findCategoryPresetItem(categoryName)
+    val categoryColor = item.getColor()
+    val isDark = isAppInDarkTheme
 
     Row(
         modifier = modifier,
@@ -328,12 +348,12 @@ fun CategoryDropdownItemContent(
             modifier = Modifier
                 .size(28.dp)
                 .clip(CircleShape)
-                .background(MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.5f))
+                .background(categoryColor.copy(alpha = if (isDark) 0.22f else 0.12f))
         ) {
             Icon(
                 imageVector = item.icon,
                 contentDescription = null,
-                tint = MaterialTheme.colorScheme.primary,
+                tint = categoryColor,
                 modifier = Modifier.size(15.dp)
             )
         }
