@@ -12,23 +12,45 @@ import com.google.firebase.firestore.FirebaseFirestore
 import com.google.firebase.firestore.ListenerRegistration
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.CoroutineScope
+import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.firstOrNull
 import kotlinx.coroutines.flow.update
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
+import kotlinx.coroutines.flow.launchIn
+import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
+
+import com.alpha.spendtracker.util.EncryptionUtils
+import com.squareup.moshi.Moshi
+import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
 class SpendRepository(
     private val spendDao: SpendDao,
     private val recurringBillDao: RecurringBillDao,
     private val chatDao: ChatDao,
-    private val notesDao: NotesDao
+    private val notesDao: NotesDao,
+    private val aiPreferencesRepository: AiPreferencesRepository? = null
 ) {
 
+    @Volatile
+    private var isE2eEncryptionEnabled = false
+
+    init {
+        aiPreferencesRepository?.aiPreferencesFlow
+            ?.onEach { prefs ->
+                this.isE2eEncryptionEnabled = prefs.isE2eEncryptionEnabled
+            }
+            ?.launchIn(CoroutineScope(Dispatchers.IO))
+    }
+
+    private val moshi = Moshi.Builder().add(KotlinJsonAdapterFactory()).build()
     private val firestore = FirebaseFirestore.getInstance()
     private val tag = "SpendRepository"
     private val syncListeners = mutableListOf<ListenerRegistration>()
@@ -161,12 +183,23 @@ class SpendRepository(
                 scope.launch {
                     mutex.withLock {
                         for (change in changes) {
+                            val doc = change.document
                             val item = try {
-                                change.document.toObject(type)
-                            } catch (e: RuntimeException) {
-                                Log.w(tag, "Skipping malformed $collection doc ${change.document.id}", e)
-                                continue
+                                val isEncrypted = doc.getBoolean("encrypted") ?: false
+                                if (isEncrypted) {
+                                    val encryptedPayload = doc.getString("encryptedPayload").orEmpty()
+                                    val userId = doc.getString("userId").orEmpty()
+                                    val key = EncryptionUtils.deriveKey(userId)
+                                    val decryptedJson = EncryptionUtils.decrypt(encryptedPayload, key)
+                                    moshi.adapter(type).fromJson(decryptedJson)
+                                } else {
+                                    doc.toObject(type)
+                                }
+                            } catch (e: Exception) {
+                                Log.w(tag, "Skipping malformed or un-decryptable $collection doc ${doc.id}", e)
+                                null
                             }
+                            if (item == null) continue
                             when (change.type) {
                                 DocumentChange.Type.ADDED, DocumentChange.Type.MODIFIED -> {
                                     val local = localUpdatedAt(item)
@@ -518,14 +551,7 @@ class SpendRepository(
         }
 
     private fun syncRecurringBillToFirestore(bill: RecurringBill) {
-        firestorePush(
-            "recurring bill write",
-            firestore.collection("users")
-                .document(bill.userId)
-                .collection("recurring_bills")
-                .document(bill.uuid)
-                .set(bill)
-        )
+        performFirestoreSync("recurring_bills", bill.uuid, bill.userId, bill, RecurringBill::class.java)
     }
 
     suspend fun updateRecurringBill(bill: RecurringBill): Result<Unit> = localWrite("bill update") {
@@ -613,25 +639,11 @@ class SpendRepository(
     }
 
     private fun syncNoteToFirestore(note: Note) {
-        firestorePush(
-            "note write",
-            firestore.collection("users")
-                .document(note.userId)
-                .collection("notes")
-                .document(note.uuid)
-                .set(note)
-        )
+        performFirestoreSync("notes", note.uuid, note.userId, note, Note::class.java)
     }
 
     private fun syncNoteEntryToFirestore(entry: NoteEntry) {
-        firestorePush(
-            "note entry write",
-            firestore.collection("users")
-                .document(entry.userId)
-                .collection("note_entries")
-                .document(entry.uuid)
-                .set(entry)
-        )
+        performFirestoreSync("note_entries", entry.uuid, entry.userId, entry, NoteEntry::class.java)
     }
 
     // ---- Note history (Recycle Bin + Update History) ----
@@ -744,25 +756,11 @@ class SpendRepository(
     }
 
     private fun syncNoteHistoryToFirestore(history: NoteHistory) {
-        firestorePush(
-            "note history write",
-            firestore.collection("users")
-                .document(history.userId)
-                .collection("note_history")
-                .document(history.historyUuid)
-                .set(history)
-        )
+        performFirestoreSync("note_history", history.historyUuid, history.userId, history, NoteHistory::class.java)
     }
 
     private fun syncToFirestore(spend: Spend) {
-        firestorePush(
-            "spend write",
-            firestore.collection("users")
-                .document(spend.userId)
-                .collection("spends")
-                .document(spend.uuid)
-                .set(spend)
-        )
+        performFirestoreSync("spends", spend.uuid, spend.userId, spend, Spend::class.java)
     }
 
     private fun removeFromFirestoreByUuid(uuid: String, userId: String) {
@@ -777,14 +775,7 @@ class SpendRepository(
     }
 
     private fun syncHistoryToFirestore(history: SpendHistory) {
-        firestorePush(
-            "history write",
-            firestore.collection("users")
-                .document(history.userId)
-                .collection("history")
-                .document(history.historyUuid)
-                .set(history)
-        )
+        performFirestoreSync("history", history.historyUuid, history.userId, history, SpendHistory::class.java)
     }
 
     suspend fun insertChatMessage(message: ChatMessage): Result<Unit> = localWrite("chat insert") {
@@ -795,14 +786,92 @@ class SpendRepository(
     }
 
     private fun syncChatMessageToFirestore(message: ChatMessage) {
-        firestorePush(
-            "chat message write",
-            firestore.collection("users")
-                .document(message.userId)
-                .collection("chat_messages")
-                .document(message.uuid)
-                .set(message)
-        )
+        performFirestoreSync("chat_messages", message.uuid, message.userId, message, ChatMessage::class.java)
+    }
+
+    private fun <T : Any> performFirestoreSync(
+        collectionName: String,
+        docId: String,
+        userId: String,
+        item: T,
+        type: Class<T>
+    ) {
+        CoroutineScope(Dispatchers.IO).launch {
+            val isE2E = isE2eEncryptionEnabled
+            performFirestoreSyncExplicit(collectionName, docId, userId, item, type, isE2E)
+        }
+    }
+
+    private fun <T : Any> performFirestoreSyncExplicit(
+        collectionName: String,
+        docId: String,
+        userId: String,
+        item: T,
+        type: Class<T>,
+        isE2E: Boolean
+    ) {
+        val docRef = firestore.collection("users").document(userId).collection(collectionName).document(docId)
+        if (isE2E) {
+            val key = EncryptionUtils.deriveKey(userId)
+            val json = moshi.adapter(type).toJson(item)
+            val encryptedPayload = EncryptionUtils.encrypt(json, key)
+            val payloadMap = mapOf(
+                "uuid" to docId,
+                "userId" to userId,
+                "encrypted" to true,
+                "encryptedPayload" to encryptedPayload,
+                "updatedAt" to System.currentTimeMillis()
+            )
+            firestorePush("$collectionName write (encrypted)", docRef.set(payloadMap))
+        } else {
+            firestorePush("$collectionName write", docRef.set(item))
+        }
+    }
+
+    suspend fun reSyncAllToFirestore(userId: String, isE2eEnabled: Boolean): Result<Unit> = localWrite("re-sync all to firestore") {
+        if (userId.isBlank()) return@localWrite
+
+        // 1. Spends
+        val spends = spendDao.getAllSpendsForSync(userId).first()
+        spends.forEach { spend ->
+            performFirestoreSyncExplicit("spends", spend.uuid, userId, spend, Spend::class.java, isE2eEnabled)
+        }
+
+        // 2. Recurring Bills
+        val bills = recurringBillDao.getAllRecurringBillsForSync(userId).first()
+        bills.forEach { bill ->
+            performFirestoreSyncExplicit("recurring_bills", bill.uuid, userId, bill, RecurringBill::class.java, isE2eEnabled)
+        }
+
+        // 3. Notes
+        val notes = notesDao.getAllNotesForSync(userId).first()
+        notes.forEach { note ->
+            performFirestoreSyncExplicit("notes", note.uuid, userId, note, Note::class.java, isE2eEnabled)
+        }
+
+        // 4. Note Entries
+        val entries = notesDao.getAllNoteEntriesForSync(userId).first()
+        entries.forEach { entry ->
+            performFirestoreSyncExplicit("note_entries", entry.uuid, userId, entry, NoteEntry::class.java, isE2eEnabled)
+        }
+
+        // 5. Chat Messages
+        val messages = chatDao.getChatMessagesForSync(userId).first()
+        messages.forEach { msg ->
+            performFirestoreSyncExplicit("chat_messages", msg.uuid, userId, msg, ChatMessage::class.java, isE2eEnabled)
+        }
+
+        // 6. Spend History
+        val histories = spendDao.getAllHistoryForSync(userId).first()
+        histories.forEach { history ->
+            performFirestoreSyncExplicit("history", history.historyUuid, userId, history, SpendHistory::class.java, isE2eEnabled)
+        }
+
+        // 7. Note History
+        val noteHistories = notesDao.getNoteHistoryForSync(userId).first()
+        noteHistories.forEach { history ->
+            performFirestoreSyncExplicit("note_history", history.historyUuid, userId, history, NoteHistory::class.java, isE2eEnabled)
+        }
     }
 
     suspend fun deleteChatMessage(message: ChatMessage): Result<Unit> = localWrite("chat delete") {

@@ -295,13 +295,14 @@ object AiParser {
         val lower = text.lowercase()
         val nameEnd = """(?=\s+(?:using|via|through|with|by|on|at|in|for|from|to|yesterday|today|last|\d)\b|\s*[.,!]|$)"""
         val patterns = listOf(
-            Regex("""\b(?:lent|gave|given|sent|paid|lend)\b.*?\bto\s+([a-z][a-z ]*?)$nameEnd"""),
+            Regex("""\b(?:lent|gave|given|sent|paid|lend|handed|transfer|transferred)\b.*?\bto\s+([a-z][a-z ]*?)$nameEnd"""),
             Regex("""\b(?:borrowed|took|taken|received|got|borrow)\b.*?\bfrom\s+([a-z][a-z ]*?)$nameEnd"""),
+            Regex("""\b(?:for|handed for|to|handed to)\s+([a-z][a-z ]*?)$nameEnd"""),
             Regex("""\b(?:lent|gave|lend)\s+([a-z][a-z]*)\s+\d""")
         )
         for (p in patterns) {
             val name = p.find(lower)?.groupValues?.get(1)?.trim().orEmpty()
-                .replace(Regex("""^(?:my|the)\s+"""), "")
+                .replace(Regex("""^(?:my|the|landlord|friend|bro|brother|uncle|aunty|\s+)+""", RegexOption.IGNORE_CASE), "")
             if (name.isNotBlank()) {
                 return name.split(' ').filter { it.isNotBlank() }
                     .joinToString(" ") { w -> w.replaceFirstChar { it.uppercaseChar() } }

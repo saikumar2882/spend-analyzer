@@ -94,9 +94,10 @@ object AppModule {
         spendDao: SpendDao,
         recurringBillDao: RecurringBillDao,
         chatDao: ChatDao,
-        notesDao: NotesDao
+        notesDao: NotesDao,
+        aiPreferencesRepository: AiPreferencesRepository
     ): SpendRepository {
-        return SpendRepository(spendDao, recurringBillDao, chatDao, notesDao)
+        return SpendRepository(spendDao, recurringBillDao, chatDao, notesDao, aiPreferencesRepository)
     }
 
     @Provides

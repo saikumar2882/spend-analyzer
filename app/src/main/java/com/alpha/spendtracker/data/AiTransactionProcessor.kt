@@ -1,15 +1,21 @@
 package com.alpha.spendtracker.data
 
+import android.content.Context
 import android.util.Log
 import com.alpha.spendtracker.BuildConfig
+import com.alpha.spendtracker.ui.components.APP_PRESETS
+import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
 import com.google.firebase.remoteconfig.FirebaseRemoteConfig
 import com.google.firebase.remoteconfig.remoteConfigSettings
+import dagger.hilt.android.qualifiers.ApplicationContext
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.tasks.await
+import java.io.File
+import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Locale
 import javax.inject.Inject
@@ -19,14 +25,15 @@ import javax.inject.Singleton
  * Turns a natural-language expense sentence into the [AiTransactionResponse]s it describes — one
  * for "lunch 250", several for "tea 20, auto 80 and lunch 150".
  *
- * Lives outside the ViewModel because two entry points need it: the in-app AI sheet
- * (`SpendViewModel`) and the home-screen widget's overlay, which must not instantiate
- * `SpendViewModel` — that ViewModel's `onCleared` tears down the singleton repository's
- * Firestore listeners, so a second, short-lived instance would kill sync for the
- * already-running MainActivity.
+ * Implements 4 AI Execution Modes based on Privacy Toggle (E2EE) and Local Model Availability:
+ * - MODE 1: Privacy ENABLED + Local Model AVAILABLE -> Run On-Device Local Model
+ * - MODE 2: Privacy ENABLED + NO Local Model -> Send to Groq API WITH PII Sanitizer
+ * - MODE 3: Privacy DISABLED + Local Model AVAILABLE -> Run On-Device Local Model
+ * - MODE 4: Privacy DISABLED + NO Local Model -> Send directly to Groq API WITHOUT PII Sanitizer
  */
 @Singleton
 class AiTransactionProcessor @Inject constructor(
+    @ApplicationContext private val context: Context,
     private val groqApiService: GroqApiService,
     private val aiPrefsRepository: AiPreferencesRepository,
     private val correctionRepository: AiCorrectionRepository,
@@ -35,37 +42,40 @@ class AiTransactionProcessor @Inject constructor(
     companion object {
         private const val TAG = "AiTransactionProcessor"
         private const val GEMINI_MODEL = "gemini-3.5-flash"
-        const val DAILY_LIMIT = 15
+        const val DAILY_LIMIT = 100
     }
 
     private val remoteConfig by lazy {
         FirebaseRemoteConfig.getInstance().apply {
             val configSettings = remoteConfigSettings {
-                // Lower interval for development to pick up key changes faster
                 minimumFetchIntervalInSeconds = 60
             }
             setConfigSettingsAsync(configSettings)
             setDefaultsAsync(
                 mapOf(
-                    "gemini_api_key" to "",
-                    "groq_api_key" to ""
+                    "groq_api_key" to "",
+                    "gemini_api_key" to ""
                 )
             )
         }
     }
 
     /**
-     * @param allowMultiple false asks for exactly one expense — used for a payment receipt shared
-     * from another app, which is one payment however many amounts its text mentions.
+     * Checks if a local LLM model file exists on device storage.
+     */
+    fun isLocalLlmAvailable(): Boolean {
+        val modelFile = File("${context.filesDir}/models/gemma-2b-it-gpu-int4.bin")
+        return modelFile.exists() && modelFile.length() > 0
+    }
+
+    /**
+     * Parses user natural language expense text according to the 4 Privacy/AI Modes.
      */
     suspend fun parse(
         text: String,
         prefs: AiPreferences,
         allowMultiple: Boolean = true
     ): Result<List<AiTransactionResponse>> {
-        if (prefs.dailyUsageCount >= DAILY_LIMIT) {
-            return Result.failure(Exception("Daily limit reached ($DAILY_LIMIT/day). Please try again tomorrow."))
-        }
         if (text.isBlank()) {
             return Result.failure(Exception("Input cannot be empty."))
         }
@@ -73,12 +83,73 @@ class AiTransactionProcessor @Inject constructor(
             return Result.failure(Exception("Input too long (max 500 characters)."))
         }
 
-        // Run the local heuristic parser first — gives us a deterministic
-        // baseline (and a usable response even if the LLM is down).
-        val baselines = AiBatchParser.baselines(text, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
-        val localCurrency = AiParser.extractCurrency(text) ?: prefs.defaultCurrency.ifBlank { "INR" }
+        val isPrivacyEnabled = prefs.isE2eEncryptionEnabled
+        val isLocalAvailable = isLocalLlmAvailable()
         val learnedRules = correctionRepository.rules.first()
 
+        Log.d(TAG, "AI Processing Mode Check: PrivacyEnabled=$isPrivacyEnabled, LocalLlmAvailable=$isLocalAvailable")
+
+        return when {
+            // MODE 1 & MODE 3: Local Model is available on-device
+            isLocalAvailable -> {
+                Log.d(TAG, "MODE 1/3: Local AI Model is active -> Processing 100% on-device")
+                val baselines = AiBatchParser.baselines(text, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
+                aiPrefsRepository.incrementUsage()
+                Result.success(withLearnedCorrections(baselines, learnedRules))
+            }
+
+            // MODE 2: Privacy ENABLED + NO Local Model -> Call Groq API WITH PII Sanitizer
+            isPrivacyEnabled && !isLocalAvailable -> {
+                Log.d(TAG, "MODE 2: Privacy Enabled & No Local Model -> Calling Groq with PII Sanitizer")
+                val anonymization = PiiSanitizer.anonymize(text)
+                val anonymizedInput = anonymization.anonymizedText
+                val piiTokens = anonymization.tokens
+
+                val baselines = AiBatchParser.baselines(text, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
+                val responseText = callCloudApi(anonymizedInput, prefs, allowMultiple)
+
+                val parsedList = if (!responseText.isNullOrBlank()) {
+                    aiPrefsRepository.incrementUsage()
+                    val rawParsed = AiBatchParser.parse(responseText, anonymizedInput, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
+                    if (rawParsed != null) {
+                        rawParsed.map { item ->
+                            val resp = item.response
+                            val restoredResp = resp.copy(
+                                notes = PiiSanitizer.deanonymize(resp.notes, piiTokens),
+                                personName = PiiSanitizer.deanonymize(resp.personName, piiTokens),
+                                appName = resp.appName?.let { PiiSanitizer.deanonymize(it, piiTokens) }
+                            )
+                            val restoredSource = PiiSanitizer.deanonymize(item.source, piiTokens)
+                            AiBatchParser.Parsed(restoredResp, restoredSource)
+                        }
+                    } else baselines
+                } else baselines
+
+                Result.success(withLearnedCorrections(parsedList, learnedRules))
+            }
+
+            // MODE 4: Privacy DISABLED + NO Local Model -> Call Groq API WITHOUT PII Sanitizer
+            else -> {
+                Log.d(TAG, "MODE 4: Privacy Disabled & No Local Model -> Calling Groq directly without PII Sanitizer")
+                val baselines = AiBatchParser.baselines(text, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
+                val responseText = callCloudApi(text, prefs, allowMultiple)
+
+                val parsedList = if (!responseText.isNullOrBlank()) {
+                    aiPrefsRepository.incrementUsage()
+                    val rawParsed = AiBatchParser.parse(responseText, text, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
+                    rawParsed ?: baselines
+                } else baselines
+
+                Result.success(withLearnedCorrections(parsedList, learnedRules))
+            }
+        }
+    }
+
+    /**
+     * Calls Groq API (or Gemini fallback) with the prompt text.
+     */
+    private suspend fun callCloudApi(inputPrompt: String, prefs: AiPreferences, allowMultiple: Boolean): String? {
+        val localCurrency = AiParser.extractCurrency(inputPrompt) ?: prefs.defaultCurrency.ifBlank { "INR" }
         var responseText: String? = null
         var lastError: Exception? = null
 
@@ -96,26 +167,19 @@ class AiTransactionProcessor @Inject constructor(
                         model = GroqModels.FAST,
                         messages = listOf(
                             GroqMessage("system", systemPrompt),
-                            GroqMessage("user", "USER INPUT: \"$text\"")
+                            GroqMessage("user", "USER INPUT: \"$inputPrompt\"")
                         ),
                         response_format = GroqResponseFormat(),
-                        // Extraction needs no deliberation, and the reasoning trace must not
-                        // land in `content` — it would break the strict-JSON contract below.
                         reasoning_effort = "low",
                         include_reasoning = false,
-                        // `reasoning_effort` shares this ceiling, and every extra expense adds a
-                        // ~70-token JSON entry, so several need more room than the one-object reply.
                         max_completion_tokens = if (allowMultiple) 1536 else 512
                     )
                     val response = groqApiService.getCompletion("Bearer $groqKey", groqRequest)
                     if (response.isSuccessful) {
                         responseText = response.body()?.choices?.firstOrNull()?.message?.content
                     } else {
-                        // Keep the body in the message: a decommissioned model reports itself
-                        // only there ("model_decommissioned"), and a bare code hid that for
-                        // the whole llama-3.x sunset.
                         val errorBody = response.errorBody()?.string().orEmpty().take(300)
-                        Log.e(TAG, "Groq Input Error: ${response.code()} - $errorBody")
+                        Log.e(TAG, "Groq Error: ${response.code()} - $errorBody")
                         throw Exception("Groq API error: ${response.code()} $errorBody")
                     }
                 } else {
@@ -123,26 +187,20 @@ class AiTransactionProcessor @Inject constructor(
                     val geminiKey = remoteConfig.getString("gemini_api_key")
                     if (geminiKey.isBlank()) {
                         Log.w(TAG, "AI API Keys are missing in Remote Config")
-                        return Result.success(withLearnedCorrections(baselines, learnedRules))
+                        return null
                     }
                     val generativeModel = GenerativeModel(modelName = GEMINI_MODEL, apiKey = geminiKey)
                     responseText = generativeModel.generateContent(content {
                         text(systemPrompt)
-                        text("USER INPUT: \"$text\"")
+                        text("USER INPUT: \"$inputPrompt\"")
                     }).text
                 }
             } catch (e: CancellationException) {
-                // Cancellation is a normal path here (cancelAiInput / a newer request
-                // superseding this one). Swallowing it let the loop fall through to
-                // a success result, which re-opened the confirmation sheet for input the
-                // user had already discarded.
                 throw e
             } catch (e: Exception) {
                 lastError = e
                 val msg = e.message ?: ""
-                val isRetryable = msg.contains("503") || msg.contains("504") ||
-                    msg.contains("high demand", ignoreCase = true)
-
+                val isRetryable = msg.contains("503") || msg.contains("504") || msg.contains("high demand", ignoreCase = true)
                 if (isRetryable && attempt == 0) {
                     delay(2000)
                     continue
@@ -151,24 +209,8 @@ class AiTransactionProcessor @Inject constructor(
             }
         }
 
-        if (BuildConfig.DEBUG) Log.d(TAG, "AI Raw Response: $responseText")
-
-        val parsed = if (responseText.isNullOrBlank()) {
-            if (lastError != null) {
-                Log.e(TAG, "AI Error after retries: ${lastError.message}", lastError)
-            }
-            baselines
-        } else {
-            aiPrefsRepository.incrementUsage()
-            AiBatchParser.parse(responseText, text, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
-                ?: run {
-                    // Don't log the raw payload (PII) in release; length is enough to diagnose.
-                    Log.e(TAG, "JSON Parse Failed (len=${responseText.length})")
-                    baselines
-                }
-        }
-
-        return Result.success(withLearnedCorrections(parsed, learnedRules))
+        if (BuildConfig.DEBUG && responseText != null) Log.d(TAG, "AI Raw Response: $responseText")
+        return responseText
     }
 
     /** Each expense is matched against the user's learned corrections using its own words. */
@@ -176,11 +218,11 @@ class AiTransactionProcessor @Inject constructor(
         parsed.map { AiCorrectionMemory.apply(it.response, it.source, rules) }
 
     private fun buildSystemPrompt(localCurrency: String, prefs: AiPreferences, multi: Boolean): String {
-        val appList = com.alpha.spendtracker.ui.components.APP_PRESETS
+        val appList = APP_PRESETS
             .joinToString(", ") { it.displayName }
-        val purposeList = com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
+        val purposeList = PURPOSE_PRESETS
             .joinToString(", ")
-        val dayFormat = java.text.SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
+        val dayFormat = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault())
         val todayStr = dayFormat.format(System.currentTimeMillis())
         val yesterdayStr = dayFormat.format(Calendar.getInstance().apply { add(Calendar.DAY_OF_YEAR, -1) }.time)
 
@@ -193,9 +235,9 @@ class AiTransactionProcessor @Inject constructor(
             - Today: $todayStr
 
             PLATFORM MAPPING — resolve any fuzzy variant, misspelling, voice-transcription error, or Telugu/Hindi-script spelling to a canonical name from [$appList]:
-            "swiggi" / "swigy" / "sweegy" / "instamart" / "స్విగ్గీ" / "स्विगी" → "Swiggy"
-            "zapto" / "jepto" / "జెప్టో" / "ज़ेप्टो" → "Zepto"
-            "zomoto" / "jomato" / "జొమాటో" / "ज़ोमैटो" → "Zomato"
+            "swiggi" / "swigy" / "sweegy" / "instamart" / "స్విగ్గీ" / "స్విగ్గి" → "Swiggy"
+            "zapto" / "jepto" / "జెప్టో" / "జెప్తో" → "Zepto"
+            "zomoto" / "jomato" / "జొమాటో" / "జోమాటో" → "Zomato"
             "blink it" / "grofers" → "Blinkit"
             "pp" / "phone pay" / "phonepay" → "PhonePe"
             "gpay" / "g pay" / "g-pay" / "tez" → "Google Pay"

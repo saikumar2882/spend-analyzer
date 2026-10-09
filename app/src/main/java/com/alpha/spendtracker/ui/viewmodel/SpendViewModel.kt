@@ -856,6 +856,16 @@ class SpendViewModel @Inject constructor(
         }
     }
 
+    fun updateE2eEncryptionEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateE2eEncryption(enabled)
+            val uid = _userId.value
+            if (uid.isNotBlank()) {
+                repository.reSyncAllToFirestore(uid, enabled)
+            }
+        }
+    }
+
     /** Records that the one-time app-lock enable prompt has been shown. */
     fun setBiometricPrompted() {
         viewModelScope.launch {

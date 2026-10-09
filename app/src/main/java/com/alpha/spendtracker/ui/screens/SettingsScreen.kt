@@ -73,6 +73,7 @@ fun SettingsScreen(
     onShowNotification: (String, NotificationType) -> Unit,
     onUpdateAiPreferences: (String, String, String) -> Unit,
     onToggleBiometrics: (Boolean) -> Unit,
+    onToggleE2eEncryption: (Boolean) -> Unit = {},
     onAiAssistantClick: () -> Unit,
     onRecurringBillsClick: () -> Unit,
     onNotesClick: () -> Unit,
@@ -462,6 +463,19 @@ fun SettingsScreen(
                             trailing = {
                                 Switch(
                                     checked = aiPreferences.isBiometricEnabled,
+                                    onCheckedChange = null
+                                )
+                            }
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = Icons.Rounded.Password,
+                            title = "End-to-End Cloud Privacy",
+                            subtitle = if (aiPreferences.isE2eEncryptionEnabled) "Client-side AES-256 encryption enabled for cloud sync" else "Data synced normally (Click to enable E2EE)",
+                            onClick = { onToggleE2eEncryption(!aiPreferences.isE2eEncryptionEnabled) },
+                            trailing = {
+                                Switch(
+                                    checked = aiPreferences.isE2eEncryptionEnabled,
                                     onCheckedChange = null
                                 )
                             }

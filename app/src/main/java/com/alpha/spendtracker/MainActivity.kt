@@ -1586,6 +1586,7 @@ LaunchedEffect(Unit) {
                                 onUpdateAiPreferences = viewModel::updateAiPreferences,
                                 onUpdateMonthlyBudget = viewModel::updateMonthlyBudget,
                                 onToggleBiometrics = viewModel::updateBiometricEnabled,
+                                onToggleE2eEncryption = viewModel::updateE2eEncryptionEnabled,
                                 onAiAssistantClick = { showAiHistoryAssistant = true },
                                 onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
                                 onNotesClick = { goToMajor(ActiveView.NOTES) },
