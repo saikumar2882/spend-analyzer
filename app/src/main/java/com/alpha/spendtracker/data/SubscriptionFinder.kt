@@ -45,7 +45,10 @@ object SubscriptionFinder {
     private val EXCLUDED_PURPOSES = setOf("lending", "borrowing")
 
     // Purposes where two named payments a month apart are already a convincing signal.
-    private val BILL_PURPOSES = setOf("subscription & leisure", "rent & utilities", "credit card bill")
+    private val BILL_PURPOSES = setOf(
+        "subscription & leisure", "rent & utilities", "credit card bill",
+        "bills & utilities", "entertainment", "emi & cards", "subscriptions", "utilities"
+    )
 
     // Month names get stripped so "Netflix Sep" and "Netflix Oct" land in the same group.
     private val MONTH_TOKENS = setOf(

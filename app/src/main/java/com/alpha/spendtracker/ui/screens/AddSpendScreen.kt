@@ -80,6 +80,7 @@ import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.APP_PRESETS
 import com.alpha.spendtracker.ui.components.AppIconImage
 import com.alpha.spendtracker.ui.components.AppPreset
+import com.alpha.spendtracker.ui.components.CategorySelectionGrid
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 import com.alpha.spendtracker.ui.components.PresetGridCard
@@ -302,11 +303,11 @@ fun AddSpendScreen(
             }
 
             item {
-                Column(verticalArrangement = Arrangement.spacedBy(4.dp)) {
+                Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
                     SectionTitle(stringResource(R.string.category))
-                    PurposePresetGrid(
-                        selected = purposeInput,
-                        onSelect = { purposeInput = it }
+                    CategorySelectionGrid(
+                        selectedCategory = purposeInput,
+                        onCategorySelected = { purposeInput = it }
                     )
                 }
             }
@@ -621,59 +622,6 @@ private fun RowScope.DateChip(
     }
 }
 
-@Composable
-private fun PurposePresetGrid(
-    selected: String,
-    onSelect: (String) -> Unit
-) {
-    val items = PURPOSE_PRESETS
-
-    Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
-        items.chunked(3).forEach { chunk ->
-            Row(
-                horizontalArrangement = Arrangement.spacedBy(6.dp),
-                modifier = Modifier.fillMaxWidth()
-            ) {
-                chunk.forEach { purpose ->
-                    val isSelected = selected.equals(purpose, ignoreCase = true)
-                    val isBorrowing = purpose.equals("Borrowing", ignoreCase = true)
-
-                    val activeBg = if (isBorrowing) MaterialTheme.colorScheme.error
-                                   else MaterialTheme.colorScheme.secondary
-                    val activeFg = if (isBorrowing) MaterialTheme.colorScheme.onError
-                                   else MaterialTheme.colorScheme.onSecondary
-
-                    Box(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(34.dp)
-                            .clip(RoundedCornerShape(8.dp))
-                            .background(if (isSelected) activeBg else MaterialTheme.colorScheme.surfaceContainer)
-                            .clickable { onSelect(purpose) },
-                        contentAlignment = Alignment.Center
-                    ) {
-                        Text(
-                            text = getLocalizedPresetName(purpose),
-                            style = MaterialTheme.typography.labelMedium.copy(
-                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                                fontSize = 11.sp
-                            ),
-                            color = if (isSelected) activeFg else MaterialTheme.colorScheme.onSurfaceVariant,
-                            textAlign = TextAlign.Center,
-                            maxLines = 1,
-                            overflow = TextOverflow.Ellipsis,
-                            modifier = Modifier.padding(horizontal = 4.dp)
-                        )
-                    }
-                }
-                repeat(3 - chunk.size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
-        }
-    }
-}
-
 private fun formatPlainAmount(amount: Double): String {
     return if (amount % 1.0 == 0.0) {
         amount.toLong().toString()
@@ -684,7 +632,8 @@ private fun formatPlainAmount(amount: Double): String {
 
 private fun suggestedPurposeFor(preset: AppPreset, current: String): String =
     when (preset.id) {
-        "swiggy", "zomato", "zepto", "blinkit" -> "Groceries & Food"
+        "swiggy", "zomato" -> "Food & Drinks"
+        "zepto", "blinkit" -> "Groceries"
         "amazon", "flipkart", "myntra", "ajio" -> "Shopping & Apparels"
         "icici", "yono_sbi" -> "Banking & Cards"
         else -> current

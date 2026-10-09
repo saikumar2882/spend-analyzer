@@ -96,9 +96,9 @@ class AiBatchTest {
         val text = "tea 20 via phonepe, auto 80, lunch 150 on swiggy"
         val json = """
             {"transactions": [
-              {"src": "tea 20 via phonepe", "amount": 20, "appName": "Google Pay", "purpose": "Groceries & Food", "notes": "Tea", "personName": "", "date": "2026-10-01", "needsAmount": false},
+              {"src": "tea 20 via phonepe", "amount": 20, "appName": "Google Pay", "purpose": "Food & Drinks", "notes": "Tea", "personName": "", "date": "2026-10-01", "needsAmount": false},
               {"src": "auto 80", "amount": 80, "appName": "", "purpose": "Travel & Commute", "notes": "Auto", "personName": "", "date": "2026-10-01", "needsAmount": false},
-              {"src": "lunch 150 on swiggy", "amount": 150, "appName": "Swiggy", "purpose": "Groceries & Food", "notes": "Lunch", "personName": "", "date": "2026-10-01", "needsAmount": false}
+              {"src": "lunch 150 on swiggy", "amount": 150, "appName": "Swiggy", "purpose": "Food & Drinks", "notes": "Lunch", "personName": "", "date": "2026-10-01", "needsAmount": false}
             ]}
         """.trimIndent()
         val out = parse(json, text, defaultApp = "Paytm")!!
@@ -106,7 +106,7 @@ class AiBatchTest {
         // The model said Google Pay for the tea, but the user's own words in that entry say PhonePe.
         // The auto names nothing, so it falls to the default; the lunch keeps Swiggy.
         assertEquals(listOf("PhonePe", "Paytm", "Swiggy"), out.map { it.response.appName })
-        assertEquals(listOf("Groceries & Food", "Travel & Commute", "Groceries & Food"), out.map { it.response.purpose })
+        assertEquals(listOf("Food & Drinks", "Travel & Commute", "Food & Drinks"), out.map { it.response.purpose })
         assertEquals(listOf("Tea", "Auto", "Lunch"), out.map { it.response.notes })
         assertEquals("auto 80", out[1].source)
         out.forEach { assertNotNull(it.response.timestamp) }
@@ -116,7 +116,7 @@ class AiBatchTest {
     fun theModelsReflexGooglePayIsOnlyBelievedWhenTheUserSaidIt() {
         val text = "tea 20, auto 80"
         val json = """{"transactions": [
-            {"src": "tea 20", "amount": 20, "appName": "Google Pay", "purpose": "Groceries & Food", "notes": "Tea", "date": "2026-10-01"},
+            {"src": "tea 20", "amount": 20, "appName": "Google Pay", "purpose": "Food & Drinks", "notes": "Tea", "date": "2026-10-01"},
             {"src": "auto 80", "amount": 80, "appName": "Google Pay", "purpose": "Travel & Commute", "notes": "Auto", "date": "2026-10-01"}
         ]}"""
         assertEquals(listOf("PhonePe", "PhonePe"), parse(json, text, defaultApp = "PhonePe")!!.map { it.response.appName })
@@ -129,7 +129,7 @@ class AiBatchTest {
 
     @Test
     fun theOlderFlatSingleObjectStillWorks() {
-        val json = """{"amount": 250, "appName": "Zepto", "purpose": "Groceries & Food", "notes": "Milk", "personName": "", "date": "2026-10-01", "needsAmount": false}"""
+        val json = """{"amount": 250, "appName": "Zepto", "purpose": "Groceries", "notes": "Milk", "personName": "", "date": "2026-10-01", "needsAmount": false}"""
         val out = parse(json, "250 milk from zepto")!!
         assertEquals(1, out.size)
         assertEquals(250.0, out.single().response.amount)
@@ -159,7 +159,7 @@ class AiBatchTest {
     @Test
     fun entriesWithoutAnAmountAreDroppedFromABatch() {
         val json = """{"transactions": [
-            {"src": "tea 20", "amount": 20, "purpose": "Groceries & Food", "notes": "Tea", "date": "2026-10-01"},
+            {"src": "tea 20", "amount": 20, "purpose": "Food & Drinks", "notes": "Tea", "date": "2026-10-01"},
             {"src": "something", "amount": null, "purpose": "Others", "notes": "", "date": "2026-10-01"}
         ]}"""
         assertEquals(listOf(20.0), parse(json, "tea 20 and something")!!.map { it.response.amount })
@@ -199,7 +199,7 @@ class AiBatchTest {
     fun resultsSurviveTheIntentRoundTrip() {
         val results = listOf(
             AiTransactionResponse(
-                amount = 20.0, appName = "PhonePe", appPresetId = "phone_pe", purpose = "Groceries & Food",
+                amount = 20.0, appName = "PhonePe", appPresetId = "phone_pe", purpose = "Food & Drinks",
                 notes = "Tea", date = "2026-10-01", timestamp = 1_790_000_000_000L, learnedApp = true
             ),
             AiTransactionResponse(

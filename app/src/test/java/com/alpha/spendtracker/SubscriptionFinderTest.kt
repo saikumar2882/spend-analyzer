@@ -70,8 +70,8 @@ class SubscriptionFinderTest {
         assertTrue(find(unnamed).isEmpty())
 
         val groceries = listOf(
-            spend(at(2026, Calendar.AUGUST, 10), notes = "Milk", purpose = "Groceries & Food"),
-            spend(at(2026, Calendar.SEPTEMBER, 10), notes = "Milk", purpose = "Groceries & Food")
+            spend(at(2026, Calendar.AUGUST, 10), notes = "Milk", purpose = "Groceries"),
+            spend(at(2026, Calendar.SEPTEMBER, 10), notes = "Milk", purpose = "Groceries")
         )
         assertTrue(find(groceries).isEmpty())
     }

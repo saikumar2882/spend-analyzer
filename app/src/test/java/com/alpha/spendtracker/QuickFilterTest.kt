@@ -13,7 +13,7 @@ class QuickFilterTest {
         amount: Double = 100.0,
         appName: String = "Google Pay",
         category: String = "UPI Apps",
-        purpose: String = "Groceries & Food",
+        purpose: String = "Food & Drinks",
         notes: String = "",
         noteUuid: String = ""
     ) = Spend(
@@ -33,7 +33,7 @@ class QuickFilterTest {
 
     @Test
     fun testFoodFilter() {
-        val foodSpend1 = spend(purpose = "Groceries & Food")
+        val foodSpend1 = spend(purpose = "Food & Drinks")
         val foodSpend2 = spend(category = "Quick Commerce", appName = "Swiggy")
         val foodSpend3 = spend(purpose = "Others", notes = "Dinner with friends")
         val nonFoodSpend = spend(purpose = "Travel & Commute", appName = "Uber")
@@ -49,7 +49,7 @@ class QuickFilterTest {
         val shopSpend1 = spend(purpose = "Shopping & Apparels")
         val shopSpend2 = spend(category = "E-Commerce", appName = "Amazon")
         val shopSpend3 = spend(purpose = "Others", notes = "Bought a new dress")
-        val nonShopSpend = spend(purpose = "Groceries & Food", appName = "Blinkit")
+        val nonShopSpend = spend(purpose = "Food & Drinks", appName = "Blinkit")
 
         assertTrue(shopSpend1.matchesQuickFilter(QuickFilter.SHOPPING))
         assertTrue(shopSpend2.matchesQuickFilter(QuickFilter.SHOPPING))
@@ -62,7 +62,7 @@ class QuickFilterTest {
         val travelSpend1 = spend(purpose = "Travel & Commute")
         val travelSpend2 = spend(appName = "Uber", notes = "Cab ride to office")
         val travelSpend3 = spend(notes = "Flight booking to Mumbai")
-        val nonTravelSpend = spend(purpose = "Groceries & Food", appName = "Zomato")
+        val nonTravelSpend = spend(purpose = "Food & Drinks", appName = "Zomato")
 
         assertTrue(travelSpend1.matchesQuickFilter(QuickFilter.TRAVEL))
         assertTrue(travelSpend2.matchesQuickFilter(QuickFilter.TRAVEL))
@@ -75,7 +75,7 @@ class QuickFilterTest {
         val billSpend1 = spend(purpose = "Rent & Utilities")
         val billSpend2 = spend(notes = "Electricity bill payment")
         val billSpend3 = spend(noteUuid = "note-uuid-123")
-        val nonBillSpend = spend(purpose = "Groceries & Food", notes = "Tea and snacks")
+        val nonBillSpend = spend(purpose = "Food & Drinks", notes = "Tea and snacks")
 
         assertTrue(billSpend1.matchesQuickFilter(QuickFilter.BILLS))
         assertTrue(billSpend2.matchesQuickFilter(QuickFilter.BILLS))
@@ -99,7 +99,7 @@ class QuickFilterTest {
         val ccSpend1 = spend(category = "Banking & Cards")
         val ccSpend2 = spend(purpose = "Credit Card Bill")
         val ccSpend3 = spend(appName = "Cred", notes = "HDFC Card Bill")
-        val nonCcSpend = spend(category = "UPI Apps", purpose = "Groceries & Food")
+        val nonCcSpend = spend(category = "UPI Apps", purpose = "Food & Drinks")
 
         assertTrue(ccSpend1.matchesQuickFilter(QuickFilter.CREDIT_CARDS))
         assertTrue(ccSpend2.matchesQuickFilter(QuickFilter.CREDIT_CARDS))

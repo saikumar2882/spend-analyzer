@@ -82,10 +82,11 @@ fun RecurringBillsScreen(
     val mainTabs = remember { listOf("Bills & Subscriptions", "Credit Cards") }
 
     val displayedBills = remember(bills, selectedTab) {
+        val validBills = bills.filter { !it.deleted && (it.name.isNotBlank() || it.amount > 0 || it.appName.isNotBlank() || it.cardLast4.isNotBlank()) }
         if (selectedTab == 1) {
-            bills.filter { it.isCreditCardBill }
+            validBills.filter { it.isCreditCardBill }
         } else {
-            bills.filter { !it.isCreditCardBill }
+            validBills.filter { !it.isCreditCardBill }
         }
     }
 
@@ -357,6 +358,11 @@ fun RecurringBillItem(
                 .padding(horizontal = Spacing.sm, vertical = Spacing.md),
             verticalAlignment = Alignment.CenterVertically
         ) {
+            val displayName = bill.name.ifBlank {
+                if (bill.isCreditCardBill && bill.cardLast4.isNotBlank()) "Card ending in ${bill.cardLast4}"
+                else bill.appName.ifBlank { bill.purpose.ifBlank { "Recurring Bill" } }
+            }
+
             if (bill.isCreditCardBill) {
                 Box(
                     modifier = Modifier
@@ -373,7 +379,7 @@ fun RecurringBillItem(
                 }
             } else {
                 AppIconImage(
-                    appName = bill.appName,
+                    appName = bill.appName.ifBlank { displayName },
                     fallbackColor = accent,
                     modifier = Modifier.size(38.dp)
                 )
@@ -388,7 +394,7 @@ fun RecurringBillItem(
                     horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
                     Text(
-                        text = bill.name,
+                        text = getLocalizedPresetName(displayName),
                         style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
                         color = MaterialTheme.colorScheme.onSurface,
                         maxLines = 1,
@@ -623,10 +629,15 @@ fun BillEditDialog(
             "Credit Card Bill",
             "Rent & Utilities",
             "Subscription & Leisure",
-            "Groceries & Food",
+            "Food & Drinks",
+            "Groceries",
             "Shopping & Apparels",
+            "Fuel",
             "Travel & Commute",
             "Healthcare & Medical",
+            "Investment",
+            "Lending",
+            "Borrowing",
             "Others"
         )
     }
@@ -944,9 +955,16 @@ fun BillEditDialog(
                     val isCard = isCreditCardMode || purpose.contains("Credit Card", ignoreCase = true) || cardLast4.isNotBlank() || defaultIsCreditCard
                     val category = if (isCard) "Credit Card" else (APP_PRESETS.find { it.displayName == appName }?.category ?: "Other")
                     val finalPurpose = if (isCard) "Credit Card Bill" else purpose
-                    onSave(name, finalPurpose, category, appName, a, d, notes, isCard, cardLast4, untilDate, frequency.name)
+                    val finalName = name.trim().ifBlank {
+                        if (isCard) {
+                            if (cardLast4.isNotBlank()) "Card ending in $cardLast4" else "Credit Card"
+                        } else {
+                            appName.ifBlank { finalPurpose.ifBlank { "Recurring Bill" } }
+                        }
+                    }
+                    onSave(finalName, finalPurpose, category, appName, a, d, notes, isCard, cardLast4, untilDate, frequency.name)
                 },
-                enabled = name.isNotBlank() && day.isNotBlank()
+                enabled = day.isNotBlank() && (name.isNotBlank() || appName.isNotBlank() || cardLast4.isNotBlank())
             ) {
                 Text(stringResource(R.string.save))
             }

@@ -26,7 +26,8 @@ data class AiPreferences(
     val monthlyBudget: Double = 0.0,
     val isDynamicColorEnabled: Boolean = false,
     val isOledBlackEnabled: Boolean = false,
-    val isE2eEncryptionEnabled: Boolean = false
+    val isE2eEncryptionEnabled: Boolean = false,
+    val hasAcceptedPrivacyPolicy: Boolean = false
 )
 
 class AiPreferencesRepository(private val context: Context) {
@@ -46,6 +47,7 @@ class AiPreferencesRepository(private val context: Context) {
         val IS_DYNAMIC_COLOR_ENABLED = booleanPreferencesKey("is_dynamic_color_enabled")
         val IS_OLED_BLACK_ENABLED = booleanPreferencesKey("is_oled_black_enabled")
         val IS_E2E_ENCRYPTION_ENABLED = booleanPreferencesKey("is_e2e_encryption_enabled")
+        val HAS_ACCEPTED_PRIVACY_POLICY = booleanPreferencesKey("has_accepted_privacy_policy")
     }
 
     val aiPreferencesFlow: Flow<AiPreferences> = context.dataStore.data
@@ -71,7 +73,8 @@ class AiPreferencesRepository(private val context: Context) {
                 monthlyBudget = preferences[PreferencesKeys.MONTHLY_BUDGET] ?: 0.0,
                 isDynamicColorEnabled = preferences[PreferencesKeys.IS_DYNAMIC_COLOR_ENABLED] ?: false,
                 isOledBlackEnabled = preferences[PreferencesKeys.IS_OLED_BLACK_ENABLED] ?: false,
-                isE2eEncryptionEnabled = preferences[PreferencesKeys.IS_E2E_ENCRYPTION_ENABLED] ?: false
+                isE2eEncryptionEnabled = preferences[PreferencesKeys.IS_E2E_ENCRYPTION_ENABLED] ?: false,
+                hasAcceptedPrivacyPolicy = preferences[PreferencesKeys.HAS_ACCEPTED_PRIVACY_POLICY] ?: false
             )
         }
 
@@ -131,6 +134,12 @@ class AiPreferencesRepository(private val context: Context) {
     suspend fun updateE2eEncryption(enabled: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.IS_E2E_ENCRYPTION_ENABLED] = enabled
+        }
+    }
+
+    suspend fun updatePrivacyPolicyAccepted(accepted: Boolean) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.HAS_ACCEPTED_PRIVACY_POLICY] = accepted
         }
     }
 

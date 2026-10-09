@@ -103,13 +103,16 @@ object HistoryQuery {
      * here; they are [DuesMode].
      */
     internal val PURPOSE_WORDS: List<Pair<String, Regex>> = listOf(
-        "Groceries & Food" to Regex("""\b(?:foods?|groceries|grocery|dining|restaurants?|meals?|snacks?)\b"""),
+        "Food & Drinks" to Regex("""\b(?:foods?|dining|restaurants?|meals?|snacks?)\b"""),
+        "Groceries" to Regex("""\b(?:groceries|grocery|supermarket|kirana)\b"""),
         "Shopping & Apparels" to Regex("""\b(?:shopping|apparels?|clothes|clothing|fashion)\b"""),
         "Credit Card Bill" to Regex("""\bcredit\s*cards?\b"""),
         "Rent & Utilities" to Regex("""\b(?:rent|utilit(?:y|ies)|electricity)\b"""),
+        "Fuel" to Regex("""\b(?:fuel|petrol|diesel|cng)\b"""),
         "Travel & Commute" to Regex("""\b(?:travel|travelling|traveling|commute|commuting|transport)\b"""),
         "Subscription & Leisure" to Regex("""\b(?:subscriptions?|leisure|entertainment)\b"""),
-        "Healthcare & Medical" to Regex("""\b(?:health|healthcare|medical|medicines?|hospital|doctor)\b""")
+        "Healthcare & Medical" to Regex("""\b(?:health|healthcare|medical|medicines?|hospital|doctor)\b"""),
+        "Investment" to Regex("""\b(?:investments?|investing|stocks?|mutual\s*funds?|sip|shares?)\b""")
     )
 
     fun parseScope(

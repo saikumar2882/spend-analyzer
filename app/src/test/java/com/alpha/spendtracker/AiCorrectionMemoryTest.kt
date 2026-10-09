@@ -39,12 +39,12 @@ class AiCorrectionMemoryTest {
 
     @Test
     fun purposeCorrectionNeedsTwoHits() {
-        val once = teach(emptyList(), "Chai", purpose = "Groceries & Food")
+        val once = teach(emptyList(), "Chai", purpose = "Food & Drinks")
         assertEquals("Others", AiCorrectionMemory.apply(gpayGuess, "chai 60", once).purpose)
 
-        val twice = teach(once, "Chai", purpose = "Groceries & Food", now = 2L)
+        val twice = teach(once, "Chai", purpose = "Food & Drinks", now = 2L)
         val out = AiCorrectionMemory.apply(gpayGuess, "chai 60", twice)
-        assertEquals("Groceries & Food", out.purpose)
+        assertEquals("Food & Drinks", out.purpose)
         assertTrue(out.learnedPurpose)
     }
 
@@ -57,9 +57,9 @@ class AiCorrectionMemoryTest {
     @Test
     fun changingTheCorrectionRestartsItsCount() {
         val rules = teach(teach(emptyList(), "Chai", purpose = "Others"), "Chai", purpose = "Others", now = 2L)
-        val changed = teach(rules, "Chai", purpose = "Groceries & Food", now = 3L)
+        val changed = teach(rules, "Chai", purpose = "Food & Drinks", now = 3L)
         assertEquals(1, changed.single().purposeHits)
-        assertEquals("Groceries & Food", changed.single().purpose)
+        assertEquals("Food & Drinks", changed.single().purpose)
     }
 
     @Test

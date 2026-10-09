@@ -866,6 +866,12 @@ class SpendViewModel @Inject constructor(
         }
     }
 
+    fun setPrivacyPolicyAccepted(accepted: Boolean) {
+        viewModelScope.launch {
+            aiPrefsRepository.updatePrivacyPolicyAccepted(accepted)
+        }
+    }
+
     /** Records that the one-time app-lock enable prompt has been shown. */
     fun setBiometricPrompted() {
         viewModelScope.launch {

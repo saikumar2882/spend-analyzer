@@ -19,7 +19,7 @@ class SpendRecapTest {
 
     private fun spend(
         amount: Double, time: Long, notes: String = "", app: String = "Google Pay",
-        purpose: String = "Groceries & Food", deleted: Boolean = false
+        purpose: String = "Food & Drinks", deleted: Boolean = false
     ) = Spend(uuid = "$amount-$time-$notes", amount = amount, timestamp = time, notes = notes,
         appName = app, purpose = purpose, deleted = deleted)
 

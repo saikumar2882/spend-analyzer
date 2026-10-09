@@ -367,7 +367,7 @@ private fun PurposeDropdown(
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
             PURPOSE_PRESETS.forEach { p ->
                 DropdownMenuItem(
-                    text = { Text(p) },
+                    text = { CategoryDropdownItemContent(p) },
                     onClick = { onSelect(p); expanded = false }
                 )
             }

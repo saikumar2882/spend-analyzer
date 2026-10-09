@@ -28,6 +28,7 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 
 import com.alpha.spendtracker.util.EncryptionUtils
+import com.google.firebase.auth.FirebaseAuth
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
 
@@ -83,6 +84,9 @@ class SpendRepository(
      */
     fun startSync(userId: String, scope: CoroutineScope) {
         stopSync()
+        if (userId.isBlank() || userId == "anonymous" || FirebaseAuth.getInstance().currentUser == null) {
+            return
+        }
 
         val userDoc = firestore.collection("users").document(userId)
 
@@ -810,14 +814,20 @@ class SpendRepository(
         type: Class<T>,
         isE2E: Boolean
     ) {
-        val docRef = firestore.collection("users").document(userId).collection(collectionName).document(docId)
+        val currentUid = FirebaseAuth.getInstance().currentUser?.uid
+        if (currentUid.isNullOrBlank() || userId == "anonymous" || userId.isBlank()) {
+            // Local-only mode for unauthenticated or guest users — skip remote Firestore push
+            return
+        }
+        val targetUserId = if (currentUid != userId && currentUid.isNotBlank()) currentUid else userId
+        val docRef = firestore.collection("users").document(targetUserId).collection(collectionName).document(docId)
         if (isE2E) {
-            val key = EncryptionUtils.deriveKey(userId)
+            val key = EncryptionUtils.deriveKey(targetUserId)
             val json = moshi.adapter(type).toJson(item)
             val encryptedPayload = EncryptionUtils.encrypt(json, key)
             val payloadMap = mapOf(
                 "uuid" to docId,
-                "userId" to userId,
+                "userId" to targetUserId,
                 "encrypted" to true,
                 "encryptedPayload" to encryptedPayload,
                 "updatedAt" to System.currentTimeMillis()

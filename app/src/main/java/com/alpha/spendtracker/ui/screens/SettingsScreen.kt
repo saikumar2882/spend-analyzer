@@ -36,7 +36,9 @@ import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material.icons.rounded.Password
 import androidx.compose.material.icons.rounded.Share
+import androidx.compose.material.icons.rounded.Shield
 import androidx.compose.material.icons.rounded.Tune
+import com.alpha.spendtracker.ui.components.PrivacyPolicyDialog
 import androidx.compose.material.icons.rounded.Visibility
 import androidx.compose.material.icons.rounded.VisibilityOff
 import androidx.compose.material3.*
@@ -88,6 +90,7 @@ fun SettingsScreen(
     var showAiSettingsDialog by remember { mutableStateOf(false) }
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showBudgetEditorDialog by remember { mutableStateOf(false) }
+    var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
     val currentLocales = AppCompatDelegate.getApplicationLocales()
@@ -344,6 +347,14 @@ fun SettingsScreen(
         )
     }
 
+    if (showPrivacyPolicyDialog) {
+        PrivacyPolicyDialog(
+            isE2eEncryptionEnabled = aiPreferences.isE2eEncryptionEnabled,
+            onToggleE2eEncryption = onToggleE2eEncryption,
+            onDismiss = { showPrivacyPolicyDialog = false }
+        )
+    }
+
     Scaffold(
         topBar = {
             TopAppBar(
@@ -467,19 +478,6 @@ fun SettingsScreen(
                                 )
                             }
                         )
-                        SettingsDivider()
-                        SettingsRow(
-                            icon = Icons.Rounded.Password,
-                            title = "End-to-End Cloud Privacy",
-                            subtitle = if (aiPreferences.isE2eEncryptionEnabled) "Client-side AES-256 encryption enabled for cloud sync" else "Data synced normally (Click to enable E2EE)",
-                            onClick = { onToggleE2eEncryption(!aiPreferences.isE2eEncryptionEnabled) },
-                            trailing = {
-                                Switch(
-                                    checked = aiPreferences.isE2eEncryptionEnabled,
-                                    onCheckedChange = null
-                                )
-                            }
-                        )
                     }
                 }
             }
@@ -580,6 +578,13 @@ fun SettingsScreen(
                             title = stringResource(R.string.share_app_title),
                             subtitle = stringResource(R.string.share_app_subtitle),
                             onClick = onShareApp
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = Icons.Rounded.Shield,
+                            title = "Privacy Policy",
+                            subtitle = "Read policy & cloud privacy settings",
+                            onClick = { showPrivacyPolicyDialog = true }
                         )
                         SettingsDivider()
                         SettingsRow(

@@ -83,28 +83,34 @@ fun getPurposeColors(): Map<String, Color> {
     return remember(isDark) {
         if (isDark) {
             mapOf(
-                "Groceries & Food" to PurposeDark_Food,
+                "Food & Drinks" to PurposeDark_Food,
+                "Groceries" to PurposeDark_Food,
                 "Shopping & Apparels" to PurposeDark_Shopping,
                 "Lending" to PurposeDark_Lending,
                 "Borrowing" to PurposeDark_Borrowing,
                 "Credit Card Bill" to PurposeDark_CreditCard,
                 "Rent & Utilities" to PurposeDark_Utilities,
+                "Fuel" to PurposeDark_Travel,
                 "Travel & Commute" to PurposeDark_Travel,
                 "Subscription & Leisure" to PurposeDark_Leisure,
                 "Healthcare & Medical" to PurposeDark_Health,
+                "Investment" to PurposeDark_CreditCard,
                 "Others" to PurposeDark_Other
             )
         } else {
             mapOf(
-                "Groceries & Food" to PurposeLight_Food,
+                "Food & Drinks" to PurposeLight_Food,
+                "Groceries" to PurposeLight_Food,
                 "Shopping & Apparels" to PurposeLight_Shopping,
                 "Lending" to PurposeLight_Lending,
                 "Borrowing" to PurposeLight_Borrowing,
                 "Credit Card Bill" to PurposeLight_CreditCard,
                 "Rent & Utilities" to PurposeLight_Utilities,
+                "Fuel" to PurposeLight_Travel,
                 "Travel & Commute" to PurposeLight_Travel,
                 "Subscription & Leisure" to PurposeLight_Leisure,
                 "Healthcare & Medical" to PurposeLight_Health,
+                "Investment" to PurposeLight_CreditCard,
                 "Others" to PurposeLight_Other
             )
         }

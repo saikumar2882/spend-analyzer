@@ -47,17 +47,19 @@ object AiParser {
         }
 
     private val PURPOSE_KEYWORDS: Map<String, List<String>> = mapOf(
-        "Groceries & Food" to listOf(
+        "Food & Drinks" to listOf(
             "biryani", "pizza", "burger", "lunch", "dinner", "breakfast", "brunch",
             "snack", "snacks", "food", "meal", "coffee", "tea", "chai", "juice",
             "shake", "ice cream", "dessert", "sweet", "sweets", "restaurant", "cafe",
-            "bakery", "grocery", "groceries", "vegetable", "vegetables", "veggies",
-            "fruit", "fruits", "rice", "dal", "chicken", "mutton", "fish", "egg",
-            "eggs", "milk", "bread", "noodles", "pasta", "dosa", "idli", "samosa",
-            "paneer", "kebab", "kabab", "shawarma", "roll", "wrap", "thali", "curry",
-            "dinner", "supper", "kfc", "mcdonald", "mcdonalds", "dominos", "starbucks",
-            "subway", "zomato", "swiggy", "atta", "wheat", "oil", "sugar", "salt",
-            "groceries"
+            "bakery", "chicken", "mutton", "fish", "egg", "eggs", "noodles", "pasta",
+            "dosa", "idli", "samosa", "paneer", "kebab", "kabab", "shawarma", "roll",
+            "wrap", "thali", "curry", "supper", "kfc", "mcdonald", "mcdonalds",
+            "dominos", "starbucks", "subway", "zomato", "swiggy"
+        ),
+        "Groceries" to listOf(
+            "grocery", "groceries", "supermarket", "kirana", "vegetable", "vegetables",
+            "veggies", "fruit", "fruits", "rice", "dal", "milk", "bread", "atta", "wheat",
+            "oil", "sugar", "salt", "zepto", "blinkit", "instamart"
         ),
         "Shopping & Apparels" to listOf(
             "shirt", "tshirt", "t-shirt", "t shirt", "pant", "pants", "jeans", "dress",
@@ -66,11 +68,13 @@ object AiParser {
             "kurta", "kurti", "shorts", "jacket", "sweater", "hoodie", "tie", "belt",
             "cosmetic", "cosmetics", "makeup", "lipstick", "perfume", "myntra", "ajio"
         ),
+        "Fuel" to listOf(
+            "petrol", "fuel", "diesel", "cng", "gas station"
+        ),
         "Travel & Commute" to listOf(
             "uber", "ola", "rapido", "auto", "rickshaw", "cab", "taxi", "metro",
-            "bus", "train", "flight", "petrol", "fuel", "diesel", "cng", "parking",
-            "toll", "ride", "travel", "trip", "ticket", "ticket booking", "irctc",
-            "redbus", "indigo", "spicejet", "vistara"
+            "bus", "train", "flight", "parking", "toll", "ride", "travel", "trip",
+            "ticket", "ticket booking", "irctc", "redbus", "indigo", "spicejet", "vistara"
         ),
         "Subscription & Leisure" to listOf(
             "netflix", "prime", "amazon prime", "spotify", "youtube", "movie",
@@ -92,6 +96,10 @@ object AiParser {
         "Credit Card Bill" to listOf(
             "credit card bill", "cc bill", "card bill", "credit card payment",
             "credit card"
+        ),
+        "Investment" to listOf(
+            "investment", "investments", "savings", "stocks", "stock", "mutual fund",
+            "mutual funds", "sip", "shares", "fd", "fixed deposit", "crypto"
         ),
         "Lending" to listOf(
             "lent", "lent to", "loan", "gave to", "paid friend", "loaned", "gave cash"

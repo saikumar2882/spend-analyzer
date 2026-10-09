@@ -34,13 +34,13 @@ class AiBatchScreenTest {
     private val at = 1_790_000_000_000L
 
     private val tea = AiTransactionResponse(
-        amount = 20.0, appName = "PhonePe", purpose = "Groceries & Food", notes = "Tea", timestamp = at
+        amount = 20.0, appName = "PhonePe", purpose = "Food & Drinks", notes = "Tea", timestamp = at
     )
     private val auto = AiTransactionResponse(
         amount = 80.0, appName = "PhonePe", purpose = "Travel & Commute", notes = "Auto", timestamp = at
     )
     private val lunch = AiTransactionResponse(
-        amount = 150.0, appName = "Swiggy", purpose = "Groceries & Food", notes = "Lunch", timestamp = at
+        amount = 150.0, appName = "Swiggy", purpose = "Food & Drinks", notes = "Lunch", timestamp = at
     )
 
     private fun show(

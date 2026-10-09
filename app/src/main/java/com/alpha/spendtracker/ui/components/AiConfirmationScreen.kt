@@ -544,7 +544,7 @@ private fun PurposeDropdown(
         ) {
             PURPOSE_PRESETS.forEach { option ->
                 DropdownMenuItem(
-                    text = { Text(option) },
+                    text = { CategoryDropdownItemContent(option) },
                     onClick = {
                         onSelect(option)
                         expanded = false

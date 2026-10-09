@@ -2,6 +2,7 @@ package com.alpha.spendtracker.ui.screens
 
 import android.util.Patterns
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -48,6 +49,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.ui.components.NotificationType
+import com.alpha.spendtracker.ui.components.PrivacyPolicyDialog
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthInvalidCredentialsException
 import com.google.firebase.auth.FirebaseAuthInvalidUserException
@@ -71,6 +73,7 @@ fun LoginScreen(
     var registerPromptMessage by remember { mutableStateOf<String?>(null) }
     // Set when an existing account signs in but hasn't verified its email yet.
     var showVerification by remember { mutableStateOf(false) }
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
 
     var emailTouched by remember { mutableStateOf(false) }
     var passwordTouched by remember { mutableStateOf(false) }
@@ -246,28 +249,49 @@ fun LoginScreen(
         )
     }
 
+    if (showPrivacyPolicy) {
+        PrivacyPolicyDialog(
+            isE2eEncryptionEnabled = false,
+            onToggleE2eEncryption = {},
+            onDismiss = { showPrivacyPolicy = false },
+            isLoginFlow = false
+        )
+    }
+
     AuthScaffold(
         title = stringResource(R.string.login_title),
         subtitle = stringResource(R.string.login_subtitle),
         footer = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.dont_have_account),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextButton(
-                    onClick = { onNavigateToRegister(email) },
-                    enabled = !isLoading,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        stringResource(R.string.sign_up),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = stringResource(R.string.dont_have_account),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        onClick = { onNavigateToRegister(email) },
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text(
+                            stringResource(R.string.sign_up),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = { showPrivacyPolicy = true },
+                    enabled = !isLoading,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                ) {
+                    Text(
+                        "Privacy Policy",
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }

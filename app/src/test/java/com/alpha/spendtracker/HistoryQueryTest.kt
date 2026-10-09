@@ -25,7 +25,7 @@ class HistoryQueryTest {
 
     private var seq = 0
     private fun spend(
-        amount: Double, time: Long, purpose: String = "Groceries & Food",
+        amount: Double, time: Long, purpose: String = "Food & Drinks",
         app: String = "Google Pay", notes: String = "", deleted: Boolean = false
     ) = Spend(uuid = "s${seq++}", amount = amount, timestamp = time, purpose = purpose,
         appName = app, notes = notes, deleted = deleted)
@@ -158,7 +158,7 @@ class HistoryQueryTest {
 
     @Test
     fun purposeWordsNarrowRowsButOnlyOnWholeWords() {
-        assertEquals(listOf("Groceries & Food"), scope("how much did I spend on food").purposes)
+        assertEquals(listOf("Food & Drinks"), scope("how much did I spend on food").purposes)
         assertEquals(listOf("Rent & Utilities"), scope("what did I pay for rent").purposes)
         assertTrue(scope("what is my current balance").purposes.isEmpty())
 

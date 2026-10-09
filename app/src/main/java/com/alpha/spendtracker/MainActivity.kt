@@ -61,7 +61,7 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.outlined.Handshake
-import androidx.compose.material.icons.outlined.Settings
+import androidx.compose.material.icons.outlined.Menu
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material3.*
@@ -118,6 +118,7 @@ import com.alpha.spendtracker.ui.components.BannerNotification
 import com.alpha.spendtracker.ui.components.NotificationAction
 import com.alpha.spendtracker.ui.components.BillTrackingBottomSheet
 import com.alpha.spendtracker.ui.components.NotificationType
+import com.alpha.spendtracker.ui.components.PrivacyPolicyDialog
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.screens.AddSpendScreen
 import com.alpha.spendtracker.ui.screens.DashboardScreen
@@ -998,12 +999,6 @@ LaunchedEffect(Unit) {
                     icon = { Icon(AppIcons.History, contentDescription = stringResource(R.string.history_tab)) },
                     label = { Text(stringResource(R.string.history_tab)) }
                 )
-                NavigationRailItem(
-                    selected = activeView == ActiveView.SETTINGS,
-                    onClick = { goToMajor(ActiveView.SETTINGS) },
-                    icon = { Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings_title)) },
-                    label = { Text(stringResource(R.string.settings_title)) }
-                )
             }
         }
 
@@ -1062,21 +1057,6 @@ LaunchedEffect(Unit) {
                                 )
                             },
                             label = { Text(stringResource(R.string.history_tab), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                        )
-                        val settingsInteraction = remember { MutableInteractionSource() }
-                        NavigationBarItem(
-                            selected = activeView == ActiveView.SETTINGS,
-                            onClick = { goToMajor(ActiveView.SETTINGS) },
-                            interactionSource = settingsInteraction,
-                            icon = {
-                                val navIconScale = rememberPressScale(settingsInteraction)
-                                Icon(
-                                    Icons.Outlined.Settings,
-                                    contentDescription = stringResource(R.string.settings_title),
-                                    modifier = Modifier.graphicsLayer { scaleX = navIconScale; scaleY = navIconScale }
-                                )
-                            },
-                            label = { Text(stringResource(R.string.settings_title), maxLines = 1, overflow = TextOverflow.Ellipsis) }
                         )
                     }
                 }
@@ -1395,6 +1375,7 @@ LaunchedEffect(Unit) {
                             },
                             onAiAssistantClick = { showAiHistoryAssistant = true },
                             onNotesClick = { goToMajor(ActiveView.NOTES) },
+                            onSettingsClick = { goToMajor(ActiveView.SETTINGS) },
                             onMarkBillPaid = { bill -> viewModel.markBillAsPaid(bill) },
                             onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
                             onEditSpend = { spend ->
@@ -1879,6 +1860,22 @@ LaunchedEffect(Unit) {
                 },
                 dismissButton = {
                     TextButton(onClick = dismissDiscardDialog) { Text("Cancel") }
+                }
+            )
+        }
+
+        // Post-login mandatory Privacy Policy & Cloud Encryption Opt-In / Opt-Out consent
+        if (currentUser != null && !aiPrefs.hasAcceptedPrivacyPolicy && pendingUpdate == null) {
+            PrivacyPolicyDialog(
+                isE2eEncryptionEnabled = aiPrefs.isE2eEncryptionEnabled,
+                onToggleE2eEncryption = { optIn ->
+                    viewModel.updateE2eEncryptionEnabled(optIn)
+                },
+                onDismiss = {},
+                isLoginFlow = true,
+                onAcceptAndContinue = { optInE2e ->
+                    viewModel.updateE2eEncryptionEnabled(optInE2e)
+                    viewModel.setPrivacyPolicyAccepted(true)
                 }
             )
         }

@@ -78,6 +78,7 @@ import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.CATEGORY_PRESETS
 import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.HistorySpendCard
+import com.alpha.spendtracker.ui.components.findCategoryPresetItem
 import com.alpha.spendtracker.ui.components.getLocalizedPresetName
 import androidx.compose.ui.text.style.TextOverflow
 import com.alpha.spendtracker.ui.components.SearchField
@@ -259,7 +260,7 @@ fun HistoryScreen(
 
     val initialQuickFilter = remember(initialCategoryFilter) {
         when (initialCategoryFilter) {
-            "Food", "Groceries & Food", "Quick Commerce" -> QuickFilter.FOOD
+            "Food", "Food & Drinks", "Groceries", "Groceries & Food", "Quick Commerce" -> QuickFilter.FOOD
             "Shopping", "Shopping & Apparels", "E-Commerce" -> QuickFilter.SHOPPING
             "Travel", "Travel & Commute" -> QuickFilter.TRAVEL
             "Bills", "Rent & Utilities" -> QuickFilter.BILLS
@@ -638,10 +639,21 @@ fun HistoryScreen(
                     ) {
                         items(categoryFilters, key = { it }) { name ->
                             val isSelected = selectedCategory == name
+                            val categoryItem = if (name != ALL_CATEGORIES) findCategoryPresetItem(name) else null
                             FilterChip(
                                 selected = isSelected,
                                 onClick = { selectedCategory = name },
                                 label = { Text(name) },
+                                leadingIcon = if (categoryItem != null) {
+                                    {
+                                        Icon(
+                                            imageVector = categoryItem.icon,
+                                            contentDescription = null,
+                                            tint = if (isSelected) MaterialTheme.colorScheme.primary else categoryItem.getColor(),
+                                            modifier = Modifier.size(16.dp)
+                                        )
+                                    }
+                                } else null,
                                 shape = RoundedCornerShape(12.dp),
                                 colors = FilterChipDefaults.filterChipColors(
                                     containerColor = MaterialTheme.colorScheme.surfaceContainerHigh,

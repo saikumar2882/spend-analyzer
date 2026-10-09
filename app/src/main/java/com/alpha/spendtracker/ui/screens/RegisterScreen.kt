@@ -2,6 +2,7 @@ package com.alpha.spendtracker.ui.screens
 
 import android.util.Patterns
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxWidth
@@ -46,6 +47,7 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.ui.components.NotificationType
+import com.alpha.spendtracker.ui.components.PrivacyPolicyDialog
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.auth.FirebaseAuthUserCollisionException
 
@@ -67,6 +69,7 @@ fun RegisterScreen(
     // Set when the email is already registered — offers to switch to Sign In.
     var signInPromptMessage by remember { mutableStateOf<String?>(null) }
     var showVerification by remember { mutableStateOf(false) }
+    var showPrivacyPolicy by remember { mutableStateOf(false) }
 
     var emailTouched by remember { mutableStateOf(false) }
     var passwordTouched by remember { mutableStateOf(false) }
@@ -218,28 +221,49 @@ fun RegisterScreen(
         )
     }
 
+    if (showPrivacyPolicy) {
+        PrivacyPolicyDialog(
+            isE2eEncryptionEnabled = false,
+            onToggleE2eEncryption = {},
+            onDismiss = { showPrivacyPolicy = false },
+            isLoginFlow = false
+        )
+    }
+
     AuthScaffold(
         title = stringResource(R.string.register_title),
         subtitle = stringResource(R.string.register_subtitle),
         footer = {
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.Center
-            ) {
-                Text(
-                    text = stringResource(R.string.already_have_account),
-                    style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-                TextButton(
-                    onClick = onNavigateToSignIn,
-                    enabled = !isLoading,
-                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+            Column(horizontalAlignment = Alignment.CenterHorizontally) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.Center
                 ) {
                     Text(
-                        stringResource(R.string.sign_in),
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
+                        text = stringResource(R.string.already_have_account),
+                        style = MaterialTheme.typography.bodyMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    TextButton(
+                        onClick = onNavigateToSignIn,
+                        enabled = !isLoading,
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.primary)
+                    ) {
+                        Text(
+                            stringResource(R.string.sign_in),
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.primary
+                        )
+                    }
+                }
+                TextButton(
+                    onClick = { showPrivacyPolicy = true },
+                    enabled = !isLoading,
+                    colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.onSurfaceVariant)
+                ) {
+                    Text(
+                        "Privacy Policy",
+                        style = MaterialTheme.typography.bodySmall
                     )
                 }
             }

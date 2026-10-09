@@ -248,13 +248,16 @@ class AiTransactionProcessor @Inject constructor(
             IMPORTANT: a food/grocery app name (Swiggy, Zomato, Zepto, Blinkit) IS the platform — never replace it with a UPI app.
 
             PURPOSE MAPPING — output EXACT string from [$purposeList]:
-            Food/drinks: biryani, pizza, lunch, dinner, breakfast, coffee, chai, swiggy, zomato, blinkit, zepto, groceries → "Groceries & Food"
+            Food/drinks: biryani, pizza, lunch, dinner, breakfast, coffee, chai, swiggy, zomato → "Food & Drinks"
+            Groceries: grocery, groceries, supermarket, kirana, blinkit, zepto, milk, veggies, fruits → "Groceries"
             Shopping: shirt, jeans, shoes, saree, amazon, flipkart, myntra, ajio, meesho → "Shopping & Apparels"
-            Travel: uber, ola, rapido, auto, cab, petrol, diesel, metro, bus, flight, train, toll → "Travel & Commute"
+            Travel: uber, ola, rapido, auto, cab, metro, bus, flight, train, toll → "Travel & Commute"
+            Fuel: petrol, fuel, diesel, cng, gas station → "Fuel"
             Entertainment: netflix, hotstar, prime, spotify, movie, concert, game, gym → "Subscription & Leisure"
             Health: medicine, tablet, doctor, hospital, clinic, pharmacy, dentist, lab test → "Healthcare & Medical"
             Bills: rent, electricity, wifi, internet, recharge, water bill, gas, dth → "Rent & Utilities"
             Finance: credit card bill, cc bill, emi, loan payment → "Credit Card Bill"
+            Investment: stocks, mutual funds, sip, fd, shares, crypto, savings → "Investment"
             Giving: "lent to", "gave to", "sent to [person]", "paid for [person]" → "Lending"
             Receiving: "borrowed from", "took from", "received from" → "Borrowing"
             Default (nothing clearly matches) → use the user's default purpose above: "${prefs.defaultPurpose}"
@@ -281,13 +284,13 @@ class AiTransactionProcessor @Inject constructor(
 
             EXAMPLES:
             "lent 500 to rahul for lunch via gpay" → {"transactions": [{"src": "lent 500 to rahul for lunch via gpay", "amount": 500, "appName": "Google Pay", "purpose": "Lending", "notes": "Lunch", "personName": "Rahul", "date": "$todayStr", "needsAmount": false}]}
-            "tea 20, auto 80 on phonepe yesterday" → {"transactions": [{"src": "tea 20", "amount": 20, "appName": "PhonePe", "purpose": "Groceries & Food", "notes": "Tea", "personName": "", "date": "$yesterdayStr", "needsAmount": false}, {"src": "auto 80", "amount": 80, "appName": "PhonePe", "purpose": "Travel & Commute", "notes": "Auto", "personName": "", "date": "$yesterdayStr", "needsAmount": false}]}
+            "tea 20, auto 80 on phonepe yesterday" → {"transactions": [{"src": "tea 20", "amount": 20, "appName": "PhonePe", "purpose": "Food & Drinks", "notes": "Tea", "personName": "", "date": "$yesterdayStr", "needsAmount": false}, {"src": "auto 80", "amount": 80, "appName": "PhonePe", "purpose": "Travel & Commute", "notes": "Auto", "personName": "", "date": "$yesterdayStr", "needsAmount": false}]}
             "borrowed 2000 from mom" → {"transactions": [{"src": "borrowed 2000 from mom", "amount": 2000, "appName": "", "purpose": "Borrowing", "notes": "", "personName": "Mom", "date": "$todayStr", "needsAmount": false}]}""" else """OUTPUT (no extra keys):
             {"amount": number|null, "appName": string, "purpose": string, "notes": string, "personName": string, "date": string, "needsAmount": boolean}
 
             EXAMPLES:
             "lent 500 to rahul for lunch via gpay" → {"amount": 500, "appName": "Google Pay", "purpose": "Lending", "notes": "Lunch", "personName": "Rahul", "date": "$todayStr", "needsAmount": false}
-            "300 on groceries in zapto" → {"amount": 300, "appName": "Zepto", "purpose": "Groceries & Food", "notes": "Groceries", "personName": "", "date": "$todayStr", "needsAmount": false}
+            "300 on groceries in zapto" → {"amount": 300, "appName": "Zepto", "purpose": "Groceries", "notes": "Groceries", "personName": "", "date": "$todayStr", "needsAmount": false}
             "borrowed 2000 from mom" → {"amount": 2000, "appName": "", "purpose": "Borrowing", "notes": "", "personName": "Mom", "date": "$todayStr", "needsAmount": false}"""}
         """.trimIndent()
     }

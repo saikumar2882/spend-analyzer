@@ -76,15 +76,18 @@ val CATEGORY_PRESETS = listOf(
 )
 
 val PURPOSE_PRESETS = listOf(
-    "Groceries & Food",
+    "Food & Drinks",
+    "Groceries",
     "Shopping & Apparels",
-    "Lending",
-    "Borrowing",
-    "Credit Card Bill",
     "Rent & Utilities",
+    "Credit Card Bill",
+    "Fuel",
     "Travel & Commute",
     "Subscription & Leisure",
     "Healthcare & Medical",
+    "Investment",
+    "Lending",
+    "Borrowing",
     "Others"
 )
 
@@ -155,16 +158,26 @@ private val TELUGU_PRESET_MAP = mapOf(
     "E-Commerce" to "ఈ-కామర్స్",
     "Banking & Cards" to "బ్యాంకింగ్ & కార్డ్‌లు",
 
-    // Purposes
+    // Purposes & Display Names
     "Groceries & Food" to "కిరాణా & ఆహారం",
+    "Food & Drinks" to "ఆహారం & పానీయాలు",
+    "Groceries" to "కిరాణా",
     "Shopping & Apparels" to "షాపింగ్ & దుస్తులు",
+    "Shopping" to "షాపింగ్",
     "Lending" to "అప్పు ఇవ్వడం",
     "Borrowing" to "అప్పు తీసుకోవడం",
     "Credit Card Bill" to "క్రెడిట్ కార్డ్ బిల్లు",
+    "EMI & Cards" to "ఈఎమ్‌ఐ & కార్డ్‌లు",
     "Rent & Utilities" to "అద్దె & బిల్లులు",
+    "Bills & Utilities" to "బిల్లులు & సేవలు",
+    "Fuel" to "ఇంధనం",
     "Travel & Commute" to "ప్రయాణం & రవాణా",
+    "Travel" to "ప్రయాణం",
     "Subscription & Leisure" to "సబ్‌స్క్రిప్షన్‌లు & వినోదం",
+    "Entertainment" to "వినోదం",
     "Healthcare & Medical" to "ఆరోగ్యం & వైద్యం",
+    "Health" to "ఆరోగ్యం",
+    "Investment" to "పెట్టుబడి",
     "Others" to "ఇతరములు",
 
     // Frequencies
@@ -242,16 +255,26 @@ private val HINDI_PRESET_MAP = mapOf(
     "E-Commerce" to "ई-कॉमर्स",
     "Banking & Cards" to "बैंकिंग और कार्ड",
 
-    // Purposes
+    // Purposes & Display Names
     "Groceries & Food" to "किराना और भोजन",
+    "Food & Drinks" to "भोजन और पेय",
+    "Groceries" to "किराना",
     "Shopping & Apparels" to "खरीदारी और कपड़े",
+    "Shopping" to "खरीदारी",
     "Lending" to "उधार देना",
     "Borrowing" to "उधार लेना",
     "Credit Card Bill" to "क्रेडिट कार्ड बिल",
+    "EMI & Cards" to "ईएमआई और कार्ड",
     "Rent & Utilities" to "किराया और उपयोगिताएं",
+    "Bills & Utilities" to "बिल और उपयोगिताएं",
+    "Fuel" to "ईंधन",
     "Travel & Commute" to "यात्रा और आवागमन",
+    "Travel" to "यात्रा",
     "Subscription & Leisure" to "सदस्यता और मनोरंजन",
+    "Entertainment" to "मनोरंजन",
     "Healthcare & Medical" to "स्वास्थ्य और चिकित्सा",
+    "Health" to "स्वास्थ्य",
+    "Investment" to "निवेश",
     "Others" to "अन्य",
 
     // Frequencies
