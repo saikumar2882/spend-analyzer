@@ -61,7 +61,7 @@ import androidx.compose.material.icons.rounded.CloudOff
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Mic
 import androidx.compose.material.icons.outlined.Handshake
-import androidx.compose.material.icons.outlined.Menu
+import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material3.*
@@ -107,6 +107,8 @@ import com.alpha.spendtracker.data.AiTransactionResponse
 import com.alpha.spendtracker.data.SyncStatus
 import com.alpha.spendtracker.data.userMessageOrGeneric
 import com.alpha.spendtracker.data.Spend
+import com.alpha.spendtracker.ui.components.CompactNavBar
+import com.alpha.spendtracker.ui.components.NavBarItem
 import com.alpha.spendtracker.ui.components.AiConfirmationScreen
 import com.alpha.spendtracker.ui.components.AiBatchConfirmationScreen
 import com.alpha.spendtracker.ui.components.toDraft
@@ -999,6 +1001,12 @@ LaunchedEffect(Unit) {
                     icon = { Icon(AppIcons.History, contentDescription = stringResource(R.string.history_tab)) },
                     label = { Text(stringResource(R.string.history_tab)) }
                 )
+                NavigationRailItem(
+                    selected = activeView == ActiveView.SETTINGS,
+                    onClick = { goToMajor(ActiveView.SETTINGS) },
+                    icon = { Icon(Icons.Outlined.Settings, contentDescription = stringResource(R.string.settings_title)) },
+                    label = { Text(stringResource(R.string.settings_title)) }
+                )
             }
         }
 
@@ -1007,58 +1015,39 @@ LaunchedEffect(Unit) {
                 modifier = Modifier.fillMaxSize(),
                 bottomBar = {
                     if (isCompact && activeView != ActiveView.ADD_SPEND) {
-                    NavigationBar(tonalElevation = 8.dp) {
-                        val dashboardInteraction = remember { MutableInteractionSource() }
-                        NavigationBarItem(
-                            selected = activeView == ActiveView.DASHBOARD,
-                            onClick = { goToMajor(ActiveView.DASHBOARD) },
-                            interactionSource = dashboardInteraction,
-                            icon = {
-                                val navIconScale = rememberPressScale(dashboardInteraction)
-                                Icon(
-                                    AppIcons.Dashboard,
-                                    contentDescription = stringResource(R.string.dashboard_tab),
-                                    modifier = Modifier.graphicsLayer { scaleX = navIconScale; scaleY = navIconScale }
-                                )
-                            },
-                            label = { Text(stringResource(R.string.dashboard_tab), maxLines = 1, overflow = TextOverflow.Ellipsis) }
+                    CompactNavBar(
+                        items = listOf(
+                            NavBarItem(
+                                icon = AppIcons.Dashboard,
+                                label = stringResource(R.string.dashboard_tab),
+                                selected = activeView == ActiveView.DASHBOARD,
+                                onClick = { goToMajor(ActiveView.DASHBOARD) }
+                            ),
+                            NavBarItem(
+                                icon = Icons.Outlined.Handshake,
+                                label = stringResource(R.string.lend_borrow_tab),
+                                selected = activeView == ActiveView.LEND_BORROW,
+                                onClick = { goToMajor(ActiveView.LEND_BORROW) }
+                            ),
+                            NavBarItem(
+                                icon = AppIcons.History,
+                                label = stringResource(R.string.history_tab),
+                                selected = activeView == ActiveView.HISTORY,
+                                onClick = {
+                                    historySearchQuery = ""
+                                    historyCategoryFilter = "All"
+                                    historyTimeFilter = TimeFilter.ALL
+                                    goToMajor(ActiveView.HISTORY)
+                                }
+                            ),
+                            NavBarItem(
+                                icon = Icons.Outlined.Settings,
+                                label = stringResource(R.string.settings_title),
+                                selected = activeView == ActiveView.SETTINGS,
+                                onClick = { goToMajor(ActiveView.SETTINGS) }
+                            )
                         )
-                        val duesInteraction = remember { MutableInteractionSource() }
-                        NavigationBarItem(
-                            selected = activeView == ActiveView.LEND_BORROW,
-                            onClick = { goToMajor(ActiveView.LEND_BORROW) },
-                            interactionSource = duesInteraction,
-                            icon = {
-                                val navIconScale = rememberPressScale(duesInteraction)
-                                Icon(
-                                    Icons.Outlined.Handshake,
-                                    contentDescription = stringResource(R.string.lend_borrow_tab),
-                                    modifier = Modifier.graphicsLayer { scaleX = navIconScale; scaleY = navIconScale }
-                                )
-                            },
-                            label = { Text(stringResource(R.string.lend_borrow_tab), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                        )
-                        val historyInteraction = remember { MutableInteractionSource() }
-                        NavigationBarItem(
-                            selected = activeView == ActiveView.HISTORY,
-                            onClick = {
-                                historySearchQuery = ""
-                                historyCategoryFilter = "All"
-                                historyTimeFilter = TimeFilter.ALL
-                                goToMajor(ActiveView.HISTORY)
-                            },
-                            interactionSource = historyInteraction,
-                            icon = {
-                                val navIconScale = rememberPressScale(historyInteraction)
-                                Icon(
-                                    AppIcons.History,
-                                    contentDescription = stringResource(R.string.history_tab),
-                                    modifier = Modifier.graphicsLayer { scaleX = navIconScale; scaleY = navIconScale }
-                                )
-                            },
-                            label = { Text(stringResource(R.string.history_tab), maxLines = 1, overflow = TextOverflow.Ellipsis) }
-                        )
-                    }
+                    )
                 }
             },
             floatingActionButton = {
@@ -1375,7 +1364,6 @@ LaunchedEffect(Unit) {
                             },
                             onAiAssistantClick = { showAiHistoryAssistant = true },
                             onNotesClick = { goToMajor(ActiveView.NOTES) },
-                            onSettingsClick = { goToMajor(ActiveView.SETTINGS) },
                             onMarkBillPaid = { bill -> viewModel.markBillAsPaid(bill) },
                             onRecurringBillsClick = { goToMajor(ActiveView.RECURRING_BILLS) },
                             onEditSpend = { spend ->

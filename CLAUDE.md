@@ -48,6 +48,12 @@ Open in Android Studio Ladybug or newer, add `app/google-services.json` from you
 
 Firestore paths (all owner-scoped in `firestore.rules`): `users/{userId}/spends/{spendId}`, `.../recurring_bills/{id}`, `.../history/{id}`, `.../chat_messages/{id}`.
 
+**Cloud encryption (E2EE)** — ⚠️ three invariants:
+- The format lives in **one place**, `util/CloudEnvelope` (`seal`/`open`); `SpendRepository` and `SyncWorker` both use it. An envelope is the AES-GCM `encryptedPayload` plus a plaintext allow-list copied *from the row* (`updatedAt`, `deleted`, `recordedAt`, `timestamp`, `historyType`) because cloud-side queries (tombstone/history/chat purge, the worker's LWW read) can't see inside the ciphertext. Never stamp `updatedAt` with the upload time. `EncryptionUtils.decrypt` **throws** on failure; the sync listener skips that doc.
+- The setting is **account-level**: `users/{uid}/profile/security` (`e2eeEnabled`). The DataStore flag is only a local cache that `startE2eeSettingSync` keeps in step. An account with no setting gets one created in a transaction — "on" if any of its cloud docs are already `encrypted`, else "off" (decided from account data, never from the device flag, which can belong to a previous account on the same phone; and only on a server-confirmed miss, not an offline cache). `updateE2eEncryptionEnabled` publishes the setting *before* touching the local flag and re-uploads (`reSyncAllToFirestore`) only when the value really changes — that re-upload is a blind `set()` with no LWW check.
+- **Old builds corrupt encrypted docs.** Pre-E2EE versions read them with `toObject()`, get a blank row with the real `uuid` and a newer `updatedAt`, and upload it back. Don't change the cloud format in place again without a version gate or new collection names.
+- The key is `SHA-256(uid)` — not secret (the uid is in every path). It protects against casual reads, not against someone with database access; don't call it end-to-end in user-facing copy until the key comes from a user passphrase.
+
 ### AI features
 
 Two separate AI flows. The **primary** provider is **Groq** (OpenAI-compatible) called via Retrofit (`GroqApiService`). **Gemini** (`gemini-3.5-flash`, via `google/generative-ai`) is the **fallback**, used only when the Groq key is blank. The model id is centralized in the `GEMINI_MODEL` constant in `SpendViewModel`.

@@ -89,7 +89,8 @@ fun VoiceInputOverlay(
         speechErrorMessage = null
         soundLevel = 0f
 
-        VoiceInputHelper.startListening(context, selectedLanguage, createListener())
+        // Carry the transcript across a language switch rather than discarding what was said.
+        VoiceInputHelper.startListening(context, selectedLanguage, createListener(), previousText = transcript)
 
         onDispose {
             VoiceInputHelper.destroy()
@@ -225,7 +226,8 @@ fun VoiceInputOverlay(
                             } else {
                                 isListening = true
                                 speechErrorMessage = null
-                                VoiceInputHelper.startListening(context, selectedLanguage, createListener())
+                                // "Tap mic to keep speaking": extend the transcript, don't replace it.
+                                VoiceInputHelper.startListening(context, selectedLanguage, createListener(), previousText = transcript)
                             }
                         },
                     contentAlignment = Alignment.Center

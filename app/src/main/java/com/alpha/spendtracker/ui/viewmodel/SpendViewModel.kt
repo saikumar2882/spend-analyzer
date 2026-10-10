@@ -25,6 +25,7 @@ import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
@@ -858,9 +859,16 @@ class SpendViewModel @Inject constructor(
 
     fun updateE2eEncryptionEnabled(enabled: Boolean) {
         viewModelScope.launch {
-            aiPrefsRepository.updateE2eEncryption(enabled)
+            val changed = aiPrefsRepository.aiPreferencesFlow.first().isE2eEncryptionEnabled != enabled
             val uid = _userId.value
-            if (uid.isNotBlank()) {
+            // The setting belongs to the account: publish it (other devices follow), then update the
+            // local cache. Only a real flip re-encodes the cloud copy. This ran unconditionally, so
+            // the first-run policy dialog's "Accept" on every device (default: off) blind-`set()`
+            // every local row over its cloud document — no last-write-wins check — which both undid
+            // encryption another device had turned on and let a stale device overwrite newer data.
+            if (changed && uid.isNotBlank()) repository.publishE2eeSetting(uid, enabled)
+            aiPrefsRepository.updateE2eEncryption(enabled)
+            if (changed && uid.isNotBlank()) {
                 repository.reSyncAllToFirestore(uid, enabled)
             }
         }

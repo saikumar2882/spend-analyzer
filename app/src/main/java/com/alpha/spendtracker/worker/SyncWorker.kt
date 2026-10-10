@@ -5,13 +5,25 @@ import android.util.Log
 import androidx.hilt.work.HiltWorker
 import androidx.work.CoroutineWorker
 import androidx.work.WorkerParameters
+import com.alpha.spendtracker.data.AiPreferencesRepository
+import com.alpha.spendtracker.data.ChatMessage
 import com.alpha.spendtracker.data.ChatDao
+import com.alpha.spendtracker.data.Note
+import com.alpha.spendtracker.data.NoteEntry
+import com.alpha.spendtracker.data.NoteHistory
 import com.alpha.spendtracker.data.NotesDao
+import com.alpha.spendtracker.data.RecurringBill
 import com.alpha.spendtracker.data.RecurringBillDao
+import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.data.SpendDao
+import com.alpha.spendtracker.data.SpendHistory
+import com.alpha.spendtracker.util.CloudEnvelope
+import com.alpha.spendtracker.util.EncryptionUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.google.firebase.firestore.CollectionReference
 import com.google.firebase.firestore.FirebaseFirestore
+import com.google.firebase.firestore.Source
+import com.squareup.moshi.Moshi
 import dagger.assisted.Assisted
 import dagger.assisted.AssistedInject
 import kotlinx.coroutines.CancellationException
@@ -28,7 +40,9 @@ class SyncWorker @AssistedInject constructor(
     private val spendDao: SpendDao,
     private val recurringBillDao: RecurringBillDao,
     private val chatDao: ChatDao,
-    private val notesDao: NotesDao
+    private val notesDao: NotesDao,
+    private val aiPreferencesRepository: AiPreferencesRepository,
+    private val moshi: Moshi
 ) : CoroutineWorker(appContext, workerParams) {
 
     private companion object {
@@ -36,12 +50,7 @@ class SyncWorker @AssistedInject constructor(
 
         /**
          * How many documents to read, and to upload, at a time.
-         *
-         * This worker used to issue a `get()` then a `set()` per row, awaiting each in turn — two
-         * sequential round trips per record, for seven collections. A user with a thousand spends
-         * meant thousands of serial calls inside a job WorkManager will kill at ten minutes, so
-         * large accounts simply never finished a sync. Reads now come from one query per collection
-         * and the uploads run in bounded parallel batches.
+         * Bounded parallelism prevents swamping the connection pool.
          */
         const val UPLOAD_CONCURRENCY = 25
     }
@@ -51,30 +60,44 @@ class SyncWorker @AssistedInject constructor(
         val firestore = FirebaseFirestore.getInstance()
         val userDoc = firestore.collection("users").document(userId)
 
-        return try {
-            // Every collection uses the same last-write-wins gate: upload when the local row is at
-            // least as new as the remote copy. `>=` rather than a strict `>`, and a missing remote
-            // updatedAt counting as "upload", so legacy/partial cloud docs (written before fields
-            // like `notes`/`category` existed, or whose updatedAt collides with the local baseline)
-            // get re-uploaded with the complete local record.
-            //
-            // Soft-delete tombstones (deleted=true) are included on purpose: they are how a
-            // deletion performed while this device was offline reaches other devices, and the LWW
-            // check keeps this device from overwriting a newer tombstone with its stale live copy.
-            upload(userDoc.collection("spends"), spendDao.getAllSpendsForSync(userId).first(), { it.uuid }, { it.updatedAt })
-            upload(userDoc.collection("recurring_bills"), recurringBillDao.getAllRecurringBillsForSync(userId).first(), { it.uuid }, { it.updatedAt })
-            upload(userDoc.collection("chat_messages"), chatDao.getChatMessagesForSync(userId).first(), { it.uuid }, { it.updatedAt })
-            upload(userDoc.collection("history"), spendDao.getAllHistoryForSync(userId).first(), { it.historyUuid }, { it.updatedAt })
-            upload(userDoc.collection("notes"), notesDao.getAllNotesForSync(userId).first(), { it.uuid }, { it.updatedAt })
-            upload(userDoc.collection("note_entries"), notesDao.getAllNoteEntriesForSync(userId).first(), { it.uuid }, { it.updatedAt })
-            upload(userDoc.collection("note_history"), notesDao.getNoteHistoryForSync(userId).first(), { it.historyUuid }, { it.updatedAt })
+        val localFlag = try {
+            aiPreferencesRepository.aiPreferencesFlow.first().isE2eEncryptionEnabled
+        } catch (_: Exception) {
+            false
+        }
 
-            Log.d(TAG, "Background sync successful for all collections for user: $userId")
+        // The account's setting decides, not this device's cached flag. The cache is only refreshed
+        // while the app is open, so a device that was closed when another device flipped encryption
+        // would otherwise re-upload every row in the old mode and undo the change in the cloud. If
+        // the setting can't be read (offline, not created yet) the cache is the best information left.
+        val isE2E = try {
+            val setting = userDoc.collection("profile").document("security")
+                .get(Source.SERVER).await()
+            if (setting.exists()) {
+                (setting.getBoolean("e2eeEnabled") == true).also { enabled ->
+                    if (enabled != localFlag) aiPreferencesRepository.updateE2eEncryption(enabled)
+                }
+            } else {
+                localFlag
+            }
+        } catch (e: CancellationException) {
+            throw e
+        } catch (_: Exception) {
+            localFlag
+        }
+
+        return try {
+            upload(userDoc.collection("spends"), spendDao.getAllSpendsForSync(userId).first(), { it.uuid }, { it.updatedAt }, Spend::class.java, userId, isE2E)
+            upload(userDoc.collection("recurring_bills"), recurringBillDao.getAllRecurringBillsForSync(userId).first(), { it.uuid }, { it.updatedAt }, RecurringBill::class.java, userId, isE2E)
+            upload(userDoc.collection("chat_messages"), chatDao.getChatMessagesForSync(userId).first(), { it.uuid }, { it.updatedAt }, ChatMessage::class.java, userId, isE2E)
+            upload(userDoc.collection("history"), spendDao.getAllHistoryForSync(userId).first(), { it.historyUuid }, { it.updatedAt }, SpendHistory::class.java, userId, isE2E)
+            upload(userDoc.collection("notes"), notesDao.getAllNotesForSync(userId).first(), { it.uuid }, { it.updatedAt }, Note::class.java, userId, isE2E)
+            upload(userDoc.collection("note_entries"), notesDao.getAllNoteEntriesForSync(userId).first(), { it.uuid }, { it.updatedAt }, NoteEntry::class.java, userId, isE2E)
+            upload(userDoc.collection("note_history"), notesDao.getNoteHistoryForSync(userId).first(), { it.historyUuid }, { it.updatedAt }, NoteHistory::class.java, userId, isE2E)
+
+            Log.d(TAG, "Background sync successful for all collections (E2EE=$isE2E) for user: $userId")
             Result.success()
         } catch (e: CancellationException) {
-            // WorkManager stopping this worker arrives as cancellation. Rethrow rather than
-            // reporting it as a sync failure — a broad catch here reported "failed" and asked for
-            // a retry every time the system simply stopped the job.
             throw e
         } catch (e: Exception) {
             Log.e(TAG, "Background sync failed: ${e.message}", e)
@@ -84,16 +107,16 @@ class SyncWorker @AssistedInject constructor(
 
     /**
      * Uploads the rows of [local] that win last-write-wins against their remote copies.
-     *
-     * Remote `updatedAt` values come from one query for the whole collection rather than a `get()`
-     * per row. Firestore charges and bills a read either way, but a single query is one round trip
-     * instead of N.
+     * Supports E2EE encryption if [isE2E] is enabled.
      */
     private suspend fun <T : Any> upload(
         collection: CollectionReference,
         local: List<T>,
         id: (T) -> String,
-        updatedAt: (T) -> Long
+        updatedAt: (T) -> Long,
+        type: Class<T>,
+        userId: String,
+        isE2E: Boolean
     ) {
         if (local.isEmpty()) return
 
@@ -107,12 +130,21 @@ class SyncWorker @AssistedInject constructor(
         }
         if (stale.isEmpty()) return
 
-        // Bounded parallelism rather than one big awaitAll: a few thousand simultaneous writes
-        // would swamp the connection pool and time the job out just as surely as doing them serially.
+        val key = if (isE2E) EncryptionUtils.deriveKey(userId) else null
+        val adapter = if (isE2E) moshi.adapter(type) else null
+
         stale.chunked(UPLOAD_CONCURRENCY).forEach { chunk ->
             coroutineScope {
                 chunk.map { row ->
-                    async { collection.document(id(row)).set(row).await() }
+                    async {
+                        val docId = id(row)
+                        if (isE2E && key != null && adapter != null) {
+                            val envelope = CloudEnvelope.seal(row, adapter, docId, userId, key)
+                            collection.document(docId).set(envelope).await()
+                        } else {
+                            collection.document(docId).set(row).await()
+                        }
+                    }
                 }.awaitAll()
             }
         }

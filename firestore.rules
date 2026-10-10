@@ -18,12 +18,18 @@ service cloud.firestore {
       match /spends/{spendId} {
         allow read, delete: if isAuthenticated() && isOwner(userId);
 
-        // Validate schema on create/update
+        // Validate schema on create/update. An end-to-end-encrypted spend carries its fields
+        // inside `encryptedPayload`, so it has no top-level amount/appName/purpose to check —
+        // without this branch every encrypted spend write was rejected with PERMISSION_DENIED.
         allow create, update: if isAuthenticated() && isOwner(userId)
-          && request.resource.data.amount is number
-          && request.resource.data.appName is string
-          && request.resource.data.purpose is string
-          && request.resource.data.userId == request.auth.uid;
+          && request.resource.data.userId == request.auth.uid
+          && (
+            (request.resource.data.get('encrypted', false) == true
+              && request.resource.data.encryptedPayload is string)
+            || (request.resource.data.amount is number
+              && request.resource.data.appName is string
+              && request.resource.data.purpose is string)
+          );
       }
 
       match /recurring_bills/{billId} {

@@ -22,7 +22,9 @@ fun PrivacyPolicyDialog(
     isLoginFlow: Boolean = false,
     onAcceptAndContinue: ((Boolean) -> Unit)? = null
 ) {
-    var isE2eOptedIn by remember { mutableStateOf(isE2eEncryptionEnabled) }
+    // Keyed on the account's value: it arrives from Firestore after sign-in, and a new device must
+    // show what the account already uses rather than a stale local default.
+    var isE2eOptedIn by remember(isE2eEncryptionEnabled) { mutableStateOf(isE2eEncryptionEnabled) }
     var hasAgreedToTerms by remember { mutableStateOf(!isLoginFlow) }
     val scrollState = rememberScrollState()
 

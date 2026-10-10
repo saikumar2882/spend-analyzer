@@ -27,6 +27,7 @@ import kotlinx.coroutines.flow.onEach
 import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.tasks.await
 
+import com.alpha.spendtracker.util.CloudEnvelope
 import com.alpha.spendtracker.util.EncryptionUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.squareup.moshi.Moshi
@@ -55,6 +56,7 @@ class SpendRepository(
     private val firestore = FirebaseFirestore.getInstance()
     private val tag = "SpendRepository"
     private val syncListeners = mutableListOf<ListenerRegistration>()
+    private val reconcilingE2ee = java.util.concurrent.atomic.AtomicBoolean(false)
 
     private val _syncStatus = MutableStateFlow(SyncStatus())
 
@@ -72,6 +74,16 @@ class SpendRepository(
          * used to fail wholesale (and the failure was only logged, so nothing was ever purged).
          */
         const val BATCH_LIMIT = 450
+
+        const val PROFILE_COLLECTION = "profile"
+        const val SECURITY_DOC = "security"
+        const val E2EE_FIELD = "e2eeEnabled"
+
+        /** Every collection [startSync] mirrors; used to detect an account whose data is encrypted. */
+        val SYNCED_COLLECTIONS = listOf(
+            "spends", "recurring_bills", "history", "chat_messages",
+            "notes", "note_entries", "note_history"
+        )
     }
 
     fun getAllSpends(userId: String): Flow<List<Spend>> = spendDao.getAllSpends(userId)
@@ -89,6 +101,8 @@ class SpendRepository(
         }
 
         val userDoc = firestore.collection("users").document(userId)
+
+        startE2eeSettingSync(userDoc, scope)
 
         startCollectionSync(
             userDoc, "spends", Spend::class.java, scope,
@@ -151,6 +165,91 @@ class SpendRepository(
         )
     }
 
+    // ---- Account-level end-to-end encryption setting ----
+    //
+    // Whether the cloud copy is encrypted is a property of the *account*, stored at
+    // users/{uid}/profile/security. It used to be a per-device DataStore flag, so two devices on one
+    // account could disagree: one wrote ciphertext, the other plaintext over it, and a new device
+    // defaulted to "off" and re-uploaded everything unencrypted. The DataStore flag is now only a
+    // local cache of this document, which is what the synchronous write path reads.
+
+    /** Follows the account's setting; creates it for accounts that predate it. */
+    private fun startE2eeSettingSync(userDoc: DocumentReference, scope: CoroutineScope) {
+        val ref = userDoc.collection(PROFILE_COLLECTION).document(SECURITY_DOC)
+        syncListeners.add(
+            ref.addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.w(tag, "e2ee setting listen failed.", e)
+                    return@addSnapshotListener
+                }
+                if (snapshot == null) return@addSnapshotListener
+                if (snapshot.exists()) {
+                    val enabled = snapshot.getBoolean(E2EE_FIELD) == true
+                    isE2eEncryptionEnabled = enabled
+                    scope.launch { aiPreferencesRepository?.updateE2eEncryption(enabled) }
+                } else if (!snapshot.metadata.isFromCache && reconcilingE2ee.compareAndSet(false, true)) {
+                    // Only a server-confirmed "missing" counts. An empty offline cache says nothing
+                    // about the account and must not create a setting that overrides the real one.
+                    scope.launch { createMissingE2eeSetting(userDoc, ref) }
+                }
+            }
+        )
+    }
+
+    /**
+     * An account with no setting yet is either brand new (off) or one that turned encryption on
+     * before the setting existed — in which case its cloud documents are already encrypted. Decide
+     * from the cloud data itself, which belongs to this account, rather than from the device flag,
+     * which may be left over from a different account that used the same phone.
+     */
+    private suspend fun createMissingE2eeSetting(userDoc: DocumentReference, ref: DocumentReference) {
+        try {
+            var anyEncrypted = false
+            for (collection in SYNCED_COLLECTIONS) {
+                val hit = userDoc.collection(collection)
+                    .whereEqualTo(CloudEnvelope.ENCRYPTED, true)
+                    .limit(1)
+                    .get()
+                    .await()
+                if (!hit.isEmpty) {
+                    anyEncrypted = true
+                    break
+                }
+            }
+            // A transaction, so two devices reconciling at once can't overwrite a value another
+            // device has just chosen on purpose.
+            firestore.runTransaction { tx ->
+                if (!tx.get(ref).exists()) {
+                    tx.set(ref, mapOf(E2EE_FIELD to anyEncrypted, "updatedAt" to System.currentTimeMillis()))
+                }
+                Unit
+            }.await()
+        } catch (e: CancellationException) {
+            throw e
+        } catch (e: Exception) {
+            Log.w(tag, "Could not create the e2ee setting: ${e.message}", e)
+        } finally {
+            reconcilingE2ee.set(false)
+        }
+    }
+
+    /**
+     * Publishes the account's encryption choice. Every other device follows it through
+     * [startE2eeSettingSync]; only the device that flips it re-encodes the data
+     * ([reSyncAllToFirestore]). Call this *before* updating the local flag, so a stale cached
+     * snapshot can't arrive in between and flip the local flag back.
+     */
+    fun publishE2eeSetting(userId: String, enabled: Boolean) {
+        if (userId.isBlank() || userId == "anonymous" || FirebaseAuth.getInstance().currentUser == null) return
+        isE2eEncryptionEnabled = enabled
+        firestorePush(
+            "e2ee setting write",
+            firestore.collection("users").document(userId)
+                .collection(PROFILE_COLLECTION).document(SECURITY_DOC)
+                .set(mapOf(E2EE_FIELD to enabled, "updatedAt" to System.currentTimeMillis()))
+        )
+    }
+
     /**
      * Mirrors one owner-scoped Firestore collection into Room, newest write winning.
      *
@@ -189,13 +288,11 @@ class SpendRepository(
                         for (change in changes) {
                             val doc = change.document
                             val item = try {
-                                val isEncrypted = doc.getBoolean("encrypted") ?: false
-                                if (isEncrypted) {
-                                    val encryptedPayload = doc.getString("encryptedPayload").orEmpty()
-                                    val userId = doc.getString("userId").orEmpty()
-                                    val key = EncryptionUtils.deriveKey(userId)
-                                    val decryptedJson = EncryptionUtils.decrypt(encryptedPayload, key)
-                                    moshi.adapter(type).fromJson(decryptedJson)
+                                if (CloudEnvelope.isSealed(doc.getBoolean(CloudEnvelope.ENCRYPTED), doc.contains(CloudEnvelope.PAYLOAD))) {
+                                    // The key always comes from the owning path, never from a field inside
+                                    // the document, so a doc can't pick which key it is read with.
+                                    val key = EncryptionUtils.deriveKey(userDoc.id)
+                                    CloudEnvelope.open(doc.getString(CloudEnvelope.PAYLOAD).orEmpty(), moshi.adapter(type), key)
                                 } else {
                                     doc.toObject(type)
                                 }
@@ -823,16 +920,8 @@ class SpendRepository(
         val docRef = firestore.collection("users").document(targetUserId).collection(collectionName).document(docId)
         if (isE2E) {
             val key = EncryptionUtils.deriveKey(targetUserId)
-            val json = moshi.adapter(type).toJson(item)
-            val encryptedPayload = EncryptionUtils.encrypt(json, key)
-            val payloadMap = mapOf(
-                "uuid" to docId,
-                "userId" to targetUserId,
-                "encrypted" to true,
-                "encryptedPayload" to encryptedPayload,
-                "updatedAt" to System.currentTimeMillis()
-            )
-            firestorePush("$collectionName write (encrypted)", docRef.set(payloadMap))
+            val envelope = CloudEnvelope.seal(item, moshi.adapter(type), docId, targetUserId, key)
+            firestorePush("$collectionName write (encrypted)", docRef.set(envelope))
         } else {
             firestorePush("$collectionName write", docRef.set(item))
         }

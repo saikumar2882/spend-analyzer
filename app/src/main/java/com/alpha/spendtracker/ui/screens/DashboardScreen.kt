@@ -42,18 +42,19 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.vector.ImageVector
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.RecurringBill
 import com.alpha.spendtracker.data.Spend
+import com.alpha.spendtracker.ui.components.AppAvatar
 import com.alpha.spendtracker.ui.components.BudgetEditorDialog
 import com.alpha.spendtracker.ui.components.DateRangePickerModal
 import com.alpha.spendtracker.ui.components.EmptyStateCard
 import com.alpha.spendtracker.ui.components.MonthlyBudgetCard
 import com.alpha.spendtracker.ui.components.NotificationType
+import com.alpha.spendtracker.ui.components.ProfileDialog
 import com.alpha.spendtracker.ui.components.WrappedBanner
 import com.alpha.spendtracker.ui.components.WrappedBannerInfo
 import com.alpha.spendtracker.ui.components.QuickStatsRow
@@ -63,11 +64,8 @@ import com.alpha.spendtracker.ui.components.TimeFilterSelectorRow
 import com.alpha.spendtracker.ui.components.TotalSpentHeroCard
 import com.alpha.spendtracker.ui.components.UpcomingBillsCard
 import com.alpha.spendtracker.ui.components.WhereItWentCard
-import com.alpha.spendtracker.ui.components.formatCurrency
 import com.alpha.spendtracker.ui.icons.AppIcons
 import androidx.compose.ui.draw.scale
-import androidx.compose.material.icons.Icons
-import androidx.compose.material.icons.outlined.Menu
 import com.alpha.spendtracker.ui.theme.Radius
 import com.alpha.spendtracker.ui.theme.Sizes
 import com.alpha.spendtracker.ui.theme.Spacing
@@ -77,6 +75,8 @@ import com.alpha.spendtracker.ui.theme.rememberPressScale
 import com.alpha.spendtracker.ui.theme.rememberWindowWidthSizeClass
 import com.alpha.spendtracker.ui.viewmodel.SpendingAnalytics
 import com.alpha.spendtracker.ui.viewmodel.TimeFilter
+import com.google.firebase.auth.FirebaseAuth
+import com.google.firebase.auth.UserProfileChangeRequest
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -96,7 +96,6 @@ fun DashboardScreen(
     onTransactionsClick: () -> Unit,
     onAiAssistantClick: () -> Unit,
     onNotesClick: () -> Unit,
-    onSettingsClick: () -> Unit = {},
     onMarkBillPaid: (RecurringBill) -> Unit = {},
     onRecurringBillsClick: () -> Unit = {},
     onEditSpend: ((Spend) -> Unit)? = null,
@@ -111,13 +110,77 @@ fun DashboardScreen(
     onWrappedBannerDismiss: () -> Unit = {}
 ) {
     var showDatePicker by remember { mutableStateOf(false) }
+    var showProfileDialog by remember { mutableStateOf(false) }
     var showBudgetEditorDialog by remember { mutableStateOf(false) }
+
+    val auth = remember { FirebaseAuth.getInstance() }
+    var displayName by remember { mutableStateOf(auth.currentUser?.displayName.orEmpty()) }
+    val email = auth.currentUser?.email.orEmpty()
+    val photoUrl = auth.currentUser?.photoUrl?.toString()
+
+    val effectiveDisplayName = remember(displayName, email) {
+        if (displayName.isNotBlank()) {
+            displayName.trim()
+        } else if (email.isNotBlank()) {
+            val handle = email.substringBefore('@').trim()
+            handle.split('.', '_', '-')
+                .filter { it.isNotBlank() }
+                .joinToString(" ") { word ->
+                    word.replaceFirstChar { if (it.isLowerCase()) it.titlecase() else it.toString() }
+                }
+        } else {
+            ""
+        }
+    }
 
     val lazyListState = rememberLazyListState()
     val showCompactHeader by remember {
         derivedStateOf {
             lazyListState.firstVisibleItemIndex > 0 || lazyListState.firstVisibleItemScrollOffset > 100
         }
+    }
+
+    val firstName = effectiveDisplayName.split(" ").firstOrNull().orEmpty()
+    val greeting = if (firstName.isNotBlank()) "Hi, $firstName 👋" else "Welcome back 👋"
+
+    if (showProfileDialog) {
+        ProfileDialog(
+            currentName = displayName,
+            email = auth.currentUser?.email.orEmpty(),
+            photoUrl = photoUrl,
+            onDismiss = { showProfileDialog = false },
+            onSave = { newName ->
+                val currentUser = auth.currentUser
+                if (currentUser == null) {
+                    showProfileDialog = false
+                    onShowNotification("Please sign in to update your profile", NotificationType.ERROR)
+                    return@ProfileDialog
+                }
+                val request = UserProfileChangeRequest.Builder()
+                    .setDisplayName(newName)
+                    .build()
+                currentUser.updateProfile(request)
+                    .addOnCompleteListener { task ->
+                        showProfileDialog = false
+                        if (task.isSuccessful) {
+                            displayName = newName
+                            onShowNotification("Profile updated", NotificationType.SUCCESS)
+                        } else {
+                            onShowNotification(
+                                "Error: ${task.exception?.message ?: "Could not save profile"}",
+                                NotificationType.ERROR
+                            )
+                        }
+                    }
+                    .addOnFailureListener { e ->
+                        showProfileDialog = false
+                        onShowNotification(
+                            "Error: ${e.message ?: "Could not save profile"}",
+                            NotificationType.ERROR
+                        )
+                    }
+            }
+        )
     }
 
     if (showDatePicker) {
@@ -168,9 +231,11 @@ fun DashboardScreen(
             ) {
                 item {
                     DashboardHeader(
+                        displayName = effectiveDisplayName,
+                        photoUrl = photoUrl,
                         themePreference = themePreference,
                         onCycleTheme = onCycleTheme,
-                        onSettingsClick = onSettingsClick,
+                        onProfileClick = { showProfileDialog = true },
                         onAiAssistantClick = onAiAssistantClick,
                         onNotesClick = onNotesClick
                     )
@@ -311,9 +376,11 @@ fun DashboardScreen(
                 ) {
                     item {
                         DashboardHeader(
+                            displayName = effectiveDisplayName,
+                            photoUrl = photoUrl,
                             themePreference = themePreference,
                             onCycleTheme = onCycleTheme,
-                            onSettingsClick = onSettingsClick,
+                            onProfileClick = { showProfileDialog = true },
                             onAiAssistantClick = onAiAssistantClick,
                             onNotesClick = onNotesClick
                         )
@@ -472,19 +539,18 @@ fun DashboardScreen(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Row(
-                        modifier = Modifier.clickable(onClick = onSettingsClick),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.spacedBy(Spacing.xs)
+                        modifier = Modifier.clickable { showProfileDialog = true },
+                        verticalAlignment = Alignment.CenterVertically
                     ) {
-                        HeaderActionButton(
-                            icon = Icons.Outlined.Menu,
-                            onClick = onSettingsClick,
-                            contentDescription = stringResource(R.string.settings_title),
-                            tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                            background = MaterialTheme.colorScheme.surfaceContainerHigh
+                        AppAvatar(
+                            name = effectiveDisplayName,
+                            color = MaterialTheme.colorScheme.primary,
+                            size = 32.dp,
+                            photoUrl = photoUrl
                         )
+                        Spacer(modifier = Modifier.width(Spacing.xs))
                         Text(
-                            text = stringResource(R.string.app_name),
+                            text = greeting,
                             style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -525,12 +591,16 @@ private fun SectionHeader(title: String) {
 
 @Composable
 private fun DashboardHeader(
+    displayName: String,
+    photoUrl: String? = null,
     themePreference: ThemePreference,
     onCycleTheme: () -> Unit,
-    onSettingsClick: () -> Unit,
+    onProfileClick: () -> Unit,
     onAiAssistantClick: () -> Unit,
     onNotesClick: () -> Unit
 ) {
+    val firstName = displayName.trim().split(" ").firstOrNull().orEmpty()
+    val greeting = if (firstName.isNotBlank()) "Hi, $firstName 👋" else "Welcome back 👋"
     Row(
         modifier = Modifier
             .fillMaxWidth()
@@ -539,22 +609,30 @@ private fun DashboardHeader(
         verticalAlignment = Alignment.CenterVertically
     ) {
         Row(
-            modifier = Modifier.clickable(onClick = onSettingsClick),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.spacedBy(Spacing.sm)
+            modifier = Modifier
+                .weight(1f)
+                .clickable(onClick = onProfileClick),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            HeaderActionButton(
-                icon = Icons.Outlined.Menu,
-                onClick = onSettingsClick,
-                contentDescription = stringResource(R.string.settings_title),
-                tint = MaterialTheme.colorScheme.onSurface,
-                background = MaterialTheme.colorScheme.surfaceContainerHigh
+            AppAvatar(
+                name = displayName,
+                color = MaterialTheme.colorScheme.primary,
+                size = 44.dp,
+                photoUrl = photoUrl
             )
-            Text(
-                text = stringResource(R.string.app_name),
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.onSurface
-            )
+            Spacer(modifier = Modifier.width(Spacing.sm))
+            Column {
+                Text(
+                    text = greeting,
+                    style = MaterialTheme.typography.labelMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+                Text(
+                    text = stringResource(R.string.app_name),
+                    style = MaterialTheme.typography.headlineLarge,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
         }
 
         Row(

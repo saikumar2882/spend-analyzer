@@ -48,27 +48,27 @@ object EncryptionUtils {
 
     /**
      * Decrypts Base64 encoded AES-256-GCM ciphertext.
-     * Returns original plain text.
+     *
+     * Throws (`GeneralSecurityException` / `IllegalArgumentException`) on a wrong key, a corrupted or
+     * truncated payload, or input that was never ciphertext. This used to catch everything and hand
+     * the *ciphertext* back as if it were the plain text, so a failed decrypt looked like success and
+     * its garbage flowed into the JSON parser. Callers decide what a failure means (the sync listener
+     * skips the document).
      */
     fun decrypt(encryptedBase64: String, secretKey: SecretKey): String {
         if (encryptedBase64.isEmpty()) return ""
-        return try {
-            val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
-            if (combined.size <= GCM_IV_LENGTH) return encryptedBase64
+        val combined = Base64.decode(encryptedBase64, Base64.NO_WRAP)
+        require(combined.size > GCM_IV_LENGTH) { "Ciphertext too short" }
 
-            val iv = ByteArray(GCM_IV_LENGTH)
-            System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH)
+        val iv = ByteArray(GCM_IV_LENGTH)
+        System.arraycopy(combined, 0, iv, 0, GCM_IV_LENGTH)
 
-            val cipherBytes = ByteArray(combined.size - GCM_IV_LENGTH)
-            System.arraycopy(combined, GCM_IV_LENGTH, cipherBytes, 0, cipherBytes.size)
+        val cipherBytes = ByteArray(combined.size - GCM_IV_LENGTH)
+        System.arraycopy(combined, GCM_IV_LENGTH, cipherBytes, 0, cipherBytes.size)
 
-            val cipher = Cipher.getInstance(TRANSFORMATION)
-            cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(GCM_TAG_LENGTH, iv))
+        val cipher = Cipher.getInstance(TRANSFORMATION)
+        cipher.init(Cipher.DECRYPT_MODE, secretKey, GCMParameterSpec(GCM_TAG_LENGTH, iv))
 
-            String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
-        } catch (e: Exception) {
-            // Fallback to original text if not encrypted or decryption fails
-            encryptedBase64
-        }
+        return String(cipher.doFinal(cipherBytes), Charsets.UTF_8)
     }
 }
