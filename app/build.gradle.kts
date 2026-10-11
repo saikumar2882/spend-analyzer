@@ -16,8 +16,8 @@ android {
     applicationId = "com.alpha.spendtracker"
     minSdk = 24
     targetSdk = 37
-    versionCode = 22
-    versionName = "2.3.5"
+    versionCode = 23
+    versionName = "2.3.6"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
