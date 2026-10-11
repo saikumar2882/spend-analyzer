@@ -206,4 +206,37 @@ class PiiSanitizerTest {
         assertEquals(input, result.anonymizedText)
         assertTrue(result.tokens.isEmpty())
     }
+
+    /**
+     * Regression: "for <purpose word>" was matched by the same heuristic that finds the
+     * counterparty of a loan ("paid for Rahul"), so everyday purpose/category words the app
+     * itself recognizes (but didn't appear in the old hand-maintained ignore list) were silently
+     * swapped for a [PERSON_n] token before the text ever reached Groq/Gemini — the model then
+     * had no way to tell "paid 499 for netflix" was a subscription at all.
+     */
+    @Test
+    fun testCommonPurposeWordsAreNotTreatedAsPersonNames() {
+        val cases = listOf(
+            "paid 499 for netflix",
+            "spent 999 for internet",
+            "paid 199 for spotify",
+            "500 for hotstar",
+            "paid 2000 for emi",
+            "spent 1500 on mutual funds"
+        )
+        for (input in cases) {
+            val result = PiiSanitizer.anonymize(input)
+            assertEquals("'$input' should not be altered", input, result.anonymizedText)
+            assertTrue("'$input' should yield no PII tokens", result.tokens.isEmpty())
+        }
+    }
+
+    /** The purpose-word fix must not regress genuine lending/borrowing name detection. */
+    @Test
+    fun testLendingNamesStillDetectedAfterPurposeWordFix() {
+        val input = "handed 500 on Google Pay for Rahul"
+        val result = PiiSanitizer.anonymize(input)
+        assertEquals("handed 500 on Google Pay for [PERSON_1]", result.anonymizedText)
+        assertEquals("Rahul", result.tokens["[PERSON_1]"])
+    }
 }

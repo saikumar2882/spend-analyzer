@@ -156,7 +156,6 @@ import com.google.android.play.core.appupdate.AppUpdateOptions
 import com.google.android.play.core.install.model.AppUpdateType
 import com.google.android.play.core.install.model.UpdateAvailability
 import com.google.firebase.auth.FirebaseAuth
-import androidx.appcompat.app.AppCompatActivity
 import com.alpha.spendtracker.ui.theme.WindowWidthSizeClass
 import com.alpha.spendtracker.ui.theme.rememberWindowWidthSizeClass
 import dagger.hilt.android.AndroidEntryPoint
@@ -169,7 +168,7 @@ private const val UNDO_WINDOW_MS = 5000L
 enum class ActiveView { DASHBOARD, LEND_BORROW, HISTORY, HISTORY_TRASH, ADD_SPEND, LEND_BORROW_HISTORY, RECURRING_BILLS, NOTES, NOTES_HISTORY, SETTINGS }
 
 @AndroidEntryPoint
-class MainActivity : AppCompatActivity() {
+class MainActivity : FragmentActivity() {
     private val spendViewModel: SpendViewModel by viewModels()
     private lateinit var appUpdateManager: AppUpdateManager
     private val MY_UPDATE_REQUEST_CODE = 1001

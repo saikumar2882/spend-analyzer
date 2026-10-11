@@ -1,5 +1,7 @@
 package com.alpha.spendtracker.widget
 
+import android.content.Context
+import android.net.Uri
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alpha.spendtracker.data.AiParser
@@ -7,6 +9,8 @@ import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.data.AiPreferencesRepository
 import com.alpha.spendtracker.data.AiTransactionProcessor
 import com.alpha.spendtracker.data.AiTransactionResponse
+import com.alpha.spendtracker.data.SharedPaymentText
+import com.alpha.spendtracker.util.ReceiptTextReader
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.channels.Channel
@@ -26,6 +30,9 @@ data class QuickAddUiState(
 
 /** Sentinel error; the activity swaps in the localized "no amount found" message. */
 const val SHARE_NO_AMOUNT = "share_no_amount"
+
+/** Sentinel error: the shared image held no readable text. */
+const val SHARE_IMAGE_UNREADABLE = "share_image_unreadable"
 
 sealed interface QuickAddEffect {
     /**
@@ -103,6 +110,25 @@ class QuickAddViewModel @Inject constructor(
                 _effects.send(QuickAddEffect.HandOff(listOf(result)))
             } else {
                 _uiState.value = QuickAddUiState(isProcessing = false, errorMessage = SHARE_NO_AMOUNT)
+            }
+        }
+    }
+
+    /**
+     * A receipt shared as an image (GPay / PhonePe share a screenshot, not text). Reads it with
+     * on-device OCR, then follows the same path as shared text. Runs in [viewModelScope] so a
+     * rotation doesn't cancel the read and strand the sheet on "Reading your payment…".
+     */
+    fun processSharedImage(context: Context, uri: Uri, sourcePackage: String?) {
+        parseJob?.cancel()
+        _uiState.value = QuickAddUiState(isProcessing = true)
+        parseJob = viewModelScope.launch {
+            val raw = ReceiptTextReader.read(context.applicationContext, uri)
+            val input = raw?.let { SharedPaymentText.toParserInput(it, sourcePackage) }.orEmpty()
+            if (input.isBlank()) {
+                _uiState.value = QuickAddUiState(isProcessing = false, errorMessage = SHARE_IMAGE_UNREADABLE)
+            } else {
+                processShared(input)
             }
         }
     }

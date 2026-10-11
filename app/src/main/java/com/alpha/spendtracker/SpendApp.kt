@@ -2,12 +2,15 @@ package com.alpha.spendtracker
 
 import android.app.Application
 import android.util.Log
+import androidx.appfunctions.service.AppFunctionConfiguration
 import androidx.hilt.work.HiltWorkerFactory
 import androidx.work.Configuration
 import androidx.work.Constraints
 import androidx.work.NetworkType
 import androidx.work.PeriodicWorkRequestBuilder
 import androidx.work.WorkManager
+import com.alpha.spendtracker.assistant.SpendlyAppFunctions
+import com.alpha.spendtracker.assistant.VoiceTracker
 import com.alpha.spendtracker.worker.SyncWorker
 import com.google.android.gms.security.ProviderInstaller
 import dagger.hilt.android.HiltAndroidApp
@@ -15,10 +18,20 @@ import java.util.concurrent.TimeUnit
 import javax.inject.Inject
 
 @HiltAndroidApp
-class SpendApp : Application() {
+class SpendApp : Application(), AppFunctionConfiguration.Provider {
 
     @Inject
     lateinit var workerFactory: HiltWorkerFactory
+
+    // Lazy: only built when an assistant actually calls a function.
+    @Inject
+    lateinit var voiceTracker: dagger.Lazy<VoiceTracker>
+
+    /** The library builds [SpendlyAppFunctions] through here, since it can't use Hilt itself. */
+    override val appFunctionConfiguration: AppFunctionConfiguration
+        get() = AppFunctionConfiguration.Builder()
+            .addEnclosingClassFactory(SpendlyAppFunctions::class.java) { SpendlyAppFunctions(voiceTracker.get()) }
+            .build()
 
     override fun onCreate() {
         super.onCreate()

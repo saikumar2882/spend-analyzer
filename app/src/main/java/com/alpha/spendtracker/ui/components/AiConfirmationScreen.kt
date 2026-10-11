@@ -146,6 +146,14 @@ fun AiConfirmationScreen(
             )
         }
 
+        if (extractedData.usedFallback) {
+            Text(
+                stringResource(R.string.ai_fallback_notice),
+                color = MaterialTheme.colorScheme.tertiary,
+                style = MaterialTheme.typography.bodySmall
+            )
+        }
+
         val fieldColors = OutlinedTextFieldDefaults.colors(
             focusedContainerColor = MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.5f),
             unfocusedContainerColor = MaterialTheme.colorScheme.surfaceContainerLow,

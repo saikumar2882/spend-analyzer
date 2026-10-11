@@ -1,9 +1,11 @@
 package com.alpha.spendtracker.data
 
 import android.content.Context
+import android.util.Log
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.*
 import androidx.datastore.preferences.preferencesDataStore
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.map
 import java.util.Calendar
@@ -132,8 +134,15 @@ class AiPreferencesRepository(private val context: Context) {
     }
 
     suspend fun updateE2eEncryption(enabled: Boolean) {
-        context.dataStore.edit { preferences ->
-            preferences[PreferencesKeys.IS_E2E_ENCRYPTION_ENABLED] = enabled
+        try {
+            context.dataStore.edit { preferences ->
+                if (preferences[PreferencesKeys.IS_E2E_ENCRYPTION_ENABLED] != enabled) {
+                    preferences[PreferencesKeys.IS_E2E_ENCRYPTION_ENABLED] = enabled
+                }
+            }
+        } catch (e: Exception) {
+            if (e is CancellationException) throw e
+            Log.e("AiPreferencesRepository", "Failed to update E2E encryption setting", e)
         }
     }
 

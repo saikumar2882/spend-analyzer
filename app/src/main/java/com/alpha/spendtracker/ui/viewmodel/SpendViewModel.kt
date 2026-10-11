@@ -758,11 +758,15 @@ class SpendViewModel @Inject constructor(
                 } catch (e: Exception) {
                     lastError = e
                     val rawError = e.message ?: ""
-                    val isRetryable = rawError.contains("503") || 
-                            rawError.contains("504") || 
+                    // 429 (per-minute rate limit) is transient like a 503/504 and worth one retry,
+                    // unlike an account-level "quota" error which a 2s delay won't fix.
+                    val isRetryable = rawError.contains("503") ||
+                            rawError.contains("504") ||
+                            rawError.contains("429") ||
+                            rawError.contains("rate limit", ignoreCase = true) ||
                             rawError.contains("high demand", ignoreCase = true) ||
                             rawError.contains("unavailable", ignoreCase = true)
-                            
+
                     if (isRetryable && attempt == 0) {
                         delay(2000) // Wait 2 seconds before retrying
                         continue

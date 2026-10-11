@@ -3,10 +3,12 @@ package com.alpha.spendtracker.widget
 import android.Manifest
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.net.Uri
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.core.content.ContextCompat
+import androidx.core.content.IntentCompat
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
 import androidx.activity.viewModels
@@ -72,6 +74,11 @@ class QuickAddInputActivity : ComponentActivity() {
         val sharedText = if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("text/") == true) {
             intent.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() }
         } else null
+        // The same share, as a receipt screenshot (what GPay / PhonePe / Paytm actually send).
+        val sharedImage = if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
+            IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+        } else null
+        val isShare = sharedText != null || sharedImage != null
 
         // Nothing can be logged without an account, and the confirmation step lives behind
         // the app's auth gate anyway — send them straight to the app to sign in.
@@ -87,7 +94,7 @@ class QuickAddInputActivity : ComponentActivity() {
         // The widget's mic button and the "Voice" launcher shortcut both land here. Unlike the
         // Dashboard FAB, nothing asked for the microphone first, so a first-time user would just
         // see a speech error. Ask now; a "no" falls back to the typed sheet.
-        if (isVoiceLaunch && sharedText == null) {
+        if (isVoiceLaunch && !isShare) {
             val hasMic = ContextCompat.checkSelfPermission(this, Manifest.permission.RECORD_AUDIO) ==
                 PackageManager.PERMISSION_GRANTED
             when {
@@ -111,6 +118,10 @@ class QuickAddInputActivity : ComponentActivity() {
             viewModel.processShared(input)
         }
 
+        if (sharedImage != null && savedInstanceState == null) {
+            viewModel.processSharedImage(applicationContext, sharedImage, referrer?.host)
+        }
+
         lifecycleScope.launch {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.effects.collect { effect ->
@@ -132,7 +143,7 @@ class QuickAddInputActivity : ComponentActivity() {
 
                 if (awaitingMic) {
                     // Nothing to draw: the system permission dialog is in front.
-                } else if (sharedText != null && (uiState.isProcessing || uiState.errorMessage == null)) {
+                } else if (isShare && (uiState.isProcessing || uiState.errorMessage == null)) {
                     ModalBottomSheet(
                         onDismissRequest = {
                             viewModel.cancel()
@@ -144,13 +155,17 @@ class QuickAddInputActivity : ComponentActivity() {
                     ) {
                         ProcessingContent(stringResource(R.string.share_reading_payment))
                     }
-                } else if (sharedText != null) {
+                } else if (isShare) {
                     // Parsing failed: fall back to the normal input sheet so they can type it.
                     AiInputBottomSheet(
                         sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                         remainingRequests = AiTransactionProcessor.DAILY_LIMIT - prefs.dailyUsageCount,
                         errorMessage = uiState.errorMessage?.let {
-                            if (it == SHARE_NO_AMOUNT) stringResource(R.string.share_no_amount) else it
+                            when (it) {
+                                SHARE_NO_AMOUNT -> stringResource(R.string.share_no_amount)
+                                SHARE_IMAGE_UNREADABLE -> stringResource(R.string.share_image_unreadable)
+                                else -> it
+                            }
                         },
                         onProcess = viewModel::process,
                         onDismiss = {

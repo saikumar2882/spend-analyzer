@@ -185,12 +185,21 @@ class SpendRepository(
                 if (snapshot == null) return@addSnapshotListener
                 if (snapshot.exists()) {
                     val enabled = snapshot.getBoolean(E2EE_FIELD) == true
-                    isE2eEncryptionEnabled = enabled
-                    scope.launch { aiPreferencesRepository?.updateE2eEncryption(enabled) }
+                    if (isE2eEncryptionEnabled != enabled) {
+                        isE2eEncryptionEnabled = enabled
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                aiPreferencesRepository?.updateE2eEncryption(enabled)
+                            } catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                Log.e(tag, "Failed to update local e2ee preference", e)
+                            }
+                        }
+                    }
                 } else if (!snapshot.metadata.isFromCache && reconcilingE2ee.compareAndSet(false, true)) {
                     // Only a server-confirmed "missing" counts. An empty offline cache says nothing
                     // about the account and must not create a setting that overrides the real one.
-                    scope.launch { createMissingE2eeSetting(userDoc, ref) }
+                    scope.launch(Dispatchers.IO) { createMissingE2eeSetting(userDoc, ref) }
                 }
             }
         )

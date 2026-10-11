@@ -126,6 +126,7 @@
     <string name="ai_input_hint">अपने खर्च का विवरण टाइप या पेस्ट करें...</string>
     <string name="review_transaction">लेनदेन की समीक्षा करें</string>
     <string name="ai_learned_from_corrections">आपके सुधारों से सीखा गया</string>
+    <string name="ai_fallback_notice">AI उपलब्ध नहीं था, इसलिए इसे त्वरित ऑफ़लाइन मिलान से पार्स किया गया है — कृपया विवरण जांच लें।</string>
     <string name="confirm_and_save">पुष्टि करें और सहेजें</string>
     <string name="edit_details">विवरण संपादित करें</string>
 
@@ -380,6 +381,7 @@
     <string name="share_reading_payment">आपका भुगतान पढ़ा जा रहा है…</string>
     <string name="share_no_amount">शेयर किए गए टेक्स्ट में राशि नहीं मिली। नीचे लिखें।</string>
     <string name="share_nothing_to_track">शेयर किए गए टेक्स्ट में ट्रैक करने को कुछ नहीं है</string>
+    <string name="share_image_unreadable">उस इमेज में कोई टेक्स्ट नहीं पढ़ा जा सका। भुगतान नीचे लिखें।</string>
 
     <!-- Launcher (long-press) shortcuts -->
     <string name="shortcut_ai_short">एआई ट्रैक</string>
@@ -449,4 +451,16 @@
     <string name="quick_filter_bills">बिल</string>
     <string name="quick_filter_high_spends">उच्च खर्च (> ₹1000)</string>
     <string name="quick_filter_credit_cards">क्रेडिट कार्ड</string>
+    <string name="voice_channel_name">वॉइस लॉगिंग</string>
+    <string name="voice_notif_logged_title">वॉइस से दर्ज किया गया</string>
+    <string name="voice_notif_review_title">इस खर्च की पुष्टि करें</string>
+    <string name="voice_notif_review_text">सेव करने से पहले देखने के लिए टैप करें</string>
+    <string name="voice_notif_undo">पूर्ववत करें</string>
+    <string name="voice_logged_one">%2$s के लिए %1$s दर्ज किया गया।</string>
+    <string name="voice_logged_many">%1$d खर्च दर्ज किए गए, कुल %2$s।</string>
+    <string name="voice_review_no_amount">राशि सुनाई नहीं दी। फिर से कहें, जैसे: लंच पर 200 खर्च किए।</string>
+    <string name="voice_review_person">यह किसके साथ था? नाम जोड़ने के लिए Spendly खोलें।</string>
+    <string name="voice_review_unsure">मुझे इस बारे में यकीन नहीं था। पुष्टि के लिए Spendly खोलें।</string>
+    <string name="voice_not_signed_in">पहले Spendly में साइन इन करें, फिर दोबारा कोशिश करें।</string>
+    <string name="voice_save_failed">मैं इसे सेव नहीं कर सका। कृपया दोबारा कोशिश करें।</string>
 </resources>

@@ -114,6 +114,13 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- GPay / PhonePe / Paytm share a receipt as a screenshot-style image, not text, so
+                 without this filter the app never appears in their share sheet. -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+            </intent-filter>
         </activity-alias>
 
         <receiver

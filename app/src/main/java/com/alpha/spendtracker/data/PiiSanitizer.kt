@@ -27,10 +27,18 @@ object PiiSanitizer {
     )
 
     // Common app names, payment presets, purpose keywords, or verbs that should not be treated as person names.
-    private val IGNORED_WORDS = setOf(
+    //
+    // ⚠️ This is also merged with AiParser.PURPOSE_KEYWORD_WORDS below. A hand-maintained list
+    // alone is a losing game — "netflix", "internet", "spotify" etc. were missing here, so a
+    // perfectly ordinary "paid 499 for netflix" got "netflix" silently swapped for [PERSON_1]
+    // before the text ever reached Groq/Gemini: the model then had no way to tell it was a
+    // subscription at all. Pulling in the same keyword vocabulary the rest of the parsing
+    // pipeline already recognizes means a word can't be a "purpose" to the parser and a "person"
+    // to the sanitizer at the same time, and new purpose keywords stay covered automatically.
+    private val IGNORED_WORDS: Set<String> = setOf(
         "swiggy", "swiggi", "swigy", "zomato", "zomoto", "zepto", "zapto", "blinkit", "grofers",
-        "amazon", "flipkart", "myntra", "ajio", "uber", "ola", "rapido", "gpay", "google pay",
-        "phonepe", "phone pay", "paytm", "cred", "icici", "sbi", "hdfc", "axis", "airtel", "jio",
+        "amazon", "flipkart", "myntra", "ajio", "uber", "ola", "rapido", "gpay", "google", "pay",
+        "phonepe", "phone", "paytm", "cred", "icici", "sbi", "hdfc", "axis", "airtel", "jio",
         "lunch", "dinner", "breakfast", "biryani", "pizza", "coffee", "tea", "chai", "groceries",
         "petrol", "diesel", "fuel", "cab", "auto", "rent", "electricity", "water", "wifi", "bill",
         "movie", "gym", "medicine", "doctor", "hospital", "recharge", "shopping", "food",
@@ -38,7 +46,7 @@ object PiiSanitizer {
         "credit", "details", "buying", "clothes", "shirt", "pants", "jeans", "shoes", "snacks",
         "house", "trip", "ticket", "tickets", "booking", "handbag", "purse",
         "bro", "brother", "landlord", "uncle", "aunty", "cousin", "sister", "sis", "mom", "dad", "father", "mother", "boss"
-    )
+    ) + AiParser.PURPOSE_KEYWORD_WORDS
 
     /**
      * Anonymizes card numbers, UPI IDs, phone numbers, and personal names in the input text.

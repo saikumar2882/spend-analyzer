@@ -43,6 +43,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
         const val EXTRA_BILL_NOTES = "extra_bill_notes"
         const val EXTRA_BILL_AMOUNT = "extra_bill_amount"
 
+        // "Undo" on the confirmation shown after an expense was logged by voice (see VoiceTracker).
+        const val ACTION_UNDO_TRACKED = "com.alpha.spendtracker.ACTION_UNDO_TRACKED"
+        const val EXTRA_TRACKED_USER_ID = "extra_tracked_user_id"
+        const val EXTRA_TRACKED_UUIDS = "extra_tracked_uuids"
+
         private const val CONFIRMATION_TIMEOUT_MS = 4_000L
 
         // Serializes "Mark as paid" taps so a double tap can't pass the already-logged check twice.
@@ -66,6 +71,17 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     notificationManager.cancel(notificationId)
                 }
             }
+            ACTION_UNDO_TRACKED -> {
+                val appContext = context.applicationContext
+                val pendingResult = goAsync()
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    try {
+                        undoTracked(appContext, intent)
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
+            }
             ACTION_MARK_AS_PAID -> {
                 val appContext = context.applicationContext
                 val pendingResult = goAsync()
@@ -77,6 +93,39 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     }
                 }
             }
+        }
+    }
+
+    /**
+     * Soft-deletes what a voice command just logged (same as the in-app Undo: the rows land in the
+     * recycle bin and sync as a normal delete), then dismisses the confirmation.
+     */
+    private suspend fun undoTracked(context: Context, intent: Intent) {
+        val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
+        val userId = intent.getStringExtra(EXTRA_TRACKED_USER_ID).orEmpty()
+        val uuids = intent.getStringArrayExtra(EXTRA_TRACKED_UUIDS).orEmpty()
+        if (userId.isBlank() || uuids.isEmpty()) return
+
+        // Room is shared across accounts on a device: only the account that logged it may undo it.
+        if (FirebaseAuth.getInstance().currentUser?.uid != userId) {
+            Log.w(TAG, "Ignoring Undo: logged by a different account")
+            return
+        }
+
+        val repository = EntryPointAccessors
+            .fromApplication(context, ReceiverEntryPoint::class.java)
+            .spendRepository()
+        var failed = false
+        uuids.forEach { uuid ->
+            repository.deleteByUuid(uuid, userId).onFailure {
+                failed = true
+                Log.e(TAG, "Could not undo $uuid: ${it.message}")
+            }
+        }
+        // On failure leave the notification so the user can try again.
+        if (!failed && notificationId != -1) {
+            val manager = context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+            manager.cancel(notificationId)
         }
     }
 

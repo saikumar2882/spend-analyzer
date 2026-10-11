@@ -154,6 +154,7 @@
     <string name="ai_input_hint">Type or paste your expense details...</string>
     <string name="review_transaction">Review Transaction</string>
     <string name="ai_learned_from_corrections">Learned from your corrections</string>
+    <string name="ai_fallback_notice">AI was unavailable, so this was parsed with quick offline matching — please double-check the details.</string>
     <string name="confirm_and_save">Confirm &amp; Save</string>
     <string name="edit_details">Edit Details</string>
 
@@ -415,6 +416,7 @@
     <string name="share_reading_payment">Reading your payment…</string>
     <string name="share_no_amount">Couldn\'t find an amount in the shared text. Type it below.</string>
     <string name="share_nothing_to_track">Nothing to track in the shared text</string>
+    <string name="share_image_unreadable">Couldn\'t read any text in that image. Type the payment below.</string>
 
     <!-- Launcher (long-press) shortcuts -->
     <string name="shortcut_ai_short">AI Track</string>
@@ -452,4 +454,16 @@
     <string name="ai_multi_hint">Tip: add several at once, like “tea 20, auto 80 and lunch 150”</string>
     <string name="voice_multi_hint">You can say more than one expense, like “tea 20, auto 80”</string>
     <string name="ai_reading_input">Reading your expenses…</string>
+    <string name="voice_channel_name">Voice logging</string>
+    <string name="voice_notif_logged_title">Logged by voice</string>
+    <string name="voice_notif_review_title">Confirm this expense</string>
+    <string name="voice_notif_review_text">Tap to review before saving</string>
+    <string name="voice_notif_undo">Undo</string>
+    <string name="voice_logged_one">Logged %1$s for %2$s.</string>
+    <string name="voice_logged_many">Logged %1$d expenses totalling %2$s.</string>
+    <string name="voice_review_no_amount">I couldn\'t catch an amount. Try again, for example: spent 200 on lunch.</string>
+    <string name="voice_review_person">Who was that with? Open Spendly to add the name.</string>
+    <string name="voice_review_unsure">I wasn\'t sure about that one. Open Spendly to confirm it.</string>
+    <string name="voice_not_signed_in">Sign in to Spendly first, then try again.</string>
+    <string name="voice_save_failed">I couldn\'t save that. Please try again.</string>
 </resources>

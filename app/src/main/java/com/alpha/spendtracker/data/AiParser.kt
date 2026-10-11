@@ -46,7 +46,7 @@ object AiParser {
             preset to Regex("""(?<![\p{L}\p{M}])${Regex.escape(alias)}(?![\p{L}\p{M}])""")
         }
 
-    private val PURPOSE_KEYWORDS: Map<String, List<String>> = mapOf(
+    internal val PURPOSE_KEYWORDS: Map<String, List<String>> = mapOf(
         "Food & Drinks" to listOf(
             "biryani", "pizza", "burger", "lunch", "dinner", "breakfast", "brunch",
             "snack", "snacks", "food", "meal", "coffee", "tea", "chai", "juice",
@@ -95,7 +95,7 @@ object AiParser {
         ),
         "Credit Card Bill" to listOf(
             "credit card bill", "cc bill", "card bill", "credit card payment",
-            "credit card"
+            "credit card", "emi", "loan payment"
         ),
         "Investment" to listOf(
             "investment", "investments", "savings", "stocks", "stock", "mutual fund",
@@ -111,6 +111,22 @@ object AiParser {
             "misc", "miscellaneous", "others", "other"
         )
     )
+
+    /**
+     * Every individual word drawn from [PURPOSE_KEYWORDS] (multi-word phrases split into their
+     * component words, since callers match single tokens). Lets other heuristics — notably
+     * [com.alpha.spendtracker.data.PiiSanitizer]'s person-name detector — recognize that a word
+     * like "netflix" or "internet" is a purpose/category keyword the app already knows about, not
+     * a candidate person name, without hand-maintaining a second copy of this vocabulary that can
+     * drift out of sync.
+     */
+    internal val PURPOSE_KEYWORD_WORDS: Set<String> by lazy {
+        PURPOSE_KEYWORDS.values.asSequence()
+            .flatten()
+            .flatMap { it.lowercase().split(" ") }
+            .filter { it.isNotBlank() }
+            .toSet()
+    }
 
     fun findAppPreset(text: String): AppPreset? {
         val lower = text.lowercase()

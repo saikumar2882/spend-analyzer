@@ -359,7 +359,7 @@ fun getAppPackageName(appName: String): String? {
 /**
  * Context-aware lookup that falls back to dynamic device package discovery for any app installed on the device.
  */
-fun getAppPackageName(context: Context, appName: String): String? {
+suspend fun getAppPackageName(context: Context, appName: String): String? = withContext(Dispatchers.IO) {
     val staticPkg = getAppPackageName(appName)
     if (staticPkg != null) {
         val isInstalled = try {
@@ -370,12 +370,12 @@ fun getAppPackageName(context: Context, appName: String): String? {
                 context.packageManager.getApplicationInfo(staticPkg, 0)
             }
             true
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             false
         }
-        if (isInstalled) return staticPkg
+        if (isInstalled) return@withContext staticPkg
     }
-    return AppIconCache.findInstalledPackageName(context, appName)
+    AppIconCache.findInstalledPackageName(context, appName)
 }
 
 /**
@@ -435,12 +435,12 @@ private object AppIconCache {
     /** ConcurrentHashMap cannot store nulls, so a miss is cached as an empty box. */
     private class Optional(val value: Drawable?)
 
-    fun findInstalledPackageName(context: Context, appName: String): String? {
+    suspend fun findInstalledPackageName(context: Context, appName: String): String? = withContext(Dispatchers.IO) {
         val cleanName = appName.trim().lowercase()
-        if (cleanName.isBlank() || cleanName == "other" || cleanName == "other platform") return null
+        if (cleanName.isBlank() || cleanName == "other" || cleanName == "other platform") return@withContext null
 
         packageLookupCache[cleanName]?.let {
-            return if (it == "NONE") null else it
+            return@withContext if (it == "NONE") null else it
         }
 
         val pm = context.packageManager
@@ -455,34 +455,48 @@ private object AppIconCache {
                 @Suppress("DEPRECATION")
                 pm.queryIntentActivities(intent, 0)
             }
-        } catch (_: Exception) {
+        } catch (_: Throwable) {
             emptyList()
         }
 
         val cleanApp = cleanName.replace(Regex("[^a-z0-9]"), "")
 
         for (info in resolveInfos) {
-            val pName = info.activityInfo.packageName
-            val label = try {
-                info.loadLabel(pm).toString().lowercase()
-            } catch (_: Exception) {
-                ""
-            }
-            val cleanLabel = label.replace(Regex("[^a-z0-9]"), "")
+            val activityInfo = info.activityInfo ?: continue
+            val pName = activityInfo.packageName ?: continue
             val cleanPName = pName.lowercase()
+
+            // 1. Check package name first to avoid loading resources unnecessarily
+            if (cleanApp.length >= 3 && cleanPName.contains(cleanApp)) {
+                packageLookupCache[cleanName] = pName
+                return@withContext pName
+            }
+
+            // 2. Safely resolve label without forcing resource loading if nonLocalizedLabel is present
+            val label = try {
+                val nonLocalized = info.nonLocalizedLabel ?: activityInfo.nonLocalizedLabel
+                if (nonLocalized != null) {
+                    nonLocalized.toString()
+                } else {
+                    info.loadLabel(pm).toString()
+                }
+            } catch (_: Throwable) {
+                ""
+            }.lowercase()
+
+            val cleanLabel = label.replace(Regex("[^a-z0-9]"), "")
 
             if (cleanLabel == cleanApp ||
                 (cleanApp.length >= 3 && cleanLabel.contains(cleanApp)) ||
-                (cleanLabel.length >= 3 && cleanApp.contains(cleanLabel)) ||
-                cleanPName.contains(cleanApp)
+                (cleanLabel.length >= 3 && cleanApp.contains(cleanLabel))
             ) {
                 packageLookupCache[cleanName] = pName
-                return pName
+                return@withContext pName
             }
         }
 
         packageLookupCache[cleanName] = "NONE"
-        return null
+        return@withContext null
     }
 
     suspend fun load(context: Context, packageName: String): Drawable? {
@@ -490,7 +504,7 @@ private object AppIconCache {
         return withContext(Dispatchers.IO) {
             val icon = try {
                 context.packageManager.getApplicationIcon(packageName)
-            } catch (_: Exception) {
+            } catch (_: Throwable) {
                 null
             }
             cache[packageName] = Optional(icon)
@@ -514,9 +528,11 @@ fun AppIconImage(
     contentDescription: String? = null
 ) {
     val context = LocalContext.current
-    val packageName = remember(appName, context) { getAppPackageName(context, appName) }
+    val packageName by produceState<String?>(initialValue = getAppPackageName(appName), appName) {
+        value = getAppPackageName(context, appName)
+    }
 
-    val installedIcon by produceState<Drawable?>(initialValue = null, appName, packageName) {
+    val installedIcon by produceState<Drawable?>(initialValue = null, packageName) {
         value = packageName?.let { AppIconCache.load(context, it) }
     }
 

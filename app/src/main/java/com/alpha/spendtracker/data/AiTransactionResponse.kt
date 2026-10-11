@@ -23,7 +23,13 @@ data class AiTransactionResponse(
     val needsAmount: Boolean = false,
     /** True when an on-device learned correction (not the AI) chose the app / purpose. */
     val learnedApp: Boolean = false,
-    val learnedPurpose: Boolean = false
+    val learnedPurpose: Boolean = false,
+    /**
+     * True when the cloud model call failed, timed out, or returned unusable output and this
+     * result is the local heuristic baseline instead — so the confirmation screen can tell the
+     * user to double-check it rather than silently presenting it as the AI's answer.
+     */
+    val usedFallback: Boolean = false
 )
 
 /**
@@ -72,6 +78,7 @@ object AiResultIntent {
                     put("needsAmount", r.needsAmount)
                     put("learnedApp", r.learnedApp)
                     put("learnedPurpose", r.learnedPurpose)
+                    put("usedFallback", r.usedFallback)
                 })
             }
         }.toString()
@@ -92,7 +99,8 @@ object AiResultIntent {
                     timestamp = if (o.has("timestamp")) o.getLong("timestamp") else null,
                     needsAmount = o.optBoolean("needsAmount", false),
                     learnedApp = o.optBoolean("learnedApp", false),
-                    learnedPurpose = o.optBoolean("learnedPurpose", false)
+                    learnedPurpose = o.optBoolean("learnedPurpose", false),
+                    usedFallback = o.optBoolean("usedFallback", false)
                 )
             }
         } catch (e: org.json.JSONException) {

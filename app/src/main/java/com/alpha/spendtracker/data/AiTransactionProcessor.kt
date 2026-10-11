@@ -122,8 +122,11 @@ class AiTransactionProcessor @Inject constructor(
                             val restoredSource = PiiSanitizer.deanonymize(item.source, piiTokens)
                             AiBatchParser.Parsed(restoredResp, restoredSource)
                         }
-                    } else baselines
-                } else baselines
+                    } else {
+                        Log.w(TAG, "MODE 2: model responded but output wasn't usable JSON — falling back to local baseline")
+                        markFallback(baselines)
+                    }
+                } else markFallback(baselines)
 
                 Result.success(withLearnedCorrections(parsedList, learnedRules))
             }
@@ -137,13 +140,22 @@ class AiTransactionProcessor @Inject constructor(
                 val parsedList = if (!responseText.isNullOrBlank()) {
                     aiPrefsRepository.incrementUsage()
                     val rawParsed = AiBatchParser.parse(responseText, text, prefs.defaultApp, prefs.defaultPurpose, allowMultiple)
-                    rawParsed ?: baselines
-                } else baselines
+                    if (rawParsed != null) {
+                        rawParsed
+                    } else {
+                        Log.w(TAG, "MODE 4: model responded but output wasn't usable JSON — falling back to local baseline")
+                        markFallback(baselines)
+                    }
+                } else markFallback(baselines)
 
                 Result.success(withLearnedCorrections(parsedList, learnedRules))
             }
         }
     }
+
+    /** Flags baseline results as degraded so the confirmation screen can tell the user to double-check them. */
+    private fun markFallback(parsed: List<AiBatchParser.Parsed>): List<AiBatchParser.Parsed> =
+        parsed.map { it.copy(response = it.response.copy(usedFallback = true)) }
 
     /**
      * Calls Groq API (or Gemini fallback) with the prompt text.
@@ -172,11 +184,21 @@ class AiTransactionProcessor @Inject constructor(
                         response_format = GroqResponseFormat(),
                         reasoning_effort = "low",
                         include_reasoning = false,
-                        max_completion_tokens = if (allowMultiple) 1536 else 512
+                        // GPT-OSS is a reasoning model: even at "low" effort, reasoning tokens are
+                        // drawn from this same ceiling before the JSON answer is emitted (see the
+                        // identical note on the history assistant's call). A tight budget here was
+                        // silently truncating the JSON — AiBatchParser.parse then can't find a
+                        // closing brace, returns null, and the request quietly falls back to the
+                        // much weaker local baseline with no indication anything went wrong.
+                        max_completion_tokens = if (allowMultiple) 2048 else 768
                     )
                     val response = groqApiService.getCompletion("Bearer $groqKey", groqRequest)
                     if (response.isSuccessful) {
-                        responseText = response.body()?.choices?.firstOrNull()?.message?.content
+                        val choice = response.body()?.choices?.firstOrNull()
+                        if (choice?.finish_reason == "length") {
+                            Log.w(TAG, "Input: response truncated (hit max_completion_tokens)")
+                        }
+                        responseText = choice?.message?.content
                     } else {
                         val errorBody = response.errorBody()?.string().orEmpty().take(300)
                         Log.e(TAG, "Groq Error: ${response.code()} - $errorBody")
@@ -200,7 +222,11 @@ class AiTransactionProcessor @Inject constructor(
             } catch (e: Exception) {
                 lastError = e
                 val msg = e.message ?: ""
-                val isRetryable = msg.contains("503") || msg.contains("504") || msg.contains("high demand", ignoreCase = true)
+                // 429 (per-minute rate limit) is transient exactly like a 503/504 — worth one
+                // short retry instead of immediately degrading to the local baseline.
+                val isRetryable = msg.contains("503") || msg.contains("504") ||
+                        msg.contains("429") || msg.contains("rate limit", ignoreCase = true) ||
+                        msg.contains("high demand", ignoreCase = true)
                 if (isRetryable && attempt == 0) {
                     delay(2000)
                     continue

@@ -17,7 +17,7 @@ android {
     minSdk = 24
     targetSdk = 37
     versionCode = 22
-    versionName = "2.3.4"
+    versionName = "2.3.5"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -46,11 +46,11 @@ android {
       proguardFiles(getDefaultProguardFile("proguard-android-optimize.txt"), "proguard-rules.pro")
 
       // ML Kit Translate ships a ~11-17 MB libtranslate_jni.so per ABI, and the release APK is one
-      // universal file, so all four ABIs cost ~60 MB. Phones are ARM; x86/x86_64 only matter for
-      // emulators, which keep working through the debug build. Don't switch this to `splits`:
-      // UpdateChecker downloads the first .apk asset of a GitHub release, which would be an
-      // arbitrary ABI.
-      ndk { abiFilters += listOf("arm64-v8a", "armeabi-v7a") }
+      // universal file, so every extra ABI costs that much. arm64 only: 32-bit-only phones (rare,
+      // roughly pre-2019) can no longer install it. x86/x86_64 only matter for emulators, which keep
+      // working through the debug build. Don't switch this to `splits`: UpdateChecker downloads
+      // the first .apk asset of a GitHub release, which would be an arbitrary ABI.
+      ndk { abiFilters += listOf("arm64-v8a") }
 
       // Only attach signing config if it was actually configured
       val releaseConfig = signingConfigs.getByName("release")
@@ -78,6 +78,9 @@ ksp {
   // migration against, so a hand-written migration that drifts from the entities is only caught at
   // runtime, by Room's identity check throwing on the user's device.
   arg("room.schemaLocation", "$projectDir/schemas")
+  // Makes the AppFunctions compiler aggregate every @AppFunction into the XML the OS indexes, so
+  // voice assistants (Gemini) can discover SpendlyAppFunctions.trackExpense.
+  arg("appfunctions:aggregateAppFunctions", "true")
 }
 
 hilt {
@@ -98,6 +101,11 @@ dependencies {
   implementation(libs.play.app.update.ktx)
   implementation(libs.androidx.appcompat)
   implementation(libs.mlkit.translate)
+  implementation(libs.mlkit.text.recognition)
+  // Experimental: lets Gemini call "track expense" by voice (Android 16+). See VoiceTracker.
+  implementation(libs.androidx.appfunctions)
+  implementation(libs.androidx.appfunctions.service)
+  ksp(libs.androidx.appfunctions.compiler)
   implementation(libs.androidx.core.splashscreen)
   implementation(libs.play.services.auth)
   // implementation(libs.accompanist.permissions)
