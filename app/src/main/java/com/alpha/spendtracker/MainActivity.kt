@@ -1454,6 +1454,7 @@ LaunchedEffect(Unit) {
                             suggestions = viewModel.subscriptionSuggestions.collectAsStateWithLifecycle().value,
                             onDismissSuggestion = viewModel::dismissSubscriptionSuggestion,
                             onBack = goBackMajor,
+                            onAiAssistantClick = { showAiHistoryAssistant = true },
                             onAddBill = { name, purpose, category, app, amount, day, notes, isCreditCard, cardLast4, untilDate, frequency ->
                                 viewModel.addRecurringBill(
                                     name = name,
@@ -1487,7 +1488,10 @@ LaunchedEffect(Unit) {
                             // blank or a multi-char code (e.g. "INR") so tiles stay clean.
                             currencySymbol = aiPrefs.defaultCurrency.let { if (it.isBlank() || it.length > 2) "₹" else it },
                             onBack = goBackMajor,
-                            onAddNote = viewModel::addNote,
+                            onAiAssistantClick = { showAiHistoryAssistant = true },
+                            onAddNote = { title, colorIndex, uuid ->
+                                viewModel.addNote(title, colorIndex, uuid)
+                            },
                             onUpdateNote = viewModel::updateNote,
                             onDeleteNote = { note ->
                                 viewModel.deleteNoteUndoable(note) { result ->
@@ -1497,9 +1501,47 @@ LaunchedEffect(Unit) {
                                     }
                                 }
                             },
+                            onDeleteNotes = { notesToDelete ->
+                                viewModel.deleteNotes(notesToDelete) { result ->
+                                    result.fold(
+                                        onSuccess = { showNotification("Deleted ${notesToDelete.size} notes", NotificationType.SUCCESS) },
+                                        onFailure = { showNotification(it.userMessageOrGeneric(), NotificationType.ERROR) }
+                                    )
+                                }
+                            },
                             onAddEntry = viewModel::addNoteEntry,
                             onUpdateEntry = viewModel::updateNoteEntry,
                             onDeleteEntry = viewModel::deleteNoteEntry,
+                            onDeleteEntries = { entriesToDelete ->
+                                viewModel.deleteNoteEntries(entriesToDelete) { result ->
+                                    result.fold(
+                                        onSuccess = { showNotification("Deleted ${entriesToDelete.size} entries", NotificationType.SUCCESS) },
+                                        onFailure = { showNotification(it.userMessageOrGeneric(), NotificationType.ERROR) }
+                                    )
+                                }
+                            },
+                            onMoveEntries = { entriesToMove, targetNoteUuid ->
+                                viewModel.moveNoteEntries(entriesToMove, targetNoteUuid) { result ->
+                                    result.fold(
+                                        onSuccess = {
+                                            val targetTitle = notes.find { n -> n.uuid == targetNoteUuid }?.title ?: "note"
+                                            showNotification("Moved ${entriesToMove.size} entries to '$targetTitle'", NotificationType.SUCCESS)
+                                        },
+                                        onFailure = { showNotification(it.userMessageOrGeneric(), NotificationType.ERROR) }
+                                    )
+                                }
+                            },
+                            onCopyEntries = { entriesToCopy, targetNoteUuid ->
+                                viewModel.copyNoteEntries(entriesToCopy, targetNoteUuid) { result ->
+                                    result.fold(
+                                        onSuccess = {
+                                            val targetTitle = notes.find { n -> n.uuid == targetNoteUuid }?.title ?: "note"
+                                            showNotification("Copied ${entriesToCopy.size} entries to '$targetTitle'", NotificationType.SUCCESS)
+                                        },
+                                        onFailure = { showNotification(it.userMessageOrGeneric(), NotificationType.ERROR) }
+                                    )
+                                }
+                            },
                             onShowHistory = { activeView = ActiveView.NOTES_HISTORY },
                             onLogAsTransaction = { note ->
                                 viewModel.logNoteAsTransaction(note, aiPrefs.defaultApp) { result ->
@@ -1603,6 +1645,12 @@ LaunchedEffect(Unit) {
                         ActiveView.ADD_SPEND -> AddSpendScreen(
                             editingSpend = editingSpend,
                             prefilledSpend = prefilledBillSpend,
+                            userAppOrder = aiPrefs.userAppOrder,
+                            userCategoryOrder = aiPrefs.userCategoryOrder,
+                            onSaveAppOrder = { order -> viewModel.updateAppOrder(order) },
+                            onSaveCategoryOrder = { order -> viewModel.updateCategoryOrder(order) },
+                            onResetAppOrder = { viewModel.updateAppOrder(emptyList()) },
+                            onResetCategoryOrder = { viewModel.updateCategoryOrder(emptyList()) },
                             onDismiss = {
                                 editingSpend = null
                                 prefilledBillSpend = null

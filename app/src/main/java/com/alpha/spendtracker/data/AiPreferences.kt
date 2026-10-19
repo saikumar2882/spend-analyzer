@@ -29,7 +29,9 @@ data class AiPreferences(
     val isDynamicColorEnabled: Boolean = false,
     val isOledBlackEnabled: Boolean = false,
     val isE2eEncryptionEnabled: Boolean = false,
-    val hasAcceptedPrivacyPolicy: Boolean = false
+    val hasAcceptedPrivacyPolicy: Boolean = false,
+    val userAppOrder: List<String> = emptyList(),
+    val userCategoryOrder: List<String> = emptyList()
 )
 
 class AiPreferencesRepository(private val context: Context) {
@@ -50,6 +52,8 @@ class AiPreferencesRepository(private val context: Context) {
         val IS_OLED_BLACK_ENABLED = booleanPreferencesKey("is_oled_black_enabled")
         val IS_E2E_ENCRYPTION_ENABLED = booleanPreferencesKey("is_e2e_encryption_enabled")
         val HAS_ACCEPTED_PRIVACY_POLICY = booleanPreferencesKey("has_accepted_privacy_policy")
+        val APP_ORDER = stringPreferencesKey("user_app_order")
+        val CATEGORY_ORDER = stringPreferencesKey("user_category_order")
     }
 
     val aiPreferencesFlow: Flow<AiPreferences> = context.dataStore.data
@@ -60,6 +64,16 @@ class AiPreferencesRepository(private val context: Context) {
             // Reset count if it's a new day
             val isNewDay = !isSameDay(lastDate, System.currentTimeMillis())
             val finalCount = if (isNewDay) 0 else currentCount
+
+            val appOrderRaw = preferences[PreferencesKeys.APP_ORDER]
+            val appOrderList = if (!appOrderRaw.isNullOrBlank()) {
+                appOrderRaw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            } else emptyList()
+
+            val catOrderRaw = preferences[PreferencesKeys.CATEGORY_ORDER]
+            val catOrderList = if (!catOrderRaw.isNullOrBlank()) {
+                catOrderRaw.split(",").map { it.trim() }.filter { it.isNotEmpty() }
+            } else emptyList()
 
             AiPreferences(
                 defaultCurrency = preferences[PreferencesKeys.CURRENCY] ?: "₹",
@@ -76,7 +90,9 @@ class AiPreferencesRepository(private val context: Context) {
                 isDynamicColorEnabled = preferences[PreferencesKeys.IS_DYNAMIC_COLOR_ENABLED] ?: false,
                 isOledBlackEnabled = preferences[PreferencesKeys.IS_OLED_BLACK_ENABLED] ?: false,
                 isE2eEncryptionEnabled = preferences[PreferencesKeys.IS_E2E_ENCRYPTION_ENABLED] ?: false,
-                hasAcceptedPrivacyPolicy = preferences[PreferencesKeys.HAS_ACCEPTED_PRIVACY_POLICY] ?: false
+                hasAcceptedPrivacyPolicy = preferences[PreferencesKeys.HAS_ACCEPTED_PRIVACY_POLICY] ?: false,
+                userAppOrder = appOrderList,
+                userCategoryOrder = catOrderList
             )
         }
 
@@ -149,6 +165,18 @@ class AiPreferencesRepository(private val context: Context) {
     suspend fun updatePrivacyPolicyAccepted(accepted: Boolean) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.HAS_ACCEPTED_PRIVACY_POLICY] = accepted
+        }
+    }
+
+    suspend fun updateAppOrder(order: List<String>) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.APP_ORDER] = order.joinToString(",")
+        }
+    }
+
+    suspend fun updateCategoryOrder(order: List<String>) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CATEGORY_ORDER] = order.joinToString(",")
         }
     }
 

@@ -95,9 +95,9 @@ fun parseLendBorrowNotes(rawNotes: String, appName: String): Pair<String, String
     if (trimmed.isNotBlank()) {
         val appNameLower = appName.trim().lowercase()
         val isPaymentApp = appNameLower in setOf(
-            "google pay", "google_pay", "gpay", "phonepe", "phone_pe", "paytm",
+            "google pay", "google_pay", "gpay", "phonepe", "phone_pe", "paytm", "cred",
             "swiggy", "zomato", "zepto", "blinkit", "cash", "other platform", "other", "banking & cards"
-        ) || appNameLower.contains("pay") || appNameLower.contains("cash")
+        ) || appNameLower.contains("pay") || appNameLower.contains("cash") || appNameLower.contains("cred")
         
         if (isPaymentApp || appName.isBlank()) {
             return trimmed to ""

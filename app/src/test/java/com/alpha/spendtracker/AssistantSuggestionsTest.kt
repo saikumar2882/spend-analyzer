@@ -29,9 +29,14 @@ class AssistantSuggestionsTest {
     private fun scope(question: String) = HistoryQuery.parseScope(question, now, tz, Calendar.MONDAY)
     @Test
     fun everySuggestionIsAnswerableByAScopeNotJustAllTime() {
-        // The only chip that legitimately names no period is the all-time "which app" question.
-        val noPeriodExpected = setOf("Which payment app do I use the most?", "Who do I owe money to right now?",
-            "Show all my lendings grouped by person")
+        // The chips that legitimately name no spend period are all-time or entity status questions.
+        val noPeriodExpected = setOf(
+            "Which payment app do I use the most?",
+            "Who do I owe money to right now?",
+            "Show all my lendings grouped by person",
+            "What notes do I have?",
+            "What are my recurring bills?"
+        )
         AssistantSuggestions.ALL.forEach { s ->
             if (s.question !in noPeriodExpected) {
                 assertNotNull("'${s.question}' should name a period", scope(s.question).period)

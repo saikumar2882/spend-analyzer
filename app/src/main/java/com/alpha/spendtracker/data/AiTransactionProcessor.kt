@@ -268,7 +268,8 @@ class AiTransactionProcessor @Inject constructor(
             "pp" / "phone pay" / "phonepay" → "PhonePe"
             "gpay" / "g pay" / "g-pay" / "tez" → "Google Pay"
             "amzn" / "amazon pay" → "Amazon"
-            "cred pay" → "CRED"
+            "cash" / "cash payment" / "paid cash" / "నగదు" / "नकद" → "Cash"
+            "cred" / "cred pay" / "cred app" → "CRED"
             "paytm upi" → "Paytm"
             "upi" / no platform mentioned → "" (empty string — do NOT guess, the app fills in the user's default)
             IMPORTANT: a food/grocery app name (Swiggy, Zomato, Zepto, Blinkit) IS the platform — never replace it with a UPI app.

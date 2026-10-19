@@ -20,6 +20,33 @@ import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.material.icons.rounded.Flight
+import androidx.compose.material.icons.rounded.LocalHospital
+import androidx.compose.material.icons.rounded.School
+import androidx.compose.material.icons.rounded.HealthAndSafety
+import androidx.compose.material.icons.automirrored.rounded.ShowChart
+import androidx.compose.material.icons.rounded.SyncAlt
+import androidx.compose.material.icons.rounded.Sync
+import androidx.compose.material.icons.rounded.Payments
+import androidx.compose.material.icons.rounded.FitnessCenter
+import androidx.compose.material.icons.rounded.BusinessCenter
+import androidx.compose.material.icons.rounded.Lightbulb
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.Face
+import androidx.compose.material.icons.rounded.CardGiftcard
+import androidx.compose.material.icons.rounded.Atm
+import androidx.compose.foundation.border
+import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
+import androidx.compose.foundation.lazy.grid.GridCells
+import androidx.compose.foundation.lazy.grid.items
+import androidx.compose.material.icons.rounded.PhoneIphone
+import androidx.compose.material.icons.rounded.CardGiftcard
+import androidx.compose.material.icons.rounded.Commute
+import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.Pets
+import androidx.compose.material.icons.rounded.Shield
+import androidx.compose.material.icons.rounded.Subscriptions
+import androidx.compose.material.icons.rounded.Work
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.CallMade
 import androidx.compose.material.icons.automirrored.rounded.CallReceived
@@ -70,110 +97,34 @@ data class CategoryPresetItem(
 }
 
 val ALL_CATEGORY_GRID_ITEMS = listOf(
-    CategoryPresetItem(
-        canonicalName = "Food & Drinks",
-        displayName = "Food & Drinks",
-        icon = Icons.Rounded.Restaurant,
-        lightColor = Color(0xFFEF4444),
-        darkColor = Color(0xFFF87171),
-        aliases = listOf("Food & Drinks", "Food", "Dining", "Restaurants", "Food & Dining")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Groceries",
-        displayName = "Groceries",
-        icon = Icons.Rounded.ShoppingBasket,
-        lightColor = Color(0xFF10B981),
-        darkColor = Color(0xFF34D399),
-        aliases = listOf("Groceries", "Supermarket", "Kirana", "Grocery")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Shopping & Apparels",
-        displayName = "Shopping",
-        icon = Icons.Rounded.ShoppingBag,
-        lightColor = Color(0xFF06B6D4),
-        darkColor = Color(0xFF22D3EE),
-        aliases = listOf("Shopping & Apparels", "Shopping", "Apparel", "Clothes", "E-Commerce")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Rent & Utilities",
-        displayName = "Bills & Utilities",
-        icon = Icons.AutoMirrored.Rounded.ReceiptLong,
-        lightColor = Color(0xFF84CC16),
-        darkColor = Color(0xFFA3E635),
-        aliases = listOf("Rent & Utilities", "Bills", "Bills & Utilities", "Utilities", "Rent")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Credit Card Bill",
-        displayName = "EMI & Cards",
-        icon = Icons.Rounded.CreditCard,
-        lightColor = Color(0xFFF59E0B),
-        darkColor = Color(0xFFFBBF24),
-        aliases = listOf("Credit Card Bill", "EMI", "EMI & Cards", "Credit Card", "Loan")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Fuel",
-        displayName = "Fuel",
-        icon = Icons.Rounded.LocalGasStation,
-        lightColor = Color(0xFFF97316),
-        darkColor = Color(0xFFFB923C),
-        aliases = listOf("Fuel", "Petrol", "Gas", "Diesel")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Travel & Commute",
-        displayName = "Travel",
-        icon = Icons.Rounded.DirectionsCar,
-        lightColor = Color(0xFF3B82F6),
-        darkColor = Color(0xFF60A5FA),
-        aliases = listOf("Travel & Commute", "Travel", "Commute", "Cab", "Taxi", "Flight", "Bus")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Subscription & Leisure",
-        displayName = "Entertainment",
-        icon = Icons.Rounded.AutoAwesome,
-        lightColor = Color(0xFF8B5CF6),
-        darkColor = Color(0xFFA78BFA),
-        aliases = listOf("Subscription & Leisure", "Entertainment", "Leisure", "Subscriptions", "Movies")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Healthcare & Medical",
-        displayName = "Health",
-        icon = Icons.Rounded.Favorite,
-        lightColor = Color(0xFFEC4899),
-        darkColor = Color(0xFFF472B6),
-        aliases = listOf("Healthcare & Medical", "Health", "Medical", "Pharmacy", "Doctor")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Investment",
-        displayName = "Investment",
-        icon = Icons.Rounded.Savings,
-        lightColor = Color(0xFF6366F1),
-        darkColor = Color(0xFF818CF8),
-        aliases = listOf("Investment", "Investments", "Savings", "Stocks", "Mutual Funds")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Lending",
-        displayName = "Lending",
-        icon = Icons.AutoMirrored.Rounded.CallMade,
-        lightColor = Color(0xFF10B981),
-        darkColor = Color(0xFF34D399),
-        aliases = listOf("Lending", "Lend", "Money Given", "Transfer", "Send")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Borrowing",
-        displayName = "Borrowing",
-        icon = Icons.AutoMirrored.Rounded.CallReceived,
-        lightColor = Color(0xFFEF4444),
-        darkColor = Color(0xFFF87171),
-        aliases = listOf("Borrowing", "Borrow", "Money Taken")
-    ),
-    CategoryPresetItem(
-        canonicalName = "Others",
-        displayName = "Other",
-        icon = Icons.Rounded.MoreHoriz,
-        lightColor = Color(0xFF64748B),
-        darkColor = Color(0xFF94A3B8),
-        aliases = listOf("Others", "Other", "Misc", "Custom")
-    )
+    // High Frequency
+    CategoryPresetItem("Food & Dining", "Food & Dining", Icons.Rounded.Restaurant, Color(0xFFEF4444), Color(0xFFF87171), listOf("Food", "Dining", "Restaurants", "Cafés", "Snacks", "Takeaway")),
+    CategoryPresetItem("Groceries", "Groceries", Icons.Rounded.ShoppingBasket, Color(0xFF10B981), Color(0xFF34D399), listOf("Groceries", "Supermarket", "Kirana", "Vegetables", "Daily Essentials")),
+    CategoryPresetItem("Housing", "Housing", Icons.Rounded.Home, Color(0xFF8B5CF6), Color(0xFFA78BFA), listOf("Housing", "Rent", "House Rent", "Maintenance", "Repairs")),
+    CategoryPresetItem("Commute", "Commute", Icons.Rounded.DirectionsCar, Color(0xFFF97316), Color(0xFFFB923C), listOf("Commute", "Transportation", "Metro", "Bus", "Cab", "Auto")),
+    CategoryPresetItem("Lending", "Lending", Icons.AutoMirrored.Rounded.CallMade, Color(0xFF10B981), Color(0xFF34D399), listOf("Lending", "Money Given", "Lent")),
+    CategoryPresetItem("Borrowing", "Borrowing", Icons.AutoMirrored.Rounded.CallReceived, Color(0xFFEF4444), Color(0xFFF87171), listOf("Borrowing", "Money Received", "Borrowed")),
+    CategoryPresetItem("Shopping", "Shopping", Icons.Rounded.ShoppingBag, Color(0xFF06B6D4), Color(0xFF22D3EE), listOf("Shopping", "Clothing", "Footwear", "Electronics", "Accessories")),
+
+    // Medium Frequency
+    CategoryPresetItem("Bills & Utilities", "Bills & Utilities", Icons.AutoMirrored.Rounded.ReceiptLong, Color(0xFF84CC16), Color(0xFFA3E635), listOf("Bills", "Utilities", "Electricity", "Water", "Gas", "Wi-Fi", "DTH", "Mobile Recharge")),
+    CategoryPresetItem("EMIs & Cards", "EMIs & Cards", Icons.Rounded.CreditCard, Color(0xFFF59E0B), Color(0xFFFBBF24), listOf("EMIs", "Credit Cards", "Loans", "Loan Principal")),
+    CategoryPresetItem("Investments", "Investments", Icons.AutoMirrored.Rounded.ShowChart, Color(0xFF6366F1), Color(0xFF818CF8), listOf("Investments", "Mutual Funds", "SIPs", "Stocks", "Gold")),
+    CategoryPresetItem("Savings", "Savings", Icons.Rounded.Savings, Color(0xFF10B981), Color(0xFF34D399), listOf("Savings", "Emergency Fund", "Recurring Deposits")),
+    CategoryPresetItem("Subscriptions", "Subscriptions", Icons.Rounded.Subscriptions, Color(0xFF3B82F6), Color(0xFF60A5FA), listOf("Subscriptions", "Digital Services", "OTT", "Music", "Apps")),
+    CategoryPresetItem("Healthcare", "Healthcare", Icons.Rounded.LocalHospital, Color(0xFFEC4899), Color(0xFFF472B6), listOf("Healthcare", "Medical", "Medicines", "Doctors", "Hospital")),
+    CategoryPresetItem("Personal Care", "Personal Care", Icons.Rounded.Face, Color(0xFFEC4899), Color(0xFFF472B6), listOf("Personal Care", "Grooming", "Salon", "Skincare", "Cosmetics")),
+
+    // Low Frequency
+    CategoryPresetItem("Education", "Education", Icons.Rounded.School, Color(0xFF3B82F6), Color(0xFF60A5FA), listOf("Education", "Learning", "Courses", "Tuition", "Books")),
+    CategoryPresetItem("Entertainment", "Entertainment", Icons.Rounded.AutoAwesome, Color(0xFF8B5CF6), Color(0xFFA78BFA), listOf("Entertainment", "Leisure", "Movies", "Gaming", "Events")),
+    CategoryPresetItem("Travel", "Travel", Icons.Rounded.Flight, Color(0xFF3B82F6), Color(0xFF60A5FA), listOf("Travel", "Accommodation", "Flights", "Trains", "Hotels", "Holiday")),
+    CategoryPresetItem("Insurance & Taxes", "Insurance & Taxes", Icons.Rounded.Shield, Color(0xFF06B6D4), Color(0xFF22D3EE), listOf("Insurance", "Taxes", "Life Insurance", "Vehicle Insurance")),
+    CategoryPresetItem("Gifts & Donations", "Gifts & Donations", Icons.Rounded.CardGiftcard, Color(0xFFF43F5E), Color(0xFFFB7185), listOf("Gifts", "Donations", "Family", "Charity", "Festivals")),
+    CategoryPresetItem("Fitness", "Fitness", Icons.Rounded.FitnessCenter, Color(0xFFF97316), Color(0xFFFB923C), listOf("Fitness", "Sports", "Gym", "Classes")),
+    CategoryPresetItem("Pets", "Pets", Icons.Rounded.Pets, Color(0xFFA855F7), Color(0xFFC084FC), listOf("Pets", "Pet Food", "Grooming", "Veterinary")),
+    CategoryPresetItem("Work Expenses", "Work Expenses", Icons.Rounded.Work, Color(0xFF64748B), Color(0xFF94A3B8), listOf("Work", "Professional Expenses", "Office Expenses")),
+    CategoryPresetItem("Miscellaneous", "Miscellaneous", Icons.Rounded.MoreHoriz, Color(0xFF64748B), Color(0xFF94A3B8), listOf("Miscellaneous", "Unexpected", "Repairs", "Emergencies"))
 )
 
 /**
@@ -193,6 +144,29 @@ fun findCategoryPresetItem(name: String): CategoryPresetItem {
     } ?: ALL_CATEGORY_GRID_ITEMS.last()
 }
 
+fun getOrderedCategoryGridItems(customOrder: List<String>): List<CategoryPresetItem> {
+    if (customOrder.isEmpty()) return ALL_CATEGORY_GRID_ITEMS
+    val itemMap = ALL_CATEGORY_GRID_ITEMS.associateBy { it.canonicalName }
+    val orderedList = mutableListOf<CategoryPresetItem>()
+    val visited = mutableSetOf<String>()
+
+    for (name in customOrder) {
+        itemMap[name]?.let {
+            if (visited.add(it.canonicalName)) {
+                orderedList.add(it)
+            }
+        }
+    }
+
+    for (item in ALL_CATEGORY_GRID_ITEMS) {
+        if (visited.add(item.canonicalName)) {
+            orderedList.add(item)
+        }
+    }
+
+    return orderedList
+}
+
 /**
  * A clean, grid-based Category Selector with soft tinted icon badges and clear labels.
  */
@@ -201,44 +175,28 @@ fun CategorySelectionGrid(
     selectedCategory: String,
     onCategorySelected: (String) -> Unit,
     modifier: Modifier = Modifier,
+    items: List<CategoryPresetItem> = ALL_CATEGORY_GRID_ITEMS,
     columns: Int = 4
 ) {
-    val items = ALL_CATEGORY_GRID_ITEMS
-
-    Column(
-        modifier = modifier.fillMaxWidth(),
+    LazyVerticalGrid(
+        columns = GridCells.Fixed(columns),
+        modifier = modifier.fillMaxWidth().height(260.dp),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
-        items.chunked(columns).forEach { rowItems ->
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                rowItems.forEach { item ->
-                    val isSelected = isCategorySelected(selectedCategory, item)
-
-                    Box(
-                        modifier = Modifier.weight(1f),
-                        contentAlignment = Alignment.TopCenter
-                    ) {
-                        CategoryGridTile(
-                            item = item,
-                            isSelected = isSelected,
-                            onClick = { onCategorySelected(item.canonicalName) }
-                        )
-                    }
-                }
-                // Pad out empty slots in incomplete rows
-                repeat(columns - rowItems.size) {
-                    Spacer(modifier = Modifier.weight(1f))
-                }
-            }
+        items(items, key = { it.canonicalName }) { item ->
+            val isSelected = isCategorySelected(selectedCategory, item)
+            CategoryGridTile(
+                item = item,
+                isSelected = isSelected,
+                onClick = { onCategorySelected(item.canonicalName) }
+            )
         }
     }
 }
 
 private fun isCategorySelected(currentSelected: String, item: CategoryPresetItem): Boolean {
-    if (currentSelected.isBlank()) return item.canonicalName == "Food & Drinks"
+    if (currentSelected.isBlank()) return item.canonicalName == "Food & Dining"
     val clean = currentSelected.trim()
     return item.canonicalName.equals(clean, ignoreCase = true) ||
            item.displayName.equals(clean, ignoreCase = true) ||
@@ -257,72 +215,58 @@ private fun CategoryGridTile(
 
     val categoryColor = item.getColor()
 
-    // Icon tint: Touch of category color
-    val targetIconTint = if (isSelected) {
-        categoryColor
-    } else {
-        categoryColor.copy(alpha = if (isDark) 0.95f else 0.88f)
-    }
+    val targetIconTint = if (isSelected) categoryColor else categoryColor.copy(alpha = if (isDark) 0.95f else 0.88f)
+    val animatedIconTint by animateColorAsState(targetValue = targetIconTint, animationSpec = spring(), label = "categoryIconTint")
 
-    val animatedIconTint by animateColorAsState(
-        targetValue = targetIconTint,
-        animationSpec = spring(),
-        label = "categoryIconTint"
-    )
+    val targetTextColor = if (isSelected) categoryColor else MaterialTheme.colorScheme.onSurface
+    val animatedTextColor by animateColorAsState(targetValue = targetTextColor, animationSpec = spring(), label = "categoryTextColor")
 
-    // Label text color: Crisp theme-aware black (light) / white (dark) text, category accent when selected
-    val targetTextColor = if (isSelected) {
-        categoryColor
-    } else {
-        MaterialTheme.colorScheme.onSurface
-    }
+    val scale by animateFloatAsState(targetValue = if (isSelected) 1.05f else 1.0f, animationSpec = spring(), label = "categoryTileScale")
 
-    val animatedTextColor by animateColorAsState(
-        targetValue = targetTextColor,
-        animationSpec = spring(),
-        label = "categoryTextColor"
-    )
+    val surfaceTint = if (isSelected) categoryColor.copy(alpha = 0.08f) else Color.Transparent
 
-    val scale by animateFloatAsState(
-        targetValue = if (isSelected) 1.08f else 1.0f,
-        animationSpec = spring(),
-        label = "categoryTileScale"
-    )
-
-    Column(
-        horizontalAlignment = Alignment.CenterHorizontally,
+    Box(
         modifier = Modifier
             .fillMaxWidth()
             .scale(pressScale * scale)
+            .padding(4.dp)
+            .clip(androidx.compose.foundation.shape.RoundedCornerShape(8.dp))
+            .background(surfaceTint)
             .clickable(
                 interactionSource = interactionSource,
                 indication = null,
                 onClick = onClick
             )
-            .padding(vertical = 4.dp)
+            .padding(vertical = 8.dp, horizontal = 2.dp),
+        contentAlignment = Alignment.Center
     ) {
-        Icon(
-            imageVector = item.icon,
-            contentDescription = item.displayName,
-            tint = animatedIconTint,
-            modifier = Modifier.size(26.dp)
-        )
-
-        Spacer(modifier = Modifier.height(6.dp))
-
-        Text(
-            text = getLocalizedPresetName(item.displayName),
-            style = MaterialTheme.typography.labelSmall.copy(
-                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
-                fontSize = 11.sp,
-                lineHeight = 13.sp
-            ),
-            color = animatedTextColor,
-            textAlign = TextAlign.Center,
-            maxLines = 2,
-            overflow = TextOverflow.Ellipsis,
+        Column(
+            horizontalAlignment = Alignment.CenterHorizontally,
             modifier = Modifier.fillMaxWidth()
-        )
+        ) {
+            Icon(
+                imageVector = item.icon,
+                contentDescription = item.displayName,
+                tint = animatedIconTint,
+                modifier = Modifier.size(26.dp)
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = getLocalizedPresetName(item.displayName),
+                style = MaterialTheme.typography.labelSmall.copy(
+                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                    fontSize = 11.sp,
+                    lineHeight = 13.sp
+                ),
+                color = animatedTextColor,
+                textAlign = TextAlign.Center,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis,
+                modifier = Modifier.fillMaxWidth()
+            )
+        }
     }
 }
 

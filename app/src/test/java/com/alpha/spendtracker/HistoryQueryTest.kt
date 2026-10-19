@@ -1,7 +1,9 @@
-package com.alpha.spendtracker
-
 import com.alpha.spendtracker.data.HistoryQuery
 import com.alpha.spendtracker.data.HistoryQuery.DuesMode
+import com.alpha.spendtracker.data.Note
+import com.alpha.spendtracker.data.NoteEntry
+import com.alpha.spendtracker.data.NoteField
+import com.alpha.spendtracker.data.RecurringBill
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 import org.junit.Assert.assertEquals
@@ -217,5 +219,39 @@ class HistoryQueryTest {
         val c = ctx("summarize my spending", emptyList())
         assertNotNull(c)
         assertTrue(c.text.contains("no recorded transactions at all"))
+    }
+
+    @Test
+    fun notesAndRecurringBillsAreRenderedInContext() {
+        val notes = listOf(
+            Note(uuid = "n1", title = "Goa Trip", createdAt = sep10)
+        )
+        val entries = listOf(
+            NoteEntry(uuid = "e1", noteUuid = "n1", label = "Hotel", amount = 8000.0, detail = "GPay", date = sep10, customFields = listOf(
+                NoteField("Nights", "2")
+            ))
+        )
+        val bills = listOf(
+            RecurringBill(uuid = "b1", name = "Netflix", amount = 649.0, dayOfMonth = 15, frequency = "MONTHLY", category = "Subscription & Leisure")
+        )
+
+        val context = HistoryQuery.build(
+            question = "What notes do I have?",
+            spends = emptyList(),
+            currency = "₹",
+            now = now,
+            tz = tz,
+            weekStart = Calendar.MONDAY,
+            notes = notes,
+            noteEntries = entries,
+            recurringBills = bills
+        )
+
+        assertTrue(context.text.contains("=== NOTES & NOTE ENTRIES (1 note(s), 1 total entry/entries) ==="))
+        assertTrue(context.text.contains("Note: \"Goa Trip\" (Total: ₹8000.00, 1 entry/entries)"))
+        assertTrue(context.text.contains("Hotel | ₹8000.00 | note: GPay | custom fields: [Nights: 2]"))
+
+        assertTrue(context.text.contains("=== RECURRING BILLS & SUBSCRIPTIONS (1 active) ==="))
+        assertTrue(context.text.contains("\"Netflix\" | Amount: ₹649.00 | Due: 15th (MONTHLY)"))
     }
 }

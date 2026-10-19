@@ -1,46 +1,54 @@
 package com.alpha.spendtracker.ui.screens
 
 import androidx.activity.compose.BackHandler
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.ExperimentalFoundationApi
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.*
-import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
 import androidx.compose.foundation.lazy.grid.GridCells
 import androidx.compose.foundation.lazy.grid.LazyVerticalGrid
 import androidx.compose.foundation.lazy.grid.items as gridItems
+import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.ArrowBack
+import androidx.compose.material.icons.automirrored.rounded.DriveFileMove
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.automirrored.rounded.ViewList
 import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.ContentCopy
 import androidx.compose.material.icons.rounded.Delete
+import androidx.compose.material.icons.rounded.Deselect
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.GridView
 import androidx.compose.material.icons.rounded.MoreVert
+import androidx.compose.material.icons.rounded.RadioButtonUnchecked
 import androidx.compose.material.icons.rounded.Restore
+import androidx.compose.material.icons.rounded.SelectAll
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.rememberSaveable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
-import com.alpha.spendtracker.util.rememberTranslatedText
 import com.alpha.spendtracker.data.Note
 import com.alpha.spendtracker.data.NoteEntry
 import com.alpha.spendtracker.data.NoteField
@@ -48,8 +56,10 @@ import com.alpha.spendtracker.ui.components.SwipeableLogCard
 import com.alpha.spendtracker.ui.components.formatCurrency
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.isAppInDarkTheme
+import com.alpha.spendtracker.util.rememberTranslatedText
 import java.text.SimpleDateFormat
 import java.util.Locale
+import java.util.UUID
 
 /** Accent palette for note tiles, indexed by [Note.colorIndex]. Fixed hues that read well
  *  as soft tints (background) and solid accents (text) in both light and dark themes. */
@@ -75,14 +85,19 @@ fun NotesScreen(
     entries: List<NoteEntry>,
     currencySymbol: String,
     onBack: () -> Unit,
-    onAddNote: (title: String, colorIndex: Int) -> Unit,
+    onAddNote: (title: String, colorIndex: Int, uuid: String) -> Unit = { _, _, _ -> },
     onUpdateNote: (Note) -> Unit,
     onDeleteNote: (Note) -> Unit,
+    onDeleteNotes: (List<Note>) -> Unit = {},
     onAddEntry: (noteUuid: String, label: String, amount: Double, date: Long, detail: String?, customFields: List<NoteField>) -> Unit,
     onUpdateEntry: (NoteEntry) -> Unit,
     onDeleteEntry: (NoteEntry) -> Unit,
+    onDeleteEntries: (List<NoteEntry>) -> Unit = {},
+    onMoveEntries: (entries: List<NoteEntry>, targetNoteUuid: String) -> Unit = { _, _ -> },
+    onCopyEntries: (entries: List<NoteEntry>, targetNoteUuid: String) -> Unit = { _, _ -> },
     onShowHistory: () -> Unit = {},
     onLogAsTransaction: (Note) -> Unit = {},
+    onAiAssistantClick: (() -> Unit)? = null,
     // When set (e.g. from tapping a note-linked transaction in History), auto-open this note.
     // Consumed once, then cleared via [onInitialNoteConsumed].
     initialNoteUuid: String? = null,
@@ -90,6 +105,19 @@ fun NotesScreen(
 ) {
     var selectedNoteUuid by rememberSaveable { mutableStateOf<String?>(null) }
     val selectedNote = selectedNoteUuid?.let { id -> notes.find { it.uuid == id } }
+
+    // Multi-select state tracking
+    var selectedNoteUuids by rememberSaveable { mutableStateOf(setOf<String>()) }
+    var selectedEntryUuids by rememberSaveable { mutableStateOf(setOf<String>()) }
+
+    val isNoteSelectionMode = selectedNote == null && selectedNoteUuids.isNotEmpty()
+    val isEntrySelectionMode = selectedNote != null && selectedEntryUuids.isNotEmpty()
+
+    // Dialog & Action Confirmation states
+    var showDeleteNotesDialog by remember { mutableStateOf(false) }
+    var showDeleteEntriesDialog by remember { mutableStateOf(false) }
+    var showMoveEntriesDialog by remember { mutableStateOf(false) }
+    var showCopyEntriesDialog by remember { mutableStateOf(false) }
 
     // Independent layout toggles: Level 1 (Notes section) vs Level 2 (Logs inside a note)
     var isNotesGridView by rememberSaveable { mutableStateOf(true) }
@@ -102,7 +130,7 @@ fun NotesScreen(
         }
     }
 
-    // Dialog / confirmation state (shared across both levels).
+    // Dialog / editing state
     var showAddNote by remember { mutableStateOf(false) }
     var editingNote by remember { mutableStateOf<Note?>(null) }
     var noteToDelete by remember { mutableStateOf<Note?>(null) }
@@ -110,57 +138,139 @@ fun NotesScreen(
     var editingEntry by remember { mutableStateOf<NoteEntry?>(null) }
     var entryToDelete by remember { mutableStateOf<NoteEntry?>(null) }
 
-    // System back pops the entry view back to the note list before leaving the screen.
-    BackHandler(enabled = selectedNote != null) { selectedNoteUuid = null }
+    // System back navigation rules
+    BackHandler(enabled = isEntrySelectionMode) {
+        selectedEntryUuids = emptySet()
+    }
+    BackHandler(enabled = isNoteSelectionMode) {
+        selectedNoteUuids = emptySet()
+    }
+    BackHandler(enabled = selectedNote != null && !isEntrySelectionMode) {
+        selectedNoteUuid = null
+        selectedEntryUuids = emptySet()
+    }
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
+                    val titleText = when {
+                        isEntrySelectionMode -> stringResource(R.string.items_selected, selectedEntryUuids.size)
+                        isNoteSelectionMode -> stringResource(R.string.items_selected, selectedNoteUuids.size)
+                        selectedNote != null -> selectedNote.title
+                        else -> stringResource(R.string.notes_title)
+                    }
                     Text(
-                        if (selectedNote != null) selectedNote.title else stringResource(R.string.notes_title),
+                        titleText,
                         fontWeight = FontWeight.Bold,
                         maxLines = 1,
                         overflow = TextOverflow.Ellipsis
                     )
                 },
                 navigationIcon = {
-                    IconButton(onClick = { if (selectedNote != null) selectedNoteUuid = null else onBack() }) {
-                        Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                    when {
+                        isEntrySelectionMode -> {
+                            IconButton(onClick = { selectedEntryUuids = emptySet() }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Clear selection")
+                            }
+                        }
+                        isNoteSelectionMode -> {
+                            IconButton(onClick = { selectedNoteUuids = emptySet() }) {
+                                Icon(Icons.Rounded.Close, contentDescription = "Clear selection")
+                            }
+                        }
+                        selectedNote != null -> {
+                            IconButton(onClick = {
+                                selectedNoteUuid = null
+                                selectedEntryUuids = emptySet()
+                            }) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                            }
+                        }
+                        else -> {
+                            IconButton(onClick = onBack) {
+                                Icon(Icons.AutoMirrored.Rounded.ArrowBack, contentDescription = "Back")
+                            }
+                        }
                     }
                 },
                 actions = {
-                    // View Mode Toggle (Grid vs List) — operates independently for Notes vs Entries inside a Note
-                    val currentIsGrid = if (selectedNote == null) isNotesGridView else isEntriesGridView
-                    IconButton(onClick = {
-                        if (selectedNote == null) {
-                            isNotesGridView = !isNotesGridView
-                        } else {
-                            isEntriesGridView = !isEntriesGridView
+                    if (isEntrySelectionMode) {
+                        val currentEntries = entries.filter { it.noteUuid == selectedNote?.uuid }
+                        val allSelected = currentEntries.isNotEmpty() && selectedEntryUuids.size == currentEntries.size
+                        IconButton(onClick = {
+                            selectedEntryUuids = if (allSelected) emptySet() else currentEntries.map { it.uuid }.toSet()
+                        }) {
+                            Icon(
+                                imageVector = if (allSelected) Icons.Rounded.Deselect else Icons.Rounded.SelectAll,
+                                contentDescription = if (allSelected) stringResource(R.string.deselect_all) else stringResource(R.string.select_all)
+                            )
                         }
-                    }) {
-                        Icon(
-                            imageVector = if (currentIsGrid) Icons.AutoMirrored.Rounded.ViewList else Icons.Rounded.GridView,
-                            contentDescription = if (currentIsGrid) "Switch to List View" else "Switch to Grid View"
-                        )
-                    }
-
-                    if (selectedNote != null) {
-                        IconButton(onClick = { onLogAsTransaction(selectedNote) }) {
-                            Icon(Icons.AutoMirrored.Rounded.ReceiptLong, contentDescription = "Log as transaction")
+                        IconButton(onClick = { showMoveEntriesDialog = true }) {
+                            Icon(Icons.AutoMirrored.Rounded.DriveFileMove, contentDescription = stringResource(R.string.move_to_note))
                         }
-                        IconButton(onClick = { editingNote = selectedNote }) {
-                            Icon(Icons.Rounded.Edit, contentDescription = "Edit note")
+                        IconButton(onClick = { showCopyEntriesDialog = true }) {
+                            Icon(Icons.Rounded.ContentCopy, contentDescription = stringResource(R.string.copy_to_note))
                         }
-                        IconButton(onClick = { showAddEntry = true }) {
-                            Icon(Icons.Rounded.Add, contentDescription = "Add entry")
+                        IconButton(onClick = { showDeleteEntriesDialog = true }) {
+                            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
+                        }
+                    } else if (isNoteSelectionMode) {
+                        val allSelected = notes.isNotEmpty() && selectedNoteUuids.size == notes.size
+                        IconButton(onClick = {
+                            selectedNoteUuids = if (allSelected) emptySet() else notes.map { it.uuid }.toSet()
+                        }) {
+                            Icon(
+                                imageVector = if (allSelected) Icons.Rounded.Deselect else Icons.Rounded.SelectAll,
+                                contentDescription = if (allSelected) stringResource(R.string.deselect_all) else stringResource(R.string.select_all)
+                            )
+                        }
+                        IconButton(onClick = { showDeleteNotesDialog = true }) {
+                            Icon(Icons.Rounded.Delete, contentDescription = stringResource(R.string.delete), tint = MaterialTheme.colorScheme.error)
                         }
                     } else {
-                        IconButton(onClick = onShowHistory) {
-                            Icon(Icons.Rounded.Restore, contentDescription = "Recycle bin & history")
+                        if (onAiAssistantClick != null) {
+                            IconButton(onClick = onAiAssistantClick) {
+                                Icon(
+                                    imageVector = AppIcons.Ai,
+                                    contentDescription = stringResource(R.string.ai_assistant_title),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
                         }
-                        IconButton(onClick = { showAddNote = true }) {
-                            Icon(Icons.Rounded.Add, contentDescription = "Add note")
+
+                        // View Mode Toggle (Grid vs List)
+                        val currentIsGrid = if (selectedNote == null) isNotesGridView else isEntriesGridView
+                        IconButton(onClick = {
+                            if (selectedNote == null) {
+                                isNotesGridView = !isNotesGridView
+                            } else {
+                                isEntriesGridView = !isEntriesGridView
+                            }
+                        }) {
+                            Icon(
+                                imageVector = if (currentIsGrid) Icons.AutoMirrored.Rounded.ViewList else Icons.Rounded.GridView,
+                                contentDescription = if (currentIsGrid) "Switch to List View" else "Switch to Grid View"
+                            )
+                        }
+
+                        if (selectedNote != null) {
+                            IconButton(onClick = { onLogAsTransaction(selectedNote) }) {
+                                Icon(Icons.AutoMirrored.Rounded.ReceiptLong, contentDescription = "Log as transaction")
+                            }
+                            IconButton(onClick = { editingNote = selectedNote }) {
+                                Icon(Icons.Rounded.Edit, contentDescription = "Edit note")
+                            }
+                            IconButton(onClick = { showAddEntry = true }) {
+                                Icon(Icons.Rounded.Add, contentDescription = "Add entry")
+                            }
+                        } else {
+                            IconButton(onClick = onShowHistory) {
+                                Icon(Icons.Rounded.Restore, contentDescription = "Recycle bin & history")
+                            }
+                            IconButton(onClick = { showAddNote = true }) {
+                                Icon(Icons.Rounded.Add, contentDescription = "Add note")
+                            }
                         }
                     }
                 }
@@ -184,13 +294,27 @@ fun NotesScreen(
                 ) {
                     gridItems(notes, key = { it.uuid }) { note ->
                         val noteEntries = entries.filter { it.noteUuid == note.uuid }
+                        val isSelected = selectedNoteUuids.contains(note.uuid)
                         NoteTile(
                             note = note,
                             itemCount = noteEntries.size,
                             subtotal = noteEntries.sumOf { it.amount },
                             currencySymbol = currencySymbol,
                             isGridView = isNotesGridView,
-                            onOpen = { selectedNoteUuid = note.uuid },
+                            isSelected = isSelected,
+                            isSelectionMode = isNoteSelectionMode,
+                            onClick = {
+                                if (isNoteSelectionMode) {
+                                    selectedNoteUuids = if (isSelected) selectedNoteUuids - note.uuid else selectedNoteUuids + note.uuid
+                                } else {
+                                    selectedNoteUuid = note.uuid
+                                }
+                            },
+                            onLongClick = {
+                                if (!isNoteSelectionMode) {
+                                    selectedNoteUuids = setOf(note.uuid)
+                                }
+                            },
                             onEdit = { editingNote = note },
                             onDelete = { noteToDelete = note },
                             onLogAsTransaction = { onLogAsTransaction(note) }
@@ -223,9 +347,11 @@ fun NotesScreen(
                         verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
                         gridItems(noteEntries, key = { it.uuid }) { entry ->
+                            val isSelected = selectedEntryUuids.contains(entry.uuid)
                             SwipeableLogCard(
                                 onEdit = { editingEntry = entry },
                                 onDelete = { entryToDelete = entry },
+                                enabled = !isEntrySelectionMode,
                                 modifier = Modifier.animateItem()
                             ) {
                                 NoteEntryCard(
@@ -233,7 +359,20 @@ fun NotesScreen(
                                     accent = accent,
                                     currencySymbol = currencySymbol,
                                     isGridView = isEntriesGridView,
-                                    onClick = { editingEntry = entry }
+                                    isSelected = isSelected,
+                                    isSelectionMode = isEntrySelectionMode,
+                                    onClick = {
+                                        if (isEntrySelectionMode) {
+                                            selectedEntryUuids = if (isSelected) selectedEntryUuids - entry.uuid else selectedEntryUuids + entry.uuid
+                                        } else {
+                                            editingEntry = entry
+                                        }
+                                    },
+                                    onLongClick = {
+                                        if (!isEntrySelectionMode) {
+                                            selectedEntryUuids = setOf(entry.uuid)
+                                        }
+                                    }
                                 )
                             }
                         }
@@ -242,7 +381,88 @@ fun NotesScreen(
             }
         }
 
-        // ---------- Dialogs ----------
+        // ---------- Multi-select Action Dialogs ----------
+        if (showDeleteNotesDialog) {
+            val count = selectedNoteUuids.size
+            val selectedNotesList = notes.filter { it.uuid in selectedNoteUuids }
+            AlertDialog(
+                onDismissRequest = { showDeleteNotesDialog = false },
+                title = { Text(stringResource(R.string.delete_selected_notes_title, count), fontWeight = FontWeight.Bold) },
+                text = { Text(stringResource(R.string.delete_selected_notes_message, count)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onDeleteNotes(selectedNotesList)
+                            selectedNoteUuids = emptySet()
+                            showDeleteNotesDialog = false
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) { Text(stringResource(R.string.delete), fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteNotesDialog = false }) { Text(stringResource(R.string.cancel)) }
+                }
+            )
+        }
+
+        if (showDeleteEntriesDialog) {
+            val count = selectedEntryUuids.size
+            val selectedEntriesList = entries.filter { it.uuid in selectedEntryUuids }
+            AlertDialog(
+                onDismissRequest = { showDeleteEntriesDialog = false },
+                title = { Text(stringResource(R.string.delete_selected_entries_title, count), fontWeight = FontWeight.Bold) },
+                text = { Text(stringResource(R.string.delete_selected_entries_message, count)) },
+                confirmButton = {
+                    TextButton(
+                        onClick = {
+                            onDeleteEntries(selectedEntriesList)
+                            selectedEntryUuids = emptySet()
+                            showDeleteEntriesDialog = false
+                        },
+                        colors = ButtonDefaults.textButtonColors(contentColor = MaterialTheme.colorScheme.error)
+                    ) { Text(stringResource(R.string.delete), fontWeight = FontWeight.Bold) }
+                },
+                dismissButton = {
+                    TextButton(onClick = { showDeleteEntriesDialog = false }) { Text(stringResource(R.string.cancel)) }
+                }
+            )
+        }
+
+        if (showMoveEntriesDialog) {
+            val selectedEntriesList = entries.filter { it.uuid in selectedEntryUuids }
+            MoveOrCopyTargetNoteDialog(
+                isMove = true,
+                selectedEntries = selectedEntriesList,
+                notes = notes,
+                currentNoteUuid = selectedNote?.uuid,
+                onDismiss = { showMoveEntriesDialog = false },
+                onAddNote = onAddNote,
+                onConfirm = { targetUuid ->
+                    onMoveEntries(selectedEntriesList, targetUuid)
+                    selectedEntryUuids = emptySet()
+                    showMoveEntriesDialog = false
+                }
+            )
+        }
+
+        if (showCopyEntriesDialog) {
+            val selectedEntriesList = entries.filter { it.uuid in selectedEntryUuids }
+            MoveOrCopyTargetNoteDialog(
+                isMove = false,
+                selectedEntries = selectedEntriesList,
+                notes = notes,
+                currentNoteUuid = selectedNote?.uuid,
+                onDismiss = { showCopyEntriesDialog = false },
+                onAddNote = onAddNote,
+                onConfirm = { targetUuid ->
+                    onCopyEntries(selectedEntriesList, targetUuid)
+                    selectedEntryUuids = emptySet()
+                    showCopyEntriesDialog = false
+                }
+            )
+        }
+
+        // ---------- Single Item Dialogs ----------
         if (showAddNote || editingNote != null) {
             NoteEditDialog(
                 note = editingNote,
@@ -252,7 +472,7 @@ fun NotesScreen(
                     if (target != null) {
                         onUpdateNote(target.copy(title = title, colorIndex = colorIndex))
                     } else {
-                        onAddNote(title, colorIndex)
+                        onAddNote(title, colorIndex, UUID.randomUUID().toString())
                     }
                     showAddNote = false; editingNote = null
                 }
@@ -335,6 +555,7 @@ private fun EmptyState(title: String, subtitle: String) {
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NoteTile(
     note: Note,
@@ -342,7 +563,10 @@ private fun NoteTile(
     subtotal: Double,
     currencySymbol: String,
     isGridView: Boolean,
-    onOpen: () -> Unit,
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit,
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     onLogAsTransaction: () -> Unit
@@ -356,14 +580,19 @@ private fun NoteTile(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (isGridView) Modifier.heightIn(min = 108.dp) else Modifier)
-            .clickable(onClick = onOpen),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        border = null,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                             else MaterialTheme.colorScheme.surfaceContainer
+        ),
+        border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         if (isGridView) {
-            // M-size Box mode for Grid View (2 columns, 108dp min height, clean spacing)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -371,7 +600,6 @@ private fun NoteTile(
                     .padding(13.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Top: Title + Accent bar + Options menu
                 Row(
                     verticalAlignment = Alignment.Top,
                     modifier = Modifier.fillMaxWidth()
@@ -392,29 +620,37 @@ private fun NoteTile(
                                 .background(accent, RoundedCornerShape(1.5.dp))
                         )
                     }
-                    Box {
-                        IconButton(
-                            onClick = { menuOpen = true },
-                            modifier = Modifier.size(24.dp)
-                        ) {
-                            Icon(
-                                Icons.Rounded.MoreVert,
-                                contentDescription = "Options",
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (isSelectionMode) {
+                        Icon(
+                            imageVector = if (isSelected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            contentDescription = if (isSelected) "Selected" else "Not selected",
+                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                    } else {
+                        Box {
+                            IconButton(
+                                onClick = { menuOpen = true },
+                                modifier = Modifier.size(24.dp)
+                            ) {
+                                Icon(
+                                    Icons.Rounded.MoreVert,
+                                    contentDescription = "Options",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            NoteTileDropdownMenu(
+                                expanded = menuOpen,
+                                onDismiss = { menuOpen = false },
+                                onLogAsTransaction = onLogAsTransaction,
+                                onEdit = onEdit,
+                                onDelete = onDelete
                             )
                         }
-                        NoteTileDropdownMenu(
-                            expanded = menuOpen,
-                            onDismiss = { menuOpen = false },
-                            onLogAsTransaction = onLogAsTransaction,
-                            onEdit = onEdit,
-                            onDelete = onDelete
-                        )
                     }
                 }
 
-                // Bottom: Items count & Subtotal
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
@@ -435,7 +671,6 @@ private fun NoteTile(
                 }
             }
         } else {
-            // List mode layout
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
@@ -443,6 +678,15 @@ private fun NoteTile(
                         .padding(horizontal = 14.dp, vertical = 14.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (isSelectionMode) {
+                        Icon(
+                            imageVector = if (isSelected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            contentDescription = if (isSelected) "Selected" else "Not selected",
+                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(22.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
                     Box(
                         modifier = Modifier
                             .width(4.dp)
@@ -473,22 +717,24 @@ private fun NoteTile(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                     }
-                    Box {
-                        IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
-                            Icon(
-                                Icons.Rounded.MoreVert,
-                                contentDescription = "Options",
-                                modifier = Modifier.size(18.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    if (!isSelectionMode) {
+                        Box {
+                            IconButton(onClick = { menuOpen = true }, modifier = Modifier.size(28.dp)) {
+                                Icon(
+                                    Icons.Rounded.MoreVert,
+                                    contentDescription = "Options",
+                                    modifier = Modifier.size(18.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                            NoteTileDropdownMenu(
+                                expanded = menuOpen,
+                                onDismiss = { menuOpen = false },
+                                onLogAsTransaction = onLogAsTransaction,
+                                onEdit = onEdit,
+                                onDelete = onDelete
                             )
                         }
-                        NoteTileDropdownMenu(
-                            expanded = menuOpen,
-                            onDismiss = { menuOpen = false },
-                            onLogAsTransaction = onLogAsTransaction,
-                            onEdit = onEdit,
-                            onDelete = onDelete
-                        )
                     }
                 }
                 if (isDark) {
@@ -560,13 +806,17 @@ private fun NoteSummaryHeader(accent: Color, itemCount: Int, subtotal: Double, c
     }
 }
 
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun NoteEntryCard(
     entry: NoteEntry,
     accent: Color,
     currencySymbol: String,
     isGridView: Boolean,
-    onClick: () -> Unit
+    isSelected: Boolean = false,
+    isSelectionMode: Boolean = false,
+    onClick: () -> Unit,
+    onLongClick: () -> Unit
 ) {
     val isDark = isAppInDarkTheme
     val displayLabel by rememberTranslatedText(entry.label)
@@ -580,14 +830,19 @@ private fun NoteEntryCard(
         modifier = Modifier
             .fillMaxWidth()
             .then(if (isGridView) Modifier.heightIn(min = 96.dp) else Modifier)
-            .clickable(onClick = onClick),
+            .combinedClickable(
+                onClick = onClick,
+                onLongClick = onLongClick
+            ),
         shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surfaceContainer),
-        border = null,
+        colors = CardDefaults.cardColors(
+            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f)
+                             else MaterialTheme.colorScheme.surfaceContainer
+        ),
+        border = if (isSelected) BorderStroke(2.dp, MaterialTheme.colorScheme.primary) else null,
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         if (isGridView) {
-            // Grid View: Consistent M-size Box format (min 96dp height, non-congested)
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -595,8 +850,16 @@ private fun NoteEntryCard(
                     .padding(11.dp),
                 verticalArrangement = Arrangement.SpaceBetween
             ) {
-                // Top: Accent indicator + Title Label
                 Row(verticalAlignment = Alignment.CenterVertically) {
+                    if (isSelectionMode) {
+                        Icon(
+                            imageVector = if (isSelected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            contentDescription = if (isSelected) "Selected" else "Not selected",
+                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(6.dp))
+                    }
                     Box(
                         modifier = Modifier
                             .width(3.5.dp)
@@ -625,7 +888,6 @@ private fun NoteEntryCard(
                     )
                 }
 
-                // Bottom: Amount & Date
                 Row(
                     verticalAlignment = Alignment.CenterVertically,
                     modifier = Modifier.fillMaxWidth()
@@ -646,14 +908,8 @@ private fun NoteEntryCard(
                         )
                     }
                 }
-                if (isDark) {
-                    HorizontalDivider(
-                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)
-                    )
-                }
             }
         } else {
-            // List View: Comfortable 1-column Row format with subtle bottom divider
             Column(modifier = Modifier.fillMaxWidth()) {
                 Row(
                     modifier = Modifier
@@ -661,6 +917,15 @@ private fun NoteEntryCard(
                         .padding(horizontal = 14.dp, vertical = 12.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
+                    if (isSelectionMode) {
+                        Icon(
+                            imageVector = if (isSelected) Icons.Rounded.CheckCircle else Icons.Rounded.RadioButtonUnchecked,
+                            contentDescription = if (isSelected) "Selected" else "Not selected",
+                            tint = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.5f),
+                            modifier = Modifier.size(20.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                    }
                     Box(
                         modifier = Modifier
                             .width(4.dp)
@@ -692,18 +957,6 @@ private fun NoteEntryCard(
                                 overflow = TextOverflow.Ellipsis
                             )
                         }
-                        entry.customFields.filter { it.name.isNotBlank() || it.value.isNotBlank() }.forEach { field ->
-                            Text(
-                                text = buildString {
-                                    if (field.name.isNotBlank()) append("${field.name}: ")
-                                    append(field.value)
-                                },
-                                style = MaterialTheme.typography.labelSmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1,
-                                overflow = TextOverflow.Ellipsis
-                            )
-                        }
                     }
                     if (entry.amount > 0) {
                         Text(
@@ -722,6 +975,154 @@ private fun NoteEntryCard(
             }
         }
     }
+}
+
+@Composable
+private fun MoveOrCopyTargetNoteDialog(
+    isMove: Boolean,
+    selectedEntries: List<NoteEntry>,
+    notes: List<Note>,
+    currentNoteUuid: String?,
+    onDismiss: () -> Unit,
+    onAddNote: (title: String, colorIndex: Int, uuid: String) -> Unit,
+    onConfirm: (targetNoteUuid: String) -> Unit
+) {
+    val availableNotes = remember(notes, currentNoteUuid, isMove) {
+        if (isMove && currentNoteUuid != null) {
+            notes.filter { it.uuid != currentNoteUuid }
+        } else {
+            notes
+        }
+    }
+
+    var selectedTargetUuid by remember { mutableStateOf(availableNotes.firstOrNull()?.uuid) }
+
+    var isCreatingNewNote by remember { mutableStateOf(false) }
+    var newNoteTitle by remember { mutableStateOf("") }
+    var newNoteColorIndex by remember { mutableStateOf(0) }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                if (isMove) stringResource(R.string.move_to_note) else stringResource(R.string.copy_to_note),
+                fontWeight = FontWeight.Bold
+            )
+        },
+        text = {
+            Column(
+                modifier = Modifier.verticalScroll(rememberScrollState()),
+                verticalArrangement = Arrangement.spacedBy(12.dp)
+            ) {
+                Text(
+                    text = stringResource(R.string.select_target_note),
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                )
+
+                if (!isCreatingNewNote) {
+                    if (availableNotes.isEmpty()) {
+                        Text(
+                            stringResource(R.string.no_other_notes),
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.error
+                        )
+                    } else {
+                        availableNotes.forEach { note ->
+                            val isSelected = note.uuid == selectedTargetUuid
+                            val accent = NOTE_COLORS[((note.colorIndex % NOTE_COLORS.size) + NOTE_COLORS.size) % NOTE_COLORS.size]
+                            Surface(
+                                onClick = { selectedTargetUuid = note.uuid },
+                                shape = RoundedCornerShape(12.dp),
+                                color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                                        else MaterialTheme.colorScheme.surfaceContainerHigh,
+                                border = if (isSelected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary) else null,
+                                modifier = Modifier.fillMaxWidth()
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Box(
+                                        modifier = Modifier
+                                            .width(4.dp)
+                                            .height(24.dp)
+                                            .background(accent, RoundedCornerShape(2.dp))
+                                    )
+                                    Spacer(modifier = Modifier.width(10.dp))
+                                    Text(
+                                        text = note.title.ifBlank { "Untitled" },
+                                        style = MaterialTheme.typography.bodyLarge.copy(fontWeight = FontWeight.SemiBold),
+                                        modifier = Modifier.weight(1f)
+                                    )
+                                    if (isSelected) {
+                                        Icon(
+                                            Icons.Rounded.CheckCircle,
+                                            contentDescription = "Selected",
+                                            tint = MaterialTheme.colorScheme.primary,
+                                            modifier = Modifier.size(20.dp)
+                                        )
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    TextButton(
+                        onClick = { isCreatingNewNote = true },
+                        modifier = Modifier.align(Alignment.Start)
+                    ) {
+                        Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp))
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Text(
+                            if (isMove) stringResource(R.string.create_new_note_and_move)
+                            else stringResource(R.string.create_new_note_and_copy)
+                        )
+                    }
+                } else {
+                    OutlinedTextField(
+                        value = newNoteTitle,
+                        onValueChange = { newNoteTitle = it },
+                        label = { Text(stringResource(R.string.note_title_label)) },
+                        singleLine = true,
+                        modifier = Modifier.fillMaxWidth(),
+                        shape = RoundedCornerShape(12.dp)
+                    )
+                    Text(
+                        stringResource(R.string.note_color_label),
+                        style = MaterialTheme.typography.labelMedium,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    ColorPicker(selectedIndex = newNoteColorIndex, onSelect = { newNoteColorIndex = it })
+                    TextButton(
+                        onClick = { isCreatingNewNote = false },
+                        modifier = Modifier.align(Alignment.Start)
+                    ) {
+                        Text(stringResource(R.string.cancel))
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = {
+                    if (isCreatingNewNote) {
+                        val newNoteUuid = UUID.randomUUID().toString()
+                        onAddNote(newNoteTitle.trim(), newNoteColorIndex, newNoteUuid)
+                        onConfirm(newNoteUuid)
+                    } else if (selectedTargetUuid != null) {
+                        onConfirm(selectedTargetUuid!!)
+                    }
+                },
+                enabled = if (isCreatingNewNote) newNoteTitle.isNotBlank() else (selectedTargetUuid != null)
+            ) {
+                Text(if (isMove) stringResource(R.string.move_entries) else stringResource(R.string.copy_entries))
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) { Text(stringResource(R.string.cancel)) }
+        }
+    )
 }
 
 @Composable

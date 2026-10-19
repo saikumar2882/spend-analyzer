@@ -314,11 +314,11 @@ class SpendViewModel @Inject constructor(
         initialValue = emptyList()
     )
 
-    fun addNote(title: String, colorIndex: Int, onResult: (Result<Unit>) -> Unit = {}) {
+    fun addNote(title: String, colorIndex: Int, uuid: String = UUID.randomUUID().toString(), onResult: (Result<Unit>) -> Unit = {}) {
         mutate(onResult) {
             val now = System.currentTimeMillis()
             val note = Note(
-                uuid = java.util.UUID.randomUUID().toString(),
+                uuid = uuid,
                 userId = _userId.value,
                 title = title,
                 colorIndex = colorIndex,
@@ -423,6 +423,18 @@ class SpendViewModel @Inject constructor(
 
     fun deleteNoteEntry(entry: NoteEntry, onResult: (Result<Unit>) -> Unit = {}) =
         mutate(onResult) { repository.deleteNoteEntry(entry) }
+
+    fun deleteNotes(notes: List<Note>, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.deleteNotes(notes) }
+
+    fun moveNoteEntries(entries: List<NoteEntry>, targetNoteUuid: String, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.moveNoteEntries(entries, targetNoteUuid) }
+
+    fun copyNoteEntries(entries: List<NoteEntry>, targetNoteUuid: String, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.copyNoteEntries(entries, targetNoteUuid) }
+
+    fun deleteNoteEntries(entries: List<NoteEntry>, onResult: (Result<Unit>) -> Unit = {}) =
+        mutate(onResult) { repository.deleteNoteEntries(entries) }
 
     // ---- Notes history (Recycle Bin + Update History) ----
 
@@ -638,7 +650,14 @@ class SpendViewModel @Inject constructor(
             val historyPrefs = aiPreferences.value
             val currency = historyPrefs.defaultCurrency.ifBlank { "₹" }
             val today = java.text.SimpleDateFormat("yyyy-MM-dd EEEE", Locale.getDefault()).format(System.currentTimeMillis())
-            val historyContext = HistoryQuery.build(scopeText, allSpendsFlow.value, currency)
+            val historyContext = HistoryQuery.build(
+                question = scopeText,
+                spends = allSpendsFlow.value,
+                currency = currency,
+                notes = notes.value,
+                noteEntries = noteEntries.value,
+                recurringBills = recurringBills.value
+            )
             val contextText = historyContext.text
             val includesDues = historyContext.scope.dues != HistoryQuery.DuesMode.EXCLUDE
 
@@ -677,10 +696,12 @@ class SpendViewModel @Inject constructor(
                         - The SCOPE block states exactly which period, filters and record types the data covers. Answer only about that scope; never bring in anything outside it.
                         - Every figure under TOTALS is already computed exactly over ALL matching transactions. Quote those figures as they are. Never re-add the TRANSACTIONS rows: they can be a sample of the matches.
                         - Use the TRANSACTIONS rows for dates, notes and itemised lists, and for questions about a specific item or note.
+                        - NOTES & NOTE ENTRIES: User-created custom collections (e.g., trip expenses, project budgets, wishlists). Refer to the NOTES & NOTE ENTRIES section when asked about notes, note entries, note titles, custom fields, or note amounts. Note entries are kept separate from everyday spending totals.
+                        - RECURRING BILLS & SUBSCRIPTIONS: Scheduled or repeating payments (subscriptions, utility bills, credit card bills, rent). Refer to RECURRING BILLS & SUBSCRIPTIONS when asked about recurring bills, subscriptions, due dates, or monthly recurring costs.
                         - Lending and borrowing are loans, not spending. Never include them in a spending total or summary unless the SCOPE says they are included, and then keep them in a separate section.
                         - Identify the top spending category/app and flag unusually large single transactions when relevant.
                         - For trend questions, derive day-over-day or week-over-week patterns from the rows when available, and month-over-month from "By month".
-                        - If the SCOPE says nothing matched, say that in one line, then point to the closest data in the OVERVIEW.
+                        - If the SCOPE says 0 transactions matched, but the user is asking about Notes or Recurring Bills, answer directly using the NOTES & NOTE ENTRIES or RECURRING BILLS & SUBSCRIPTIONS section instead of saying nothing matched.
                         - If data is insufficient to answer precisely, still give the closest useful answer you can from the data above, then say in one line what is missing.
                         - Never fabricate transactions or amounts not present in the data.
                         - Never reply with only a refusal or only a clarifying question — always give the user something concrete from their data.
@@ -894,6 +915,18 @@ class SpendViewModel @Inject constructor(
     fun dismissUpdateVersion(version: String) {
         viewModelScope.launch {
             aiPrefsRepository.setDismissedUpdateVersion(version)
+        }
+    }
+
+    fun updateAppOrder(order: List<String>) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateAppOrder(order)
+        }
+    }
+
+    fun updateCategoryOrder(order: List<String>) {
+        viewModelScope.launch {
+            aiPrefsRepository.updateCategoryOrder(order)
         }
     }
 

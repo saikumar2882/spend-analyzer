@@ -318,7 +318,10 @@ object HistoryQuery {
         currency: String,
         now: Long = System.currentTimeMillis(),
         tz: TimeZone = TimeZone.getDefault(),
-        weekStart: Int = Calendar.getInstance(tz).firstDayOfWeek
+        weekStart: Int = Calendar.getInstance(tz).firstDayOfWeek,
+        notes: List<Note> = emptyList(),
+        noteEntries: List<NoteEntry> = emptyList(),
+        recurringBills: List<RecurringBill> = emptyList()
     ): Context {
         val scope = parseScope(question, now, tz, weekStart)
         val clock = Clock(tz, now, weekStart)
@@ -327,6 +330,9 @@ object HistoryQuery {
             appendScope(scope, sel)
             if (sel.matched.isEmpty()) appendNothingMatched(sel, currency, clock)
             else appendMatches(scope, sel, currency, clock)
+
+            appendRecurringBills(recurringBills, currency)
+            appendNotes(notes, noteEntries, currency, clock)
         }
         return Context(text, scope, sel.matched.size)
     }
@@ -471,5 +477,71 @@ object HistoryQuery {
             "By month${if (byMonth.size > limit) " (latest $limit)" else ""}: " +
                 shown.joinToString("; ") { (m, rows) -> "$m ${money(cur, rows.sumOf { it.amount })} (${rows.size})" }
         )
+    }
+
+    private fun StringBuilder.appendRecurringBills(bills: List<RecurringBill>, cur: String) {
+        val active = bills.filter { !it.deleted }
+        if (active.isEmpty()) return
+
+        appendLine()
+        appendLine("=== RECURRING BILLS & SUBSCRIPTIONS (${active.size} active) ===")
+        val monthlyTotal = active.sumOf { bill ->
+            val freq = BillFrequency.fromString(bill.frequency)
+            bill.amount / freq.intervalMonths
+        }
+        appendLine("Estimated Monthly Recurring Cost: ${money(cur, monthlyTotal)}")
+        active.forEach { bill ->
+            val cardInfo = if (bill.isCreditCardBill) {
+                if (bill.cardLast4.isNotBlank()) " | Credit Card (*${bill.cardLast4})" else " | Credit Card"
+            } else ""
+            val untilInfo = if (bill.untilDate != null) " | Until: ${SimpleDateFormat("yyyy-MM-dd", Locale.US).format(bill.untilDate)}" else ""
+            val noteInfo = if (!bill.notes.isNullOrBlank()) " | notes: ${bill.notes}" else ""
+            val appInfo = if (bill.appName.isNotBlank()) " | App/Bank: ${bill.appName}" else ""
+            val catInfo = if (bill.category.isNotBlank()) " | Category: ${bill.category}" else ""
+            appendLine("- \"${bill.name}\" | Amount: ${money(cur, bill.amount)} | Due: ${bill.dayOfMonth}th (${bill.frequency})$catInfo$appInfo$cardInfo$untilInfo$noteInfo")
+        }
+    }
+
+    private fun StringBuilder.appendNotes(
+        notes: List<Note>,
+        noteEntries: List<NoteEntry>,
+        cur: String,
+        c: Clock
+    ) {
+        val activeNotes = notes.filter { !it.deleted }
+        val activeEntries = noteEntries.filter { !it.deleted }
+        if (activeNotes.isEmpty() && activeEntries.isEmpty()) return
+
+        appendLine()
+        appendLine("=== NOTES & NOTE ENTRIES (${activeNotes.size} note(s), ${activeEntries.size} total entry/entries) ===")
+        val entriesByNote = activeEntries.groupBy { it.noteUuid }
+
+        activeNotes.forEach { note ->
+            val entries = entriesByNote[note.uuid].orEmpty()
+            val noteTotal = entries.sumOf { it.amount }
+            appendLine("• Note: \"${note.title}\" (Total: ${money(cur, noteTotal)}, ${entries.size} entry/entries)")
+            entries.forEach { entry ->
+                val dateStr = if (entry.date > 0) c.date(entry.date) else "No date"
+                val detailStr = if (!entry.detail.isNullOrBlank()) " | note: ${entry.detail}" else ""
+                val fieldsStr = if (entry.customFields.isNotEmpty()) {
+                    " | custom fields: [" + entry.customFields.joinToString(", ") { "${it.name}: ${it.value}" } + "]"
+                } else ""
+                appendLine("  - $dateStr | ${entry.label} | ${money(cur, entry.amount)}$detailStr$fieldsStr")
+            }
+        }
+
+        val knownNoteUuids = activeNotes.map { it.uuid }.toSet()
+        val orphanEntries = activeEntries.filter { it.noteUuid !in knownNoteUuids }
+        if (orphanEntries.isNotEmpty()) {
+            appendLine("• Other Note Entries (${orphanEntries.size}):")
+            orphanEntries.forEach { entry ->
+                val dateStr = if (entry.date > 0) c.date(entry.date) else "No date"
+                val detailStr = if (!entry.detail.isNullOrBlank()) " | note: ${entry.detail}" else ""
+                val fieldsStr = if (entry.customFields.isNotEmpty()) {
+                    " | custom fields: [" + entry.customFields.joinToString(", ") { "${it.name}: ${it.value}" } + "]"
+                } else ""
+                appendLine("  - $dateStr | ${entry.label} | ${money(cur, entry.amount)}$detailStr$fieldsStr")
+            }
+        }
     }
 }

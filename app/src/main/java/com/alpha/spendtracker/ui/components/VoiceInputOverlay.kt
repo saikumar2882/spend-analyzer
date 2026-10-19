@@ -88,9 +88,10 @@ fun VoiceInputOverlay(
         isListening = true
         speechErrorMessage = null
         soundLevel = 0f
+        transcript = ""
 
-        // Carry the transcript across a language switch rather than discarding what was said.
-        VoiceInputHelper.startListening(context, selectedLanguage, createListener(), previousText = transcript)
+        // Start listening fresh without the previous text when language changes.
+        VoiceInputHelper.startListening(context, selectedLanguage, createListener(), previousText = "")
 
         onDispose {
             VoiceInputHelper.destroy()

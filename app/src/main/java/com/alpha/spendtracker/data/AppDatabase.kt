@@ -11,7 +11,7 @@ import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
 
-@Database(entities = [Spend::class, ChatMessage::class, SpendHistory::class, RecurringBill::class, Note::class, NoteEntry::class, NoteHistory::class], version = 26, exportSchema = true)
+@Database(entities = [Spend::class, ChatMessage::class, SpendHistory::class, RecurringBill::class, Note::class, NoteEntry::class, NoteHistory::class], version = 27, exportSchema = true)
 @TypeConverters(NoteConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun spendDao(): SpendDao
@@ -242,6 +242,31 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        val MIGRATION_26_27 = object : Migration(26, 27) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                // Update legacy categories to the comprehensive 23 categories list
+                val mapping = mapOf(
+                    "Food & Drinks" to "Food & Dining",
+                    "Food" to "Food & Dining",
+                    "Shopping & Apparels" to "Shopping",
+                    "Rent & Utilities" to "Housing",
+                    "Credit Card Bill" to "EMIs & Cards",
+                    "Travel & Commute" to "Commute",
+                    "Subscription & Leisure" to "Entertainment",
+                    "Healthcare & Medical" to "Healthcare",
+                    "Health" to "Healthcare",
+                    "Others" to "Miscellaneous",
+                    "Other" to "Miscellaneous",
+                    "Cash Flow" to "Savings" // Assuming earlier added ones can map here
+                )
+                
+                for ((old, new) in mapping) {
+                    db.execSQL("UPDATE spends SET purpose = '$new' WHERE purpose = '$old'")
+                    db.execSQL("UPDATE recurring_bills SET purpose = '$new' WHERE purpose = '$old'")
+                }
+            }
+        }
+
         fun getDatabase(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 val instance = Room.databaseBuilder(
@@ -249,7 +274,7 @@ abstract class AppDatabase : RoomDatabase() {
                     AppDatabase::class.java,
                     "spend_database"
                 )
-                .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26)
+                .addMigrations(MIGRATION_14_15, MIGRATION_15_16, MIGRATION_16_17, MIGRATION_17_18, MIGRATION_18_19, MIGRATION_19_20, MIGRATION_20_21, MIGRATION_21_22, MIGRATION_22_23, MIGRATION_23_24, MIGRATION_24_25, MIGRATION_25_26, MIGRATION_26_27)
                 // The real migrations handle the common 14 -> 15 -> 16 path without data loss.
                 // Older installs can be on a pre-14 schema (the app historically shipped only
                 // destructive migration and skipped some release versions), and there is no

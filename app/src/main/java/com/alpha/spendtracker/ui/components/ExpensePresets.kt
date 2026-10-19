@@ -48,6 +48,9 @@ val APP_PRESETS = listOf(
     AppPreset("google_pay", "Google Pay", "UPI Apps", Color(0xFF1A73E8)),
     AppPreset("phone_pe", "PhonePe", "UPI Apps", Color(0xFF5F259F)),
     AppPreset("paytm", "Paytm", "UPI Apps", Color(0xFF00B9F5)),
+    AppPreset("cash", "Cash", "Cash", Color(0xFF10B981)),
+    AppPreset("cred", "CRED", "Banking & Cards", Color(0xFF000000)),
+    AppPreset("mobikwik", "Mobikwik", "UPI Apps", Color(0xFF004481)),
 
     AppPreset("swiggy", "Swiggy", "Quick Commerce", Color(0xFFFC8019)),
     AppPreset("zomato", "Zomato", "Quick Commerce", Color(0xFFE23744)),
@@ -67,8 +70,32 @@ val APP_PRESETS = listOf(
 
 val APP_COLOR_BY_NAME: Map<String, Color> = APP_PRESETS.associate { it.displayName to it.color }
 
+fun getOrderedAppPresets(customOrder: List<String>): List<AppPreset> {
+    if (customOrder.isEmpty()) return APP_PRESETS
+    val presetMap = APP_PRESETS.associateBy { it.id }
+    val orderedList = mutableListOf<AppPreset>()
+    val visited = mutableSetOf<String>()
+
+    for (id in customOrder) {
+        presetMap[id]?.let {
+            if (visited.add(it.id)) {
+                orderedList.add(it)
+            }
+        }
+    }
+
+    for (preset in APP_PRESETS) {
+        if (visited.add(preset.id)) {
+            orderedList.add(preset)
+        }
+    }
+
+    return orderedList
+}
+
 val CATEGORY_PRESETS = listOf(
     "UPI Apps",
+    "Cash",
     "Quick Commerce",
     "E-Commerce",
     "Banking & Cards",
@@ -77,18 +104,37 @@ val CATEGORY_PRESETS = listOf(
 
 val PURPOSE_PRESETS = listOf(
     "Food & Drinks",
+    "Food & Dining",
     "Groceries",
     "Shopping & Apparels",
-    "Rent & Utilities",
-    "Credit Card Bill",
-    "Fuel",
+    "Shopping",
     "Travel & Commute",
+    "Travel",
+    "Commute",
+    "Fuel",
+    "Rent & Utilities",
+    "Bills & Utilities",
+    "Credit Card Bill",
+    "EMIs & Cards",
     "Subscription & Leisure",
+    "Subscriptions",
     "Healthcare & Medical",
+    "Healthcare",
     "Investment",
+    "Investments",
+    "Savings",
     "Lending",
     "Borrowing",
-    "Others"
+    "Housing",
+    "Personal Care",
+    "Education",
+    "Entertainment",
+    "Insurance & Taxes",
+    "Gifts & Donations",
+    "Fitness",
+    "Pets",
+    "Work Expenses",
+    "Miscellaneous"
 )
 
 private val TELUGU_PRESET_MAP = mapOf(
@@ -338,6 +384,7 @@ fun getAppPackageName(appName: String): String? {
         clean.contains("zomato") -> "com.application.zomato"
         clean.contains("zepto") -> "com.kirana.consumer"
         clean.contains("blinkit") || clean.contains("grofers") -> "com.grofers.customerapp"
+        clean.contains("mobikwik") -> "com.mobikwik_new"
         clean.contains("cred") -> "com.dreamplug.android.cred"
         clean.contains("amazon") -> "in.amazon.mShop.android.shopping"
         clean.contains("flipkart") -> "com.flipkart.android"
@@ -384,6 +431,7 @@ suspend fun getAppPackageName(context: Context, appName: String): String? = with
 fun getDomainForApp(appName: String): String {
     val clean = appName.trim().lowercase()
     return when {
+        clean.contains("cash") -> "cash"
         clean.contains("zepto") -> "zeptonow.com"
         clean.contains("swiggy") -> "swiggy.com"
         clean.contains("zomato") -> "zomato.com"
@@ -391,6 +439,7 @@ fun getDomainForApp(appName: String): String {
         clean.contains("google") || clean.contains("gpay") -> "pay.google.com"
         clean.contains("phonepe") || clean.contains("phone pe") -> "phonepe.com"
         clean.contains("paytm") -> "paytm.com"
+        clean.contains("mobikwik") -> "mobikwik.com"
         clean.contains("cred") -> "cred.club"
         clean.contains("amazon") -> "amazon.in"
         clean.contains("flipkart") -> "flipkart.com"

@@ -221,6 +221,8 @@
     <string name="ai_example_6">व्यक्ति के अनुसार मेरे सभी उधार दिखाएं</string>
     <string name="ai_example_7">इस महीने मेरा सबसे बड़ा खर्च क्या था?</string>
     <string name="ai_example_8">पिछले 7 दिनों के मेरे खर्च दिखाएं</string>
+    <string name="ai_example_9">मेरे पास कौन-से नोट्स हैं?</string>
+    <string name="ai_example_10">मेरे बार-बार आने वाले बिल क्या हैं?</string>
     <string name="ai_tap_to_ask">पूछने के लिए किसी सवाल पर टैप करें</string>
     <string name="ai_clear_chat">चैट साफ करें</string>
     <string name="ai_clear_chat_title">चैट साफ करें?</string>
@@ -247,6 +249,25 @@
     <string name="field_title">शीर्षक</string>
     <string name="field_value">मान</string>
     <string name="log_as_transaction">लेनदेन के रूप में दर्ज करें</string>
+    <string name="items_selected">%1$d चुने गए</string>
+    <string name="move_entries">स्थानांतरित करें</string>
+    <string name="copy_entries">कॉपी करें</string>
+    <string name="move_to_note">नोट में स्थानांतरित करें</string>
+    <string name="copy_to_note">नोट में कॉपी करें</string>
+    <string name="delete_selected_entries_title">%1$d प्रविष्टियां हटाएं?</string>
+    <string name="delete_selected_entries_message">क्या आप वाकई इन %1$d प्रविष्टियों को हटाना चाहते हैं? इन्हें रीसायकल बिन से पुनर्स्थापित किया जा सकता है।</string>
+    <string name="delete_selected_notes_title">%1$d नोट हटाएं?</string>
+    <string name="delete_selected_notes_message">क्या आप वाकई इन %1$d नोट्स और उनकी सभी प्रविष्टियों को हटाना चाहते हैं? इन्हें रीसायकल बिन से पुनर्स्थापित किया जा सकता है।</string>
+    <string name="select_target_note">लक्ष्य नोट चुनें</string>
+    <string name="select_all">सभी चुनें</string>
+    <string name="deselect_all">सभी का चयन रद्द करें</string>
+    <string name="no_other_notes">कोई अन्य नोट उपलब्ध नहीं है।</string>
+    <string name="create_new_note_and_move">+ नया नोट बनाएं और स्थानांतरित करें</string>
+    <string name="create_new_note_and_copy">+ नया नोट बनाएं और कॉपी करें</string>
+    <string name="entries_moved">%1$d प्रविष्टियां \'%2$s\' में स्थानांतरित की गईं</string>
+    <string name="entries_copied">%1$d प्रविष्टियां \'%2$s\' में कॉपी की गईं</string>
+    <string name="notes_deleted">%1$d नोट हटाए गए</string>
+    <string name="entries_deleted">%1$d प्रविष्टियां हटाई गईं</string>
 
     <!-- Recurring Bills & Subscriptions -->
     <string name="bills_and_subscriptions">बिल और सदस्यता</string>
@@ -463,4 +484,12 @@
     <string name="voice_review_unsure">मुझे इस बारे में यकीन नहीं था। पुष्टि के लिए Spendly खोलें।</string>
     <string name="voice_not_signed_in">पहले Spendly में साइन इन करें, फिर दोबारा कोशिश करें।</string>
     <string name="voice_save_failed">मैं इसे सेव नहीं कर सका। कृपया दोबारा कोशिश करें।</string>
+
+    <!-- Customization -->
+    <string name="customize_payment_apps">पेमेंट ऐप कस्टमाइज़ करें</string>
+    <string name="reorder_apps_subtitle">अपने पसंदीदा ऐप्स को सबसे आगे रखें</string>
+    <string name="customize_categories">कैटेगरी कस्टमाइज़ करें</string>
+    <string name="reorder_categories_subtitle">अपनी पसंदीदा कैटेगरी को सबसे आगे रखें</string>
+    <string name="reset_default">रीसेट करें</string>
+    <string name="save_order">क्रम सेव करें</string>
 </resources>

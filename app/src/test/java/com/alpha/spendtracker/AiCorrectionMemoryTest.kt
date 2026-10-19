@@ -73,9 +73,9 @@ class AiCorrectionMemoryTest {
 
     @Test
     fun customAppIsRestoredAsOtherPlatform() {
-        val rules = teach(emptyList(), "Chai", app = "Cred")
+        val rules = teach(emptyList(), "Chai", app = "Jupiter")
         val out = AiCorrectionMemory.apply(gpayGuess, "chai 60", rules)
-        assertEquals("Cred", out.appName)
+        assertEquals("Jupiter", out.appName)
         assertEquals("other", out.appPresetId)
     }
 

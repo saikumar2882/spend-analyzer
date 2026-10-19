@@ -220,6 +220,8 @@
     <string name="ai_example_6">నా అప్పులన్నింటినీ వ్యక్తుల వారీగా చూపించు</string>
     <string name="ai_example_7">ఈ నెలలో నా అతిపెద్ద ఖర్చు ఏది?</string>
     <string name="ai_example_8">గత 7 రోజుల నా ఖర్చులను చూపించు</string>
+    <string name="ai_example_9">నా వద్ద ఉన్న నోట్స్ ఏమిటి?</string>
+    <string name="ai_example_10">నా రికరింగ్ బిల్లులు ఏమిటి?</string>
     <string name="ai_tap_to_ask">అడగడానికి ఒక ప్రశ్నను నొక్కండి</string>
     <string name="ai_clear_chat">చాట్ క్లియర్ చేయి</string>
     <string name="ai_clear_chat_title">చాట్ క్లియర్ చేయాలా?</string>
@@ -246,6 +248,25 @@
     <string name="field_title">శీర్షిక</string>
     <string name="field_value">విలువ</string>
     <string name="log_as_transaction">లావాదేవీగా నమోదు చేయి</string>
+    <string name="items_selected">%1$d ఎంపిక చేయబడ్డాయి</string>
+    <string name="move_entries">తరలించండి</string>
+    <string name="copy_entries">కాపీ చేయండి</string>
+    <string name="move_to_note">మరొక గమనికకు తరలించండి</string>
+    <string name="copy_to_note">మరొక గమనికకు కాపీ చేయండి</string>
+    <string name="delete_selected_entries_title">%1$d ఎంట్రీలను తొలగించాలా?</string>
+    <string name="delete_selected_entries_message">మీరు ఖచ్చితంగా ఈ %1$d ఎంట్రీలను తొలగించాలనుకుంటున్నారా? వీటిని రీసైకిల్ బిన్ నుండి పునరుద్ధరించవచ్చు.</string>
+    <string name="delete_selected_notes_title">%1$d గమనికలను తొలగించాలా?</string>
+    <string name="delete_selected_notes_message">మీరు ఖచ్చితంగా ఈ %1$d గమనికలను మరియు వాటి ఎంట్రీలను తొలగించాలనుకుంటున్నారా? వీటిని రీసైకిల్ బిన్ నుండి పునరుద్ధరించవచ్చు.</string>
+    <string name="select_target_note">గమ్యస్థాన గమనికను ఎంచుకోండి</string>
+    <string name="select_all">అన్నీ ఎంచుకోండి</string>
+    <string name="deselect_all">అన్నీ వద్దనుకోండి</string>
+    <string name="no_other_notes">ఇతర గమనికలు లభ్యం కావు.</string>
+    <string name="create_new_note_and_move">+ కొత్త గమనికను సృష్టించి తరలించండి</string>
+    <string name="create_new_note_and_copy">+ కొత్త గమనికను సృష్టించి కాపీ చేయండి</string>
+    <string name="entries_moved">%1$d ఎంట్రీలు \'%2$s\' కి తరలించబడ్డాయి</string>
+    <string name="entries_copied">%1$d ఎంట్రీలు \'%2$s\' కి కాపీ చేయబడ్డాయి</string>
+    <string name="notes_deleted">%1$d గమనికలు తొలగించబడ్డాయి</string>
+    <string name="entries_deleted">%1$d ఎంట్రీలు తొలగించబడ్డాయి</string>
 
     <!-- Recurring Bills & Subscriptions -->
     <string name="bills_and_subscriptions">బిల్లులు &amp; సబ్‌స్క్రిప్షన్‌లు</string>
@@ -462,4 +483,12 @@
     <string name="voice_review_unsure">దీని గురించి నాకు ఖచ్చితంగా తెలియదు. నిర్ధారించడానికి Spendly తెరవండి.</string>
     <string name="voice_not_signed_in">ముందుగా Spendly లో సైన్ ఇన్ చేసి, మళ్లీ ప్రయత్నించండి.</string>
     <string name="voice_save_failed">నేను దీన్ని సేవ్ చేయలేకపోయాను. దయచేసి మళ్లీ ప్రయత్నించండి.</string>
+
+    <!-- Customization -->
+    <string name="customize_payment_apps">పేమెంట్ యాప్‌లను అనుకూలీకరించండి</string>
+    <string name="reorder_apps_subtitle">మీకు నచ్చిన యాప్‌లను మొదట ఉంచండి</string>
+    <string name="customize_categories">కేటగిరీలను అనుకూలీకరించండి</string>
+    <string name="reorder_categories_subtitle">మీకు ముఖ్యమైన కేటగిరీలను మొదట ఉంచండి</string>
+    <string name="reset_default">యథాస్థానానికి మార్చు</string>
+    <string name="save_order">ఆర్డర్‌ను సేవ్ చేయి</string>
 </resources>

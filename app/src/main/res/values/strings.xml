@@ -255,6 +255,8 @@
     <string name="ai_example_6">Show all my lendings grouped by person</string>
     <string name="ai_example_7">What was my biggest expense this month?</string>
     <string name="ai_example_8">Show my spending in the last 7 days</string>
+    <string name="ai_example_9">What notes do I have?</string>
+    <string name="ai_example_10">What are my recurring bills?</string>
     <string name="ai_tap_to_ask">Tap a question to ask it</string>
     <string name="ai_clear_chat">Clear chat</string>
     <string name="ai_clear_chat_title">Clear chat?</string>
@@ -281,6 +283,25 @@
     <string name="field_title">Title</string>
     <string name="field_value">Value</string>
     <string name="log_as_transaction">Log as transaction</string>
+    <string name="items_selected">%1$d selected</string>
+    <string name="move_entries">Move</string>
+    <string name="copy_entries">Copy</string>
+    <string name="move_to_note">Move to Note</string>
+    <string name="copy_to_note">Copy to Note</string>
+    <string name="delete_selected_entries_title">Delete %1$d entries?</string>
+    <string name="delete_selected_entries_message">Are you sure you want to delete these %1$d entries? They can be restored from the Recycle Bin.</string>
+    <string name="delete_selected_notes_title">Delete %1$d notes?</string>
+    <string name="delete_selected_notes_message">Are you sure you want to delete these %1$d notes and all their entries? They can be restored from the Recycle Bin.</string>
+    <string name="select_target_note">Select Target Note</string>
+    <string name="select_all">Select All</string>
+    <string name="deselect_all">Deselect All</string>
+    <string name="no_other_notes">No other notes available.</string>
+    <string name="create_new_note_and_move">+ Create new note &amp; move</string>
+    <string name="create_new_note_and_copy">+ Create new note &amp; copy</string>
+    <string name="entries_moved">Moved %1$d entries to \'%2$s\'</string>
+    <string name="entries_copied">Copied %1$d entries to \'%2$s\'</string>
+    <string name="notes_deleted">Deleted %1$d notes</string>
+    <string name="entries_deleted">Deleted %1$d entries</string>
 
     <!-- Recurring Bills & Subscriptions -->
     <string name="bills_and_subscriptions">Bills &amp; Subscriptions</string>
@@ -466,4 +487,12 @@
     <string name="voice_review_unsure">I wasn\'t sure about that one. Open Spendly to confirm it.</string>
     <string name="voice_not_signed_in">Sign in to Spendly first, then try again.</string>
     <string name="voice_save_failed">I couldn\'t save that. Please try again.</string>
+
+    <!-- Customization -->
+    <string name="customize_payment_apps">Customize Payment Apps</string>
+    <string name="reorder_apps_subtitle">Pin your favorite payment apps to the front</string>
+    <string name="customize_categories">Customize Categories</string>
+    <string name="reorder_categories_subtitle">Pin your top expense categories to the front</string>
+    <string name="reset_default">Reset Default</string>
+    <string name="save_order">Save Order</string>
 </resources>

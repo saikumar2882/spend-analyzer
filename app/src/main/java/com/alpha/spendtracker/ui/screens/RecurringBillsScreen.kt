@@ -47,6 +47,7 @@ import com.alpha.spendtracker.ui.theme.rememberPressScale
 import com.alpha.spendtracker.util.findActivity
 import java.text.SimpleDateFormat
 import java.util.Calendar
+import com.alpha.spendtracker.ui.icons.AppIcons
 import java.util.Date
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -70,7 +71,8 @@ fun RecurringBillsScreen(
     onUpdateBill: (RecurringBill) -> Unit,
     onDeleteBill: (RecurringBill) -> Unit,
     suggestions: List<SubscriptionSuggestion> = emptyList(),
-    onDismissSuggestion: (SubscriptionSuggestion) -> Unit = {}
+    onDismissSuggestion: (SubscriptionSuggestion) -> Unit = {},
+    onAiAssistantClick: (() -> Unit)? = null
 ) {
     var selectedTab by rememberSaveable { mutableIntStateOf(0) } // 0 = Bills & Subscriptions, 1 = Credit Cards
     var showAddDialog by remember { mutableStateOf(false) }
@@ -115,6 +117,15 @@ fun RecurringBillsScreen(
                         }
                     },
                     actions = {
+                        if (onAiAssistantClick != null) {
+                            IconButton(onClick = onAiAssistantClick) {
+                                Icon(
+                                    AppIcons.Ai,
+                                    contentDescription = stringResource(R.string.ai_assistant_title),
+                                    tint = MaterialTheme.colorScheme.primary
+                                )
+                            }
+                        }
                         IconButton(onClick = { showAddDialog = true }) {
                             Icon(
                                 Icons.Rounded.Add,

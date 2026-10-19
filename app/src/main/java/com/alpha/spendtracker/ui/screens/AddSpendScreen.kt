@@ -35,6 +35,11 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Clear
 import androidx.compose.material.icons.rounded.Event
+import androidx.compose.material.icons.rounded.Tune
+import com.alpha.spendtracker.ui.components.CustomizeAppPresetsSheet
+import com.alpha.spendtracker.ui.components.CustomizeCategoryPresetsSheet
+import com.alpha.spendtracker.ui.components.getOrderedAppPresets
+import com.alpha.spendtracker.ui.components.getOrderedCategoryGridItems
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
@@ -111,22 +116,34 @@ data class NewSpend(
 fun AddSpendScreen(
     editingSpend: Spend? = null,
     prefilledSpend: NewSpend? = null,
+    userAppOrder: List<String> = emptyList(),
+    userCategoryOrder: List<String> = emptyList(),
+    onSaveAppOrder: (List<String>) -> Unit = {},
+    onSaveCategoryOrder: (List<String>) -> Unit = {},
+    onResetAppOrder: () -> Unit = {},
+    onResetCategoryOrder: () -> Unit = {},
     onDismiss: () -> Unit,
     onShowNotification: (String, NotificationType) -> Unit,
     onSave: (NewSpend) -> Unit
 ) {
+    val orderedAppPresets = remember(userAppOrder) { getOrderedAppPresets(userAppOrder) }
+    val orderedCategoryItems = remember(userCategoryOrder) { getOrderedCategoryGridItems(userCategoryOrder) }
+
+    var showCustomizeAppsSheet by remember { mutableStateOf(false) }
+    var showCustomizeCategoriesSheet by remember { mutableStateOf(false) }
+
     var amountInput by rememberSaveable { 
         mutableStateOf(
             editingSpend?.amount?.let { if (it > 0) formatPlainAmount(it) else "" } 
                 ?: (if (prefilledSpend != null && prefilledSpend.amount > 0) formatPlainAmount(prefilledSpend.amount) else "")
         ) 
     }
-    var selectedPreset by remember { 
+    var selectedPreset by remember(orderedAppPresets) { 
         mutableStateOf(
             when {
-                editingSpend != null -> APP_PRESETS.find { it.displayName == editingSpend.appName } ?: APP_PRESETS.last()
+                editingSpend != null -> orderedAppPresets.find { it.displayName == editingSpend.appName } ?: orderedAppPresets.find { it.id == "other" } ?: orderedAppPresets.last()
                 prefilledSpend != null -> prefilledSpend.preset
-                else -> APP_PRESETS.first()
+                else -> orderedAppPresets.firstOrNull() ?: APP_PRESETS.first()
             }
         ) 
     }
@@ -240,12 +257,15 @@ fun AddSpendScreen(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(12.dp)) {
-                    SectionTitle(stringResource(R.string.select_payment_app))
+                    SectionTitle(
+                        text = stringResource(R.string.select_payment_app),
+                        onActionClick = { showCustomizeAppsSheet = true }
+                    )
                     BoxWithConstraints(modifier = Modifier.fillMaxWidth()) {
                         val gap = 12.dp
                         val cardWidth = (maxWidth - gap * 3) / 4
                         LazyRow(horizontalArrangement = Arrangement.spacedBy(gap)) {
-                            items(APP_PRESETS, key = { it.id }) { preset ->
+                            items(orderedAppPresets, key = { it.id }) { preset ->
                                 Box(modifier = Modifier.width(cardWidth)) {
                                     PresetGridCard(
                                         preset = preset,
@@ -304,10 +324,14 @@ fun AddSpendScreen(
 
             item {
                 Column(verticalArrangement = Arrangement.spacedBy(8.dp)) {
-                    SectionTitle(stringResource(R.string.category))
+                    SectionTitle(
+                        text = stringResource(R.string.category),
+                        onActionClick = { showCustomizeCategoriesSheet = true }
+                    )
                     CategorySelectionGrid(
                         selectedCategory = purposeInput,
-                        onCategorySelected = { purposeInput = it }
+                        onCategorySelected = { purposeInput = it },
+                        items = orderedCategoryItems
                     )
                 }
             }
@@ -375,7 +399,7 @@ fun AddSpendScreen(
                             NewSpend(
                                 preset = selectedPreset,
                                 amount = parsedAmount!!,
-                                purpose = purposeInput.ifBlank { "Others" },
+                                purpose = purposeInput.ifBlank { "Miscellaneous" },
                                 notes = finalNotes,
                                 customAppName = if (selectedPreset.id == "other" && customAppNameInput.isBlank()) "Other" else customAppNameInput,
                                 timestamp = transactionTimestamp
@@ -405,18 +429,58 @@ fun AddSpendScreen(
             }
         }
     }
+
+    if (showCustomizeAppsSheet) {
+        CustomizeAppPresetsSheet(
+            currentOrderedPresets = orderedAppPresets,
+            onSaveOrder = onSaveAppOrder,
+            onResetDefault = onResetAppOrder,
+            onDismiss = { showCustomizeAppsSheet = false }
+        )
+    }
+
+    if (showCustomizeCategoriesSheet) {
+        CustomizeCategoryPresetsSheet(
+            currentOrderedItems = orderedCategoryItems,
+            onSaveOrder = onSaveCategoryOrder,
+            onResetDefault = onResetCategoryOrder,
+            onDismiss = { showCustomizeCategoriesSheet = false }
+        )
+    }
 }
 
 @Composable
-private fun SectionTitle(text: String) {
-    Text(
-        text = text,
-        style = MaterialTheme.typography.titleLarge.copy(
-            fontWeight = FontWeight.Bold,
-            fontSize = 20.sp
-        ),
-        color = MaterialTheme.colorScheme.onSurface
-    )
+private fun SectionTitle(
+    text: String,
+    onActionClick: (() -> Unit)? = null
+) {
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.SpaceBetween,
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Text(
+            text = text,
+            style = MaterialTheme.typography.titleLarge.copy(
+                fontWeight = FontWeight.Bold,
+                fontSize = 20.sp
+            ),
+            color = MaterialTheme.colorScheme.onSurface
+        )
+        if (onActionClick != null) {
+            IconButton(
+                onClick = onActionClick,
+                modifier = Modifier.size(32.dp)
+            ) {
+                Icon(
+                    imageVector = Icons.Rounded.Tune,
+                    contentDescription = "Customize",
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+            }
+        }
+    }
 }
 
 @Composable
@@ -632,10 +696,11 @@ private fun formatPlainAmount(amount: Double): String {
 
 private fun suggestedPurposeFor(preset: AppPreset, current: String): String =
     when (preset.id) {
-        "swiggy", "zomato" -> "Food & Drinks"
+        "swiggy", "zomato" -> "Food & Dining"
         "zepto", "blinkit" -> "Groceries"
-        "amazon", "flipkart", "myntra", "ajio" -> "Shopping & Apparels"
-        "icici", "yono_sbi" -> "Banking & Cards"
+        "amazon", "flipkart", "myntra", "ajio" -> "Shopping"
+        "icici", "yono_sbi", "cred" -> "EMIs & Cards"
+        "mobikwik", "phone_pe", "google_pay", "paytm", "cash" -> current
         else -> current
     }
 

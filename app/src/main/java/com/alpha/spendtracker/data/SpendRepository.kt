@@ -32,6 +32,7 @@ import com.alpha.spendtracker.util.EncryptionUtils
 import com.google.firebase.auth.FirebaseAuth
 import com.squareup.moshi.Moshi
 import com.squareup.moshi.kotlin.reflect.KotlinJsonAdapterFactory
+import java.util.UUID
 
 class SpendRepository(
     private val spendDao: SpendDao,
@@ -746,6 +747,61 @@ class SpendRepository(
         val tombstone = entry.copy(deleted = true, updatedAt = now)
         notesDao.insertNoteEntry(tombstone)
         syncNoteEntryToFirestore(tombstone)
+    }
+
+    /** Batch delete multiple notes along with their entries. */
+    suspend fun deleteNotes(notesList: List<Note>): Result<Unit> = localWrite("batch notes delete") {
+        val now = System.currentTimeMillis()
+        notesList.forEach { note ->
+            recordNoteHistory(note, HistoryType.DELETED, now)
+            notesDao.getEntriesForNoteOnce(note.uuid).forEach { entry ->
+                val entryTombstone = entry.copy(deleted = true, updatedAt = now)
+                notesDao.insertNoteEntry(entryTombstone)
+                syncNoteEntryToFirestore(entryTombstone)
+            }
+            val tombstone = note.copy(deleted = true, updatedAt = now)
+            notesDao.insertNote(tombstone)
+            syncNoteToFirestore(tombstone)
+        }
+    }
+
+    /** Batch move multiple note entries from their current note to [targetNoteUuid]. */
+    suspend fun moveNoteEntries(entries: List<NoteEntry>, targetNoteUuid: String): Result<Unit> = localWrite("move note entries") {
+        val now = System.currentTimeMillis()
+        entries.forEach { entry ->
+            if (entry.noteUuid != targetNoteUuid) {
+                recordEntryHistory(entry, HistoryType.UPDATED, now)
+                val updated = entry.copy(noteUuid = targetNoteUuid, updatedAt = now)
+                notesDao.insertNoteEntry(updated)
+                syncNoteEntryToFirestore(updated)
+            }
+        }
+    }
+
+    /** Batch copy multiple note entries into [targetNoteUuid]. */
+    suspend fun copyNoteEntries(entries: List<NoteEntry>, targetNoteUuid: String): Result<Unit> = localWrite("copy note entries") {
+        val now = System.currentTimeMillis()
+        entries.forEach { entry ->
+            val copied = entry.copy(
+                uuid = UUID.randomUUID().toString(),
+                noteUuid = targetNoteUuid,
+                createdAt = now,
+                updatedAt = now
+            )
+            notesDao.insertNoteEntry(copied)
+            syncNoteEntryToFirestore(copied)
+        }
+    }
+
+    /** Batch delete multiple note entries. */
+    suspend fun deleteNoteEntries(entries: List<NoteEntry>): Result<Unit> = localWrite("batch note entries delete") {
+        val now = System.currentTimeMillis()
+        entries.forEach { entry ->
+            recordEntryHistory(entry, HistoryType.DELETED, now)
+            val tombstone = entry.copy(deleted = true, updatedAt = now)
+            notesDao.insertNoteEntry(tombstone)
+            syncNoteEntryToFirestore(tombstone)
+        }
     }
 
     private fun syncNoteToFirestore(note: Note) {

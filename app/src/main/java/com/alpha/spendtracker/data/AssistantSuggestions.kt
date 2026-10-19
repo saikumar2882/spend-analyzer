@@ -32,6 +32,8 @@ object AssistantSuggestions {
         Suggestion(R.string.ai_example_4, "Top 3 categories of last month"),
         Suggestion(R.string.ai_example_5, "Which payment app do I use the most?"),
         Suggestion(R.string.ai_example_8, "Show my spending in the last 7 days"),
+        Suggestion(R.string.ai_example_9, "What notes do I have?"),
+        Suggestion(R.string.ai_example_10, "What are my recurring bills?"),
         Suggestion(R.string.ai_example_2, "Who do I owe money to right now?", needsDues = true),
         Suggestion(R.string.ai_example_6, "Show all my lendings grouped by person", needsDues = true)
     )
