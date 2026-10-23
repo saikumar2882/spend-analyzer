@@ -52,6 +52,8 @@ import androidx.compose.ui.text.input.PasswordVisualTransformation
 import androidx.compose.material.icons.rounded.AccountBalanceWallet
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.unit.dp
+import androidx.activity.compose.rememberLauncherForActivityResult
+import androidx.activity.result.contract.ActivityResultContracts
 import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.ui.components.AiSettingsDialog
 import com.alpha.spendtracker.ui.components.AppAvatar
@@ -93,6 +95,7 @@ fun SettingsScreen(
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
+
     val currentLocales = AppCompatDelegate.getApplicationLocales()
     val currentLangTag = if (!currentLocales.isEmpty) currentLocales[0]?.language.orEmpty() else ""
 

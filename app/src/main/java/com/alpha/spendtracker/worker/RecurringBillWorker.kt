@@ -158,6 +158,8 @@ class RecurringBillWorker @AssistedInject constructor(
         val markAsReadIntent = Intent(applicationContext, NotificationActionReceiver::class.java).apply {
             action = NotificationActionReceiver.ACTION_MARK_AS_READ
             putExtra(NotificationActionReceiver.EXTRA_NOTIFICATION_ID, notificationId)
+            putExtra(NotificationActionReceiver.EXTRA_BILL_USER_ID, bill.userId)
+            putExtra(NotificationActionReceiver.EXTRA_BILL_UUID, bill.uuid)
         }
 
         val markAsReadPendingIntent = PendingIntent.getBroadcast(
@@ -173,6 +175,7 @@ class RecurringBillWorker @AssistedInject constructor(
             action = NotificationActionReceiver.ACTION_MARK_AS_PAID
             putExtra(NotificationActionReceiver.EXTRA_NOTIFICATION_ID, notificationId)
             putExtra(NotificationActionReceiver.EXTRA_BILL_USER_ID, bill.userId)
+            putExtra(NotificationActionReceiver.EXTRA_BILL_UUID, bill.uuid)
             putExtra(NotificationActionReceiver.EXTRA_BILL_NAME, bill.name)
             putExtra(NotificationActionReceiver.EXTRA_BILL_APP, bill.appName)
             putExtra(NotificationActionReceiver.EXTRA_BILL_PURPOSE, bill.purpose)

@@ -6,6 +6,7 @@
     <uses-permission android:name="android.permission.INTERNET" />
     <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS" />
+    <uses-permission android:name="android.permission.SCHEDULE_EXACT_ALARM" />
     <uses-permission android:name="android.permission.RECORD_AUDIO" />
 
     <queries>
@@ -102,7 +103,7 @@
             android:taskAffinity=".QuickAdd"
             android:windowSoftInputMode="adjustResize" />
 
-        <!-- Puts "Track in Spendly" in the share sheet (e.g. a GPay / PhonePe payment receipt).
+        <!-- Puts "Spendly" in the share sheet (e.g. a GPay / PhonePe / Paytm / Google payment receipt).
              An alias so the overlay activity itself stays unexported. -->
         <activity-alias
             android:name=".ShareToSpendly"
@@ -114,12 +115,22 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
-            <!-- GPay / PhonePe / Paytm share a receipt as a screenshot-style image, not text, so
-                 without this filter the app never appears in their share sheet. -->
+            <!-- GPay / PhonePe / Paytm / Google share a receipt as a screenshot image or PDF document. -->
             <intent-filter>
                 <action android:name="android.intent.action.SEND" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="image/*" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="application/pdf" />
+            </intent-filter>
+            <intent-filter>
+                <action android:name="android.intent.action.SEND_MULTIPLE" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="image/*" />
+                <data android:mimeType="application/pdf" />
             </intent-filter>
         </activity-alias>
 
@@ -155,6 +166,10 @@
             </intent-filter>
         </receiver>
 
+        <receiver
+            android:name=".worker.ReminderReceiver"
+            android:exported="false" />
+
         <provider
             android:name="androidx.core.content.FileProvider"
             android:authorities="${applicationId}.provider"
@@ -175,6 +190,8 @@
                 android:value="androidx.startup"
                 tools:node="remove" />
         </provider>
+
+
     </application>
 
 </manifest>

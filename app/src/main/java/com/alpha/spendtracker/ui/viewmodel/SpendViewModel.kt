@@ -1016,6 +1016,7 @@ class SpendViewModel @Inject constructor(
     fun updateMonthlyBudget(budget: Double) {
         viewModelScope.launch {
             aiPrefsRepository.updateMonthlyBudget(budget)
+            repository.publishMonthlyBudget(_userId.value, budget)
         }
     }
 
@@ -1042,6 +1043,7 @@ class SpendViewModel @Inject constructor(
             aiPrefsRepository.updateOledBlack(enabled)
         }
     }
+
 
     fun updateE2eEncryptionEnabled(enabled: Boolean) {
         viewModelScope.launch {

@@ -433,7 +433,7 @@
     </plurals>
 
     <!-- Share to Spendly -->
-    <string name="share_to_spendly_label">Track in Spendly</string>
+    <string name="share_to_spendly_label">Spendly - Track Expense</string>
     <string name="share_reading_payment">Reading your payment…</string>
     <string name="share_no_amount">Couldn\'t find an amount in the shared text. Type it below.</string>
     <string name="share_nothing_to_track">Nothing to track in the shared text</string>

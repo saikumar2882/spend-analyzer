@@ -65,6 +65,9 @@ class SpendApp : Application(), AppFunctionConfiguration.Provider {
         scheduleRecurringBillCheck()
         // Sunday recap + monthly Wrapped nudge (daily ~7 PM check, KEEP policy).
         com.alpha.spendtracker.worker.RecapWorker.schedule(this)
+        
+        // Smart Reminders
+        com.alpha.spendtracker.worker.SmartReminderWorker.schedule(this)
 
         // Keeps the home-screen summary widget in step with the spends table.
         com.alpha.spendtracker.widget.SpendSummaryWidgetUpdater.start(this)

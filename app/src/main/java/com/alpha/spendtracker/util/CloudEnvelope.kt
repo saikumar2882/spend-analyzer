@@ -47,6 +47,7 @@ object CloudEnvelope {
         }
         (fields["deleted"] as? Boolean)?.let { envelope["deleted"] = it }
         (fields["historyType"] as? String)?.let { envelope["historyType"] = it }
+        (fields["purpose"] as? String)?.let { envelope["purpose"] = it }
         return envelope
     }
 

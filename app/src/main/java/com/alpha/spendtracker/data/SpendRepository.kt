@@ -104,6 +104,7 @@ class SpendRepository(
         val userDoc = firestore.collection("users").document(userId)
 
         startE2eeSettingSync(userDoc, scope)
+        startMonthlyBudgetSync(userDoc, scope)
 
         startCollectionSync(
             userDoc, "spends", Spend::class.java, scope,
@@ -257,6 +258,41 @@ class SpendRepository(
             firestore.collection("users").document(userId)
                 .collection(PROFILE_COLLECTION).document(SECURITY_DOC)
                 .set(mapOf(E2EE_FIELD to enabled, "updatedAt" to System.currentTimeMillis()))
+        )
+    }
+
+    private fun startMonthlyBudgetSync(userDoc: DocumentReference, scope: CoroutineScope) {
+        val ref = userDoc.collection(PROFILE_COLLECTION).document("settings")
+        syncListeners.add(
+            ref.addSnapshotListener { snapshot, e ->
+                if (e != null) {
+                    Log.w(tag, "monthly budget listen failed.", e)
+                    return@addSnapshotListener
+                }
+                if (snapshot != null && snapshot.exists()) {
+                    val budget = snapshot.getDouble("monthlyBudget")
+                    if (budget != null) {
+                        scope.launch(Dispatchers.IO) {
+                            try {
+                                aiPreferencesRepository?.updateMonthlyBudget(budget)
+                            } catch (e: Exception) {
+                                if (e is CancellationException) throw e
+                                Log.e(tag, "Failed to update local monthly budget preference", e)
+                            }
+                        }
+                    }
+                }
+            }
+        )
+    }
+
+    fun publishMonthlyBudget(userId: String, budget: Double) {
+        if (userId.isBlank() || userId == "anonymous" || FirebaseAuth.getInstance().currentUser == null) return
+        firestorePush(
+            "monthly budget write",
+            firestore.collection("users").document(userId)
+                .collection(PROFILE_COLLECTION).document("settings")
+                .set(mapOf("monthlyBudget" to budget, "updatedAt" to System.currentTimeMillis()), com.google.firebase.firestore.SetOptions.merge())
         )
     }
 
@@ -557,7 +593,16 @@ class SpendRepository(
             // Firestore can't range/IN filter without a composite index here, so scope by
             // purpose client-side to match the local query above.
             val scoped = snapshot.documents.filter { doc ->
-                val purpose = doc.getString("purpose")
+                val rawPurpose = doc.getString("purpose")
+                val purpose = if (rawPurpose == null && CloudEnvelope.isSealed(doc.getBoolean(CloudEnvelope.ENCRYPTED), doc.contains(CloudEnvelope.PAYLOAD))) {
+                    try {
+                        val key = EncryptionUtils.deriveKey(userId)
+                        val history = CloudEnvelope.open(doc.getString(CloudEnvelope.PAYLOAD).orEmpty(), moshi.adapter(SpendHistory::class.java), key)
+                        history.purpose
+                    } catch (_: Exception) { null }
+                } else {
+                    rawPurpose
+                }
                 val isLendBorrow = purpose == "Lending" || purpose == "Borrowing"
                 if (lendBorrow) isLendBorrow else !isLendBorrow
             }

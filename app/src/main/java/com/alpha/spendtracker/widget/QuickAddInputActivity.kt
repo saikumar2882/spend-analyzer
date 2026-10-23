@@ -69,13 +69,20 @@ class QuickAddInputActivity : ComponentActivity() {
         super.onCreate(savedInstanceState)
 
         val isVoiceLaunch = intent.getBooleanExtra("SHOW_VOICE_INPUT", false) || intent.extras?.containsKey("SHOW_VOICE_INPUT") == true
+        val isSendAction = intent.action == Intent.ACTION_SEND || intent.action == Intent.ACTION_SEND_MULTIPLE
         // "Share → Spendly" from a payment app's receipt (via the ShareToSpendly alias).
-        val sharedText = if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("text/") == true) {
+        val sharedText = if (isSendAction && intent.type?.startsWith("text/") == true) {
             intent.getStringExtra(Intent.EXTRA_TEXT)?.takeIf { it.isNotBlank() }
         } else null
-        // The same share, as a receipt screenshot (what GPay / PhonePe / Paytm actually send).
-        val sharedImage = if (intent.action == Intent.ACTION_SEND && intent.type?.startsWith("image/") == true) {
-            IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+        // The same share, as a receipt screenshot or PDF invoice (what GPay / PhonePe / Paytm / Google send).
+        val sharedImage = if (isSendAction) {
+            val streamUri = IntentCompat.getParcelableExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+            if (streamUri != null) {
+                streamUri
+            } else {
+                val streamList = IntentCompat.getParcelableArrayListExtra(intent, Intent.EXTRA_STREAM, Uri::class.java)
+                streamList?.firstOrNull()
+            }
         } else null
         val isShare = sharedText != null || sharedImage != null
 

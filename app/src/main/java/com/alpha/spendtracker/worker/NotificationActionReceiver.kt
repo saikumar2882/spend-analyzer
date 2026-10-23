@@ -18,10 +18,13 @@ import dagger.hilt.components.SingletonComponent
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
+import kotlinx.coroutines.flow.first
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.sync.Mutex
 import kotlinx.coroutines.sync.withLock
+import java.text.SimpleDateFormat
 import java.util.Calendar
+import java.util.Date
 import java.util.Locale
 import java.util.UUID
 
@@ -34,9 +37,11 @@ class NotificationActionReceiver : BroadcastReceiver() {
     companion object {
         private const val TAG = "NotificationAction"
         const val ACTION_MARK_AS_READ = "com.alpha.spendtracker.ACTION_MARK_AS_READ"
+        const val ACTION_MARK_ALL_AS_READ = "com.alpha.spendtracker.ACTION_MARK_ALL_AS_READ"
         const val ACTION_MARK_AS_PAID = "com.alpha.spendtracker.ACTION_MARK_AS_PAID"
         const val EXTRA_NOTIFICATION_ID = "extra_notification_id"
         const val EXTRA_BILL_USER_ID = "extra_bill_user_id"
+        const val EXTRA_BILL_UUID = "extra_bill_uuid"
         const val EXTRA_BILL_NAME = "extra_bill_name"
         const val EXTRA_BILL_APP = "extra_bill_app"
         const val EXTRA_BILL_PURPOSE = "extra_bill_purpose"
@@ -70,6 +75,26 @@ class NotificationActionReceiver : BroadcastReceiver() {
                         context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
                     notificationManager.cancel(notificationId)
                 }
+                val appContext = context.applicationContext
+                val pendingResult = goAsync()
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    try {
+                        markAsRead(appContext, intent)
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
+            }
+            ACTION_MARK_ALL_AS_READ -> {
+                val appContext = context.applicationContext
+                val pendingResult = goAsync()
+                CoroutineScope(SupervisorJob() + Dispatchers.IO).launch {
+                    try {
+                        markAllAsRead(appContext, intent)
+                    } finally {
+                        pendingResult.finish()
+                    }
+                }
             }
             ACTION_UNDO_TRACKED -> {
                 val appContext = context.applicationContext
@@ -93,6 +118,59 @@ class NotificationActionReceiver : BroadcastReceiver() {
                     }
                 }
             }
+        }
+    }
+
+    private suspend fun markAsRead(context: Context, intent: Intent) {
+        val userId = intent.getStringExtra(EXTRA_BILL_USER_ID).orEmpty()
+        val billUuid = intent.getStringExtra(EXTRA_BILL_UUID).orEmpty()
+        if (userId.isBlank() || billUuid.isBlank()) return
+        if (FirebaseAuth.getInstance().currentUser?.uid != userId) return
+
+        val repository = EntryPointAccessors
+            .fromApplication(context, ReceiverEntryPoint::class.java)
+            .spendRepository()
+
+        try {
+            val bills = repository.getAllRecurringBills(userId).first()
+            val targetBill = bills.find { it.uuid == billUuid } ?: return
+            val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val updated = targetBill.copy(
+                lastNotifiedDate = todayStr,
+                updatedAt = System.currentTimeMillis()
+            )
+            repository.updateRecurringBill(updated)
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not mark bill as read: ${e.message}")
+        }
+    }
+
+    private suspend fun markAllAsRead(context: Context, intent: Intent) {
+        val userId = intent.getStringExtra(EXTRA_BILL_USER_ID).orEmpty()
+        val currentUid = FirebaseAuth.getInstance().currentUser?.uid ?: return
+        val targetUserId = if (userId.isNotBlank()) userId else currentUid
+
+        val notificationManager =
+            context.getSystemService(Context.NOTIFICATION_SERVICE) as NotificationManager
+        notificationManager.cancelAll()
+
+        val repository = EntryPointAccessors
+            .fromApplication(context, ReceiverEntryPoint::class.java)
+            .spendRepository()
+
+        try {
+            val bills = repository.getAllRecurringBills(targetUserId).first()
+            val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+            val now = System.currentTimeMillis()
+            bills.filter { !it.deleted && !it.isExpired }.forEach { bill ->
+                val updated = bill.copy(
+                    lastNotifiedDate = todayStr,
+                    updatedAt = now
+                )
+                repository.updateRecurringBill(updated)
+            }
+        } catch (e: Exception) {
+            Log.e(TAG, "Could not mark all bills as read: ${e.message}")
         }
     }
 
@@ -137,6 +215,7 @@ class NotificationActionReceiver : BroadcastReceiver() {
     private suspend fun markAsPaid(context: Context, intent: Intent) {
         val notificationId = intent.getIntExtra(EXTRA_NOTIFICATION_ID, -1)
         val userId = intent.getStringExtra(EXTRA_BILL_USER_ID).orEmpty()
+        val billUuid = intent.getStringExtra(EXTRA_BILL_UUID).orEmpty()
         val billName = intent.getStringExtra(EXTRA_BILL_NAME).orEmpty()
         val appName = intent.getStringExtra(EXTRA_BILL_APP).orEmpty()
         val purpose = intent.getStringExtra(EXTRA_BILL_PURPOSE).orEmpty()
@@ -194,6 +273,21 @@ class NotificationActionReceiver : BroadcastReceiver() {
             }
         }
         if (!logged) return
+
+        if (billUuid.isNotBlank()) {
+            try {
+                val bills = repository.getAllRecurringBills(userId).first()
+                val targetBill = bills.find { it.uuid == billUuid }
+                if (targetBill != null) {
+                    val todayStr = SimpleDateFormat("yyyy-MM-dd", Locale.getDefault()).format(Date())
+                    repository.updateRecurringBill(
+                        targetBill.copy(lastNotifiedDate = todayStr, updatedAt = System.currentTimeMillis())
+                    )
+                }
+            } catch (e: Exception) {
+                Log.w(TAG, "Updating lastNotifiedDate for bill failed: ${e.message}")
+            }
+        }
 
         val confirmation = NotificationCompat.Builder(context, RecurringBillWorker.CHANNEL_ID)
             .setSmallIcon(R.drawable.ic_launcher_foreground)
