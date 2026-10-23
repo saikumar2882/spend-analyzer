@@ -34,7 +34,7 @@
     <string name="app_defaults_title">యాప్ డిఫాల్ట్‌లు</string>
 
     <string name="ai_assistant_title">AI హిస్టరీ అసిస్టెంట్</string>
-    <string name="ai_assistant_subtitle">మీ ఖర్చుల గురించి ప్రశ్నలు అడగండి</string>
+    <string name="ai_assistant_subtitle">మీ ఖర్చుల గురించి అడగండి లేదా ట్రాక్ చేయండి</string>
 
     <string name="recurring_bills_title">పునరావృత బిల్లులు</string>
     <string name="recurring_bills_subtitle">సబ్‌స్క్రిప్షన్‌లు మరియు రిమైండర్‌లను నిర్వహించండి</string>
@@ -117,7 +117,7 @@
 
     <!-- AI Assistant & Sheets -->
     <string name="ai_assistant_header">AI అసిస్టెంట్</string>
-    <string name="ask_ai_placeholder">మీ ఖర్చుల గురించి ఏమైనా అడగండి...</string>
+    <string name="ask_ai_placeholder">అడగండి లేదా ట్రాక్ చేయండి, ఉదా: ₹10,000 రెంట్ ట్రాక్ చెయ్...</string>
     <string name="thinking">ఆలోచిస్తోంది...</string>
     <string name="ask_button">అడగండి</string>
     <string name="ai_input_title">AI ద్వారా శీఘ్ర లాగ్</string>

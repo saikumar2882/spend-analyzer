@@ -35,7 +35,7 @@
     <string name="app_defaults_title">ऐप डिफ़ॉल्ट</string>
 
     <string name="ai_assistant_title">एआई हिस्ट्री असिस्टेंट</string>
-    <string name="ai_assistant_subtitle">अपने खर्चों के बारे में प्रश्न पूछें</string>
+    <string name="ai_assistant_subtitle">प्रश्न पूछें या सीधे खर्च ट्रैक करें</string>
 
     <string name="recurring_bills_title">आवर्ती बिल</string>
     <string name="recurring_bills_subtitle">सदस्यता और बिल रिमाइंडर प्रबंधित करें</string>
@@ -118,7 +118,7 @@
 
     <!-- AI Assistant & Sheets -->
     <string name="ai_assistant_header">एआई असिस्टेंट</string>
-    <string name="ask_ai_placeholder">अपने खर्चों के बारे में कुछ भी पूछें...</string>
+    <string name="ask_ai_placeholder">पूछें या खर्च ट्रैक करें, जैसे: ₹10,000 रेंट ट्रैक करो...</string>
     <string name="thinking">सोच रहा है...</string>
     <string name="ask_button">पूछें</string>
     <string name="ai_input_title">एआई के साथ त्वरित लॉग</string>

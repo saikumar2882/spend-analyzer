@@ -9,6 +9,8 @@ import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.alpha.spendtracker.data.*
 import com.alpha.spendtracker.ui.components.APP_PRESETS
+import com.alpha.spendtracker.ui.components.toDraft
+import com.alpha.spendtracker.ui.components.toNewSpend
 import com.alpha.spendtracker.util.activeAppLocale
 import com.google.ai.client.generativeai.GenerativeModel
 import com.google.ai.client.generativeai.type.content
@@ -514,6 +516,157 @@ class SpendViewModel @Inject constructor(
     }
 
     /**
+     * Determines whether [text] expresses an intent to track/record a transaction
+     * (e.g., "track ₹10,000 for rent", "spent 500 on dinner", "20,000 on that, track it").
+     */
+    private fun isTrackingIntent(text: String): Boolean {
+        val trimmed = text.trim()
+        if (trimmed.isEmpty()) return false
+
+        val lower = trimmed.lowercase(Locale.ROOT)
+        val isQuestionMark = trimmed.endsWith("?")
+
+        val trackingKeywords = listOf(
+            "track", "tracking", "track it", "tracked", "record", "save",
+            "add expense", "add spend", "note down", "log", "log expense",
+            "ట్రాక్", "రెంట్", "ఖర్చు", "ట్రాకింగ్", "ట్రాక్ చెయ్",
+            "ट्रैक", "खर्च", "जोड़ो", "जोड़ो"
+        )
+
+        val actionVerbs = listOf(
+            "spent", "paid", "bought", "recharged", "gave", "borrowed", "lent", "sent"
+        )
+
+        val questionStarters = listOf(
+            "how much", "how many", "what is", "what are", "when did", "where did",
+            "why did", "did i", "show me", "list my", "can you show", "can you list",
+            "tell me", "summary of", "breakdown of", "how do i", "what did i"
+        )
+
+        val startsWithQuestion = questionStarters.any { lower.startsWith(it) }
+        val hasAmountPattern = Regex("""(\b\d+([.,]\d+)?\b)|(₹\s*\d+)|(\b\d+\s*k\b)|(rs\.?\s*\d+)""", RegexOption.IGNORE_CASE)
+            .containsMatchIn(trimmed)
+
+        val containsTrackingCommand = trackingKeywords.any { lower.contains(it) }
+        val containsActionVerb = actionVerbs.any { lower.contains(it) }
+
+        if ((startsWithQuestion || isQuestionMark) && !containsTrackingCommand) {
+            return false
+        }
+
+        if ((containsTrackingCommand || containsActionVerb) && hasAmountPattern) {
+            return true
+        }
+
+        if (containsTrackingCommand && (lower.contains("rent") || lower.contains("food") || lower.contains("coffee") || lower.contains("lunch") || lower.contains("tea"))) {
+            return true
+        }
+
+        return false
+    }
+
+    private suspend fun processAndTrackInAssistant(
+        question: String,
+        userId: String,
+        historyPrefs: AiPreferences
+    ): Boolean {
+        val parseResult = aiTransactionProcessor.parse(question, historyPrefs)
+        if (parseResult.isSuccess) {
+            val responses = parseResult.getOrNull().orEmpty()
+            val validResponses = responses.filter { (it.amount ?: 0.0) > 0.0 && !it.needsAmount }
+
+            if (validResponses.isNotEmpty()) {
+                val defaultApp = historyPrefs.defaultApp
+                val defaultPurpose = historyPrefs.defaultPurpose
+                val now = System.currentTimeMillis()
+                val drafts = validResponses.map { response ->
+                    response.toNewSpend(defaultApp, defaultPurpose, now)
+                        .toDraft(UUID.randomUUID().toString())
+                }
+
+                val savedUuids = mutableListOf<String>()
+                drafts.forEach { draft ->
+                    val spend = Spend(
+                        uuid = draft.uuid,
+                        userId = userId,
+                        appName = draft.appName,
+                        amount = draft.amount,
+                        purpose = draft.purpose,
+                        category = draft.category,
+                        timestamp = draft.timestamp,
+                        notes = draft.notes,
+                        updatedAt = System.currentTimeMillis()
+                    )
+                    repository.insert(spend).fold(
+                        onSuccess = { savedUuids.add(draft.uuid) },
+                        onFailure = { Log.e(TAG, "Failed to insert spend in tracking assistant flow", it) }
+                    )
+                }
+
+                val currency = historyPrefs.defaultCurrency.ifBlank { "₹" }
+                val responseText = if (savedUuids.isNotEmpty()) {
+                    val sb = StringBuilder()
+                    if (savedUuids.size == 1) {
+                        val d = drafts.first()
+                        val formattedAmount = if (d.amount % 1.0 == 0.0) d.amount.toLong().toString() else String.format(Locale.getDefault(), "%.2f", d.amount)
+                        sb.append("✅ **Tracked Successfully!**\n\n")
+                        sb.append("• **Amount:** **$currency$formattedAmount**\n")
+                        sb.append("• **Category:** **${d.purpose}**\n")
+                        if (d.appName.isNotBlank()) {
+                            sb.append("• **Payment App:** **${d.appName}**\n")
+                        }
+                        if (d.notes.isNotBlank()) {
+                            sb.append("• **Note:** **${d.notes}**\n")
+                        }
+                    } else {
+                        sb.append("✅ **Tracked ${savedUuids.size} Expenses Successfully!**\n\n")
+                        drafts.forEach { d ->
+                            val formattedAmount = if (d.amount % 1.0 == 0.0) d.amount.toLong().toString() else String.format(Locale.getDefault(), "%.2f", d.amount)
+                            sb.append("• **$currency$formattedAmount** on **${d.purpose}**")
+                            if (d.notes.isNotBlank()) sb.append(" (${d.notes})")
+                            if (d.appName.isNotBlank()) sb.append(" via **${d.appName}**")
+                            sb.append("\n")
+                        }
+                    }
+                    sb.append("\n*Added to your transactions log.* 🚀")
+                    sb.toString()
+                } else {
+                    "⚠️ Failed to track expense. Please check your details and try again."
+                }
+
+                repository.insertChatMessage(
+                    ChatMessage(
+                        uuid = UUID.randomUUID().toString(),
+                        userId = userId,
+                        text = responseText,
+                        fromUser = false,
+                        timestamp = System.currentTimeMillis(),
+                        sessionId = currentSessionId
+                    )
+                )
+                _historyStatus.value = AiHistoryStatus.Idle
+                return true
+            } else {
+                val currency = historyPrefs.defaultCurrency.ifBlank { "₹" }
+                val missingMsg = "I noticed you want to track an expense, but I couldn't find a valid amount. Please specify the amount (e.g., 'Track ${currency}10,000 for rent')."
+                repository.insertChatMessage(
+                    ChatMessage(
+                        uuid = UUID.randomUUID().toString(),
+                        userId = userId,
+                        text = missingMsg,
+                        fromUser = false,
+                        timestamp = System.currentTimeMillis(),
+                        sessionId = currentSessionId
+                    )
+                )
+                _historyStatus.value = AiHistoryStatus.Idle
+                return true
+            }
+        }
+        return false
+    }
+
+    /**
      * [question] is shown in the chat and sent to the model. [scopeText] is what [HistoryQuery]
      * reads to pick the period, category and dues mode; it only differs from [question] for a
      * suggestion chip tapped in a non-English app language, whose English wording is the one the
@@ -581,6 +734,15 @@ class SpendViewModel @Inject constructor(
             repository.insertChatMessage(userMsg)
             _historyStatus.value = AiHistoryStatus.Analyzing
 
+            val historyPrefs = aiPreferences.value
+
+            // Fast Intent Detection: If user wants to track an expense, process & track it
+            if (isTrackingIntent(question)) {
+                if (processAndTrackInAssistant(question, userId, historyPrefs)) {
+                    return@launch
+                }
+            }
+
             // 3. Proxy/Audit Layer: Intent Classification
             // We use a small, fast model to check if the question is within the Spendley domain.
             var isOffTopic = false
@@ -590,11 +752,10 @@ class SpendViewModel @Inject constructor(
                 if (groqKey.isNotBlank()) {
                     val classificationPrompt = """
                         Classify the following user question for a personal finance app.
-                        Respond with ONLY "FINANCIAL" if it is about the user's spending, transactions,
-                        budgets, categories, payment apps, history, analytics, or lend/borrow — including
-                        greetings and questions about what this assistant can do.
-                        Respond with ONLY "OFF_TOPIC" for anything else (general knowledge, coding, news,
-                        recipes, or maths unrelated to the user's own data).
+                        Respond with:
+                        - "TRACKING" if the user wants to log, record, or track new expense(s) or income/dues (e.g. "track ₹1000 for rent", "spent 500 on dinner", "paid 200 for tea").
+                        - "FINANCIAL" if it is a question about the user's spending, transactions, budgets, categories, payment apps, history, analytics, or lend/borrow — including greetings and questions about what this assistant can do.
+                        - "OFF_TOPIC" for anything else (general knowledge, coding, news, recipes, or maths unrelated to the user's own data).
 
                         QUESTION: "$question"
                     """.trimIndent()
@@ -609,13 +770,14 @@ class SpendViewModel @Inject constructor(
                     )
                     val response = groqApiService.getCompletion("Bearer $groqKey", classifierRequest)
                     if (response.isSuccessful) {
-                        // Fail OPEN: only a verdict that says OFF_TOPIC and not FINANCIAL blocks the
-                        // question. An exact-string check used to be the gate, so any decoration
-                        // ("OFF_TOPIC.") slipped through — and the reverse, a chatty verdict, must
-                        // never cost the user a real answer.
                         val verdict = response.body()?.choices?.firstOrNull()?.message?.content
                             ?.trim()?.uppercase().orEmpty()
-                        isOffTopic = verdict.contains("OFF_TOPIC") && !verdict.contains("FINANCIAL")
+                        if (verdict.contains("TRACKING")) {
+                            if (processAndTrackInAssistant(question, userId, historyPrefs)) {
+                                return@launch
+                            }
+                        }
+                        isOffTopic = verdict.contains("OFF_TOPIC") && !verdict.contains("FINANCIAL") && !verdict.contains("TRACKING")
                     } else {
                         val errorBody = response.errorBody()?.string().orEmpty().take(300)
                         Log.w(TAG, "Classification HTTP ${response.code()} - $errorBody")
@@ -647,7 +809,6 @@ class SpendViewModel @Inject constructor(
             // HistoryQuery scopes the rows to what the question names (period, purpose, app,
             // dues vs spending) and computes the totals itself, so the model is handed exact
             // figures and a capped sample of rows instead of the whole log to add up.
-            val historyPrefs = aiPreferences.value
             val currency = historyPrefs.defaultCurrency.ifBlank { "₹" }
             val today = java.text.SimpleDateFormat("yyyy-MM-dd EEEE", Locale.getDefault()).format(System.currentTimeMillis())
             val historyContext = HistoryQuery.build(

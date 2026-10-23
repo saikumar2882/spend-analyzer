@@ -27,7 +27,6 @@ import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.MainActivity
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.SharedPaymentText
-import com.alpha.spendtracker.data.AiResultIntent
 import com.alpha.spendtracker.data.AiTransactionProcessor
 import com.alpha.spendtracker.ui.components.AiInputBottomSheet
 import com.alpha.spendtracker.ui.components.VoiceInputOverlay
@@ -126,8 +125,8 @@ class QuickAddInputActivity : ComponentActivity() {
             repeatOnLifecycle(Lifecycle.State.STARTED) {
                 viewModel.effects.collect { effect ->
                     when (effect) {
-                        is QuickAddEffect.HandOff -> {
-                            startActivity(AiResultIntent.put(mainActivityIntent(), effect.results))
+                        is QuickAddEffect.SavedDirectly -> {
+                            Toast.makeText(applicationContext, effect.summaryText, Toast.LENGTH_SHORT).show()
                             finish()
                         }
                     }

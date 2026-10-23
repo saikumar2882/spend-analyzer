@@ -35,7 +35,7 @@
     <string name="app_defaults_title">App Defaults</string>
 
     <string name="ai_assistant_title">AI History Assistant</string>
-    <string name="ai_assistant_subtitle">Ask questions about your spending</string>
+    <string name="ai_assistant_subtitle">Ask questions or track expenses directly</string>
 
     <string name="recurring_bills_title">Recurring Bills</string>
     <string name="recurring_bills_subtitle">Manage subscriptions and bill reminders</string>
@@ -146,7 +146,7 @@
 
     <!-- AI Assistant & Sheets -->
     <string name="ai_assistant_header">AI Assistant</string>
-    <string name="ask_ai_placeholder">Ask anything about your expenses...</string>
+    <string name="ask_ai_placeholder">Ask or track, e.g. Track ₹10,000 for rent...</string>
     <string name="thinking">Thinking...</string>
     <string name="ask_button">Ask</string>
     <string name="ai_input_title">Quick Log with AI</string>
