@@ -465,12 +465,17 @@
 
     <!-- Quick Filters -->
     <string name="quick_filter_all">అన్నీ</string>
-    <string name="quick_filter_food">ఆహారం</string>
+    <string name="quick_filter_housing">ఇల్లు &amp; అద్దె</string>
+    <string name="quick_filter_groceries">కిరాణా</string>
+    <string name="quick_filter_food">ఆహారం &amp; భోజనం</string>
     <string name="quick_filter_shopping">షాపింగ్</string>
+    <string name="quick_filter_commute">రవాణా</string>
     <string name="quick_filter_travel">ప్రయాణం</string>
-    <string name="quick_filter_bills">బిల్లులు</string>
-    <string name="quick_filter_high_spends">ఎక్కువ ఖర్చులు (> ₹1000)</string>
-    <string name="quick_filter_credit_cards">క్రెడిట్ కార్డ్‌లు</string>
+    <string name="quick_filter_bills">బిల్లులు &amp; సేవలు</string>
+    <string name="quick_filter_credit_cards">ఈఎమ్‌ఐ &amp; కార్డ్‌లు</string>
+    <string name="quick_filter_subscriptions">సబ్‌స్క్రిప్షన్‌లు</string>
+    <string name="quick_filter_healthcare">ఆరోగ్య సంరక్షణ</string>
+    <string name="quick_filter_high_spends">ఎక్కువ ఖర్చులు (&gt; ₹1000)</string>
     <string name="voice_channel_name">వాయిస్ లాగింగ్</string>
     <string name="voice_notif_logged_title">వాయిస్ ద్వారా నమోదు చేయబడింది</string>
     <string name="voice_notif_review_title">ఈ ఖర్చును నిర్ధారించండి</string>

@@ -48,6 +48,7 @@ import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
+import com.alpha.spendtracker.ui.theme.isAppInDarkTheme
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.scale
@@ -130,9 +131,14 @@ fun resolveTitleAndSubtitle(spend: Spend): Pair<String, String> {
  */
 @Composable
 fun getCategoryAccentColor(purpose: String, category: String): Color {
+    val isDark = isAppInDarkTheme
+    val key = purpose.ifBlank { category }
+    if (key.isBlank()) return MaterialTheme.colorScheme.primary
     val purposeMap = getPurposeColors()
     val categoryMap = getCategoryColors()
-    return purposeMap[purpose] ?: categoryMap[category] ?: MaterialTheme.colorScheme.primary
+    purposeMap[key]?.let { return it }
+    categoryMap[key]?.let { return it }
+    return resolveCategoryColor(key, isDark)
 }
 
 /**
@@ -276,6 +282,7 @@ fun HistorySpendCard(
     onEdit: () -> Unit,
     onDelete: () -> Unit,
     modifier: Modifier = Modifier,
+    selected: Boolean = false,
     onClick: (() -> Unit)? = null
 ) {
     val (title, subtitle) = resolveTitleAndSubtitle(spend)
@@ -306,8 +313,8 @@ fun HistorySpendCard(
             .fillMaxWidth()
             .scale(scale),
         shape = RoundedCornerShape(Radius.md),
-        color = Color.Transparent,
-        border = null
+        color = if (selected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f) else Color.Transparent,
+        border = if (selected) BorderStroke(1.5.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)) else null
     ) {
         Row(
             modifier = Modifier

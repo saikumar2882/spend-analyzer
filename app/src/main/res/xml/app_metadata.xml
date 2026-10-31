@@ -1,0 +1,4 @@
+<?xml version="1.0" encoding="utf-8"?>
+<AppFunctionAppMetadata xmlns:appfn="http://schemas.android.com/apk/androidx.appfunctions"
+    appfn:description="Spendly helps users track expenses, payments, lending, and borrowings. Operational Patterns: Use 'trackExpense' when the user asks to track, log, note, or record money spent, lent, or borrowed in Spendly (for example: 'track 1000 lending to Sreenu in Spendly'). Constraints: The input text must contain the expense or loan details spoken by the user."
+    appfn:displayDescription="Track expenses, loans, and borrowings with Spendly" />

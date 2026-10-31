@@ -102,28 +102,28 @@ val ALL_CATEGORY_GRID_ITEMS = listOf(
     CategoryPresetItem("Groceries", "Groceries", Icons.Rounded.ShoppingBasket, Color(0xFF10B981), Color(0xFF34D399), listOf("Groceries", "Supermarket", "Kirana", "Vegetables", "Daily Essentials")),
     CategoryPresetItem("Housing", "Housing", Icons.Rounded.Home, Color(0xFF8B5CF6), Color(0xFFA78BFA), listOf("Housing", "Rent", "House Rent", "Maintenance", "Repairs")),
     CategoryPresetItem("Commute", "Commute", Icons.Rounded.DirectionsCar, Color(0xFFF97316), Color(0xFFFB923C), listOf("Commute", "Transportation", "Metro", "Bus", "Cab", "Auto")),
-    CategoryPresetItem("Lending", "Lending", Icons.AutoMirrored.Rounded.CallMade, Color(0xFF10B981), Color(0xFF34D399), listOf("Lending", "Money Given", "Lent")),
-    CategoryPresetItem("Borrowing", "Borrowing", Icons.AutoMirrored.Rounded.CallReceived, Color(0xFFEF4444), Color(0xFFF87171), listOf("Borrowing", "Money Received", "Borrowed")),
+    CategoryPresetItem("Lending", "Lending", Icons.AutoMirrored.Rounded.CallMade, Color(0xFF0D9488), Color(0xFF2DD4BF), listOf("Lending", "Money Given", "Lent")),
+    CategoryPresetItem("Borrowing", "Borrowing", Icons.AutoMirrored.Rounded.CallReceived, Color(0xFFE11D48), Color(0xFFFB7185), listOf("Borrowing", "Money Received", "Borrowed")),
     CategoryPresetItem("Shopping", "Shopping", Icons.Rounded.ShoppingBag, Color(0xFF06B6D4), Color(0xFF22D3EE), listOf("Shopping", "Clothing", "Footwear", "Electronics", "Accessories")),
 
     // Medium Frequency
     CategoryPresetItem("Bills & Utilities", "Bills & Utilities", Icons.AutoMirrored.Rounded.ReceiptLong, Color(0xFF84CC16), Color(0xFFA3E635), listOf("Bills", "Utilities", "Electricity", "Water", "Gas", "Wi-Fi", "DTH", "Mobile Recharge")),
     CategoryPresetItem("EMIs & Cards", "EMIs & Cards", Icons.Rounded.CreditCard, Color(0xFFF59E0B), Color(0xFFFBBF24), listOf("EMIs", "Credit Cards", "Loans", "Loan Principal")),
     CategoryPresetItem("Investments", "Investments", Icons.AutoMirrored.Rounded.ShowChart, Color(0xFF6366F1), Color(0xFF818CF8), listOf("Investments", "Mutual Funds", "SIPs", "Stocks", "Gold")),
-    CategoryPresetItem("Savings", "Savings", Icons.Rounded.Savings, Color(0xFF10B981), Color(0xFF34D399), listOf("Savings", "Emergency Fund", "Recurring Deposits")),
-    CategoryPresetItem("Subscriptions", "Subscriptions", Icons.Rounded.Subscriptions, Color(0xFF3B82F6), Color(0xFF60A5FA), listOf("Subscriptions", "Digital Services", "OTT", "Music", "Apps")),
-    CategoryPresetItem("Healthcare", "Healthcare", Icons.Rounded.LocalHospital, Color(0xFFEC4899), Color(0xFFF472B6), listOf("Healthcare", "Medical", "Medicines", "Doctors", "Hospital")),
-    CategoryPresetItem("Personal Care", "Personal Care", Icons.Rounded.Face, Color(0xFFEC4899), Color(0xFFF472B6), listOf("Personal Care", "Grooming", "Salon", "Skincare", "Cosmetics")),
+    CategoryPresetItem("Savings", "Savings", Icons.Rounded.Savings, Color(0xFF059669), Color(0xFF10B981), listOf("Savings", "Emergency Fund", "Recurring Deposits")),
+    CategoryPresetItem("Subscriptions", "Subscriptions", Icons.Rounded.Subscriptions, Color(0xFF2563EB), Color(0xFF60A5FA), listOf("Subscriptions", "Digital Services", "OTT", "Music", "Apps")),
+    CategoryPresetItem("Healthcare", "Healthcare", Icons.Rounded.LocalHospital, Color(0xFFDB2777), Color(0xFFF472B6), listOf("Healthcare", "Medical", "Medicines", "Doctors", "Hospital")),
+    CategoryPresetItem("Personal Care", "Personal Care", Icons.Rounded.Face, Color(0xFFD946EF), Color(0xFFE879F9), listOf("Personal Care", "Grooming", "Salon", "Skincare", "Cosmetics")),
 
     // Low Frequency
-    CategoryPresetItem("Education", "Education", Icons.Rounded.School, Color(0xFF3B82F6), Color(0xFF60A5FA), listOf("Education", "Learning", "Courses", "Tuition", "Books")),
-    CategoryPresetItem("Entertainment", "Entertainment", Icons.Rounded.AutoAwesome, Color(0xFF8B5CF6), Color(0xFFA78BFA), listOf("Entertainment", "Leisure", "Movies", "Gaming", "Events")),
-    CategoryPresetItem("Travel", "Travel", Icons.Rounded.Flight, Color(0xFF3B82F6), Color(0xFF60A5FA), listOf("Travel", "Accommodation", "Flights", "Trains", "Hotels", "Holiday")),
-    CategoryPresetItem("Insurance & Taxes", "Insurance & Taxes", Icons.Rounded.Shield, Color(0xFF06B6D4), Color(0xFF22D3EE), listOf("Insurance", "Taxes", "Life Insurance", "Vehicle Insurance")),
-    CategoryPresetItem("Gifts & Donations", "Gifts & Donations", Icons.Rounded.CardGiftcard, Color(0xFFF43F5E), Color(0xFFFB7185), listOf("Gifts", "Donations", "Family", "Charity", "Festivals")),
-    CategoryPresetItem("Fitness", "Fitness", Icons.Rounded.FitnessCenter, Color(0xFFF97316), Color(0xFFFB923C), listOf("Fitness", "Sports", "Gym", "Classes")),
-    CategoryPresetItem("Pets", "Pets", Icons.Rounded.Pets, Color(0xFFA855F7), Color(0xFFC084FC), listOf("Pets", "Pet Food", "Grooming", "Veterinary")),
-    CategoryPresetItem("Work Expenses", "Work Expenses", Icons.Rounded.Work, Color(0xFF64748B), Color(0xFF94A3B8), listOf("Work", "Professional Expenses", "Office Expenses")),
+    CategoryPresetItem("Education", "Education", Icons.Rounded.School, Color(0xFF0284C7), Color(0xFF38BDF8), listOf("Education", "Learning", "Courses", "Tuition", "Books")),
+    CategoryPresetItem("Entertainment", "Entertainment", Icons.Rounded.AutoAwesome, Color(0xFF7C3AED), Color(0xFFC084FC), listOf("Entertainment", "Leisure", "Movies", "Gaming", "Events")),
+    CategoryPresetItem("Travel", "Travel", Icons.Rounded.Flight, Color(0xFF0284C7), Color(0xFF38BDF8), listOf("Travel", "Accommodation", "Flights", "Trains", "Hotels", "Holiday")),
+    CategoryPresetItem("Insurance & Taxes", "Insurance & Taxes", Icons.Rounded.Shield, Color(0xFFD97706), Color(0xFFFCD34D), listOf("Insurance", "Taxes", "Life Insurance", "Vehicle Insurance")),
+    CategoryPresetItem("Gifts & Donations", "Gifts & Donations", Icons.Rounded.CardGiftcard, Color(0xFFF43F5E), Color(0xFFFDA4AF), listOf("Gifts", "Donations", "Family", "Charity", "Festivals")),
+    CategoryPresetItem("Fitness", "Fitness", Icons.Rounded.FitnessCenter, Color(0xFFEA580C), Color(0xFFFF8A65), listOf("Fitness", "Sports", "Gym", "Classes")),
+    CategoryPresetItem("Pets", "Pets", Icons.Rounded.Pets, Color(0xFF9333EA), Color(0xFFD8B4FE), listOf("Pets", "Pet Food", "Grooming", "Veterinary")),
+    CategoryPresetItem("Work Expenses", "Work Expenses", Icons.Rounded.Work, Color(0xFF475569), Color(0xFFCBD5E1), listOf("Work", "Professional Expenses", "Office Expenses")),
     CategoryPresetItem("Miscellaneous", "Miscellaneous", Icons.Rounded.MoreHoriz, Color(0xFF64748B), Color(0xFF94A3B8), listOf("Miscellaneous", "Unexpected", "Repairs", "Emergencies"))
 )
 

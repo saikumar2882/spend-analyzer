@@ -14,13 +14,13 @@ class VoiceTrackPlannerTest {
         return VoiceTrackPlanner.plan(r.toList(), "Google Pay", "Others", now = 1_000L) { "id${n++}" }
     }
 
-    private val lunch = AiTransactionResponse(amount = 250.0, appName = "Swiggy", purpose = "Food & Drinks", notes = "Lunch")
+    private val lunch = AiTransactionResponse(amount = 250.0, appName = "Swiggy", purpose = "Food & Dining", notes = "Lunch")
 
     @Test fun confidentSingleExpenseIsSavedWithItsFields() {
         val p = plan(lunch) as Plan.Save
         val d = p.drafts.single()
         assertEquals(250.0, d.amount, 0.0)
-        assertEquals("Food & Drinks", d.purpose)
+        assertEquals("Food & Dining", d.purpose)
         assertEquals("Swiggy", d.appName)
         assertEquals("Lunch", d.notes)
         assertEquals("id0", d.uuid)

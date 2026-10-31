@@ -14,14 +14,14 @@ class AiAssistantTrackingTest {
         val parsed1 = AiBatchParser.baselines(input1, "Google Pay", "Others", multi = true)
         assertEquals(1, parsed1.size)
         assertEquals(10000.0, parsed1[0].response.amount ?: 0.0, 0.01)
-        assertEquals("Rent & Utilities", parsed1[0].response.purpose)
+        assertEquals("Housing", parsed1[0].response.purpose)
 
         // Test "spent 500 on coffee"
         val input2 = "spent 500 on coffee"
         val parsed2 = AiBatchParser.baselines(input2, "Google Pay", "Others", multi = true)
         assertEquals(1, parsed2.size)
         assertEquals(500.0, parsed2[0].response.amount ?: 0.0, 0.01)
-        assertEquals("Food & Drinks", parsed2[0].response.purpose)
+        assertEquals("Food & Dining", parsed2[0].response.purpose)
 
         // Test "paid 1500 for electricity bill using phonepe"
         val input3 = "paid 1500 for electricity bill using phonepe"

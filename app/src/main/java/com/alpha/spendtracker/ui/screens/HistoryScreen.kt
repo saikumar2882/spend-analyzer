@@ -34,14 +34,27 @@ import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.automirrored.rounded.TrendingUp
 import androidx.compose.material.icons.rounded.AllInclusive
 import androidx.compose.material.icons.rounded.Clear
+import androidx.compose.material.icons.rounded.Commute
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.DateRange
+import androidx.compose.material.icons.rounded.Delete
 import androidx.compose.material.icons.rounded.DirectionsCar
+import androidx.compose.material.icons.rounded.Edit
+import androidx.compose.material.icons.rounded.Flight
+import androidx.compose.material.icons.rounded.Home
+import androidx.compose.material.icons.rounded.LocalHospital
 import androidx.compose.material.icons.rounded.Restaurant
 import androidx.compose.material.icons.rounded.Restore
 import androidx.compose.material.icons.rounded.Search
 import androidx.compose.material.icons.rounded.ShoppingBag
+import androidx.compose.material.icons.rounded.ShoppingBasket
+import androidx.compose.material.icons.rounded.Subscriptions
 import androidx.compose.material.icons.rounded.Tune
+import com.alpha.spendtracker.ui.icons.AppIcons
+import com.alpha.spendtracker.ui.components.resolveTitleAndSubtitle
+import com.alpha.spendtracker.ui.components.getCategoryAccentColor
+import com.alpha.spendtracker.ui.components.APP_COLOR_BY_NAME
+import com.alpha.spendtracker.util.rememberTranslatedText
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -162,62 +175,78 @@ private const val ALL_CATEGORIES = "All"
 
 enum class QuickFilter(val labelRes: Int) {
     ALL(R.string.quick_filter_all),
+    HOUSING(R.string.quick_filter_housing),
+    GROCERIES(R.string.quick_filter_groceries),
     FOOD(R.string.quick_filter_food),
     SHOPPING(R.string.quick_filter_shopping),
+    COMMUTE(R.string.quick_filter_commute),
     TRAVEL(R.string.quick_filter_travel),
     BILLS(R.string.quick_filter_bills),
-    HIGH_SPENDS(R.string.quick_filter_high_spends),
-    CREDIT_CARDS(R.string.quick_filter_credit_cards)
+    CREDIT_CARDS(R.string.quick_filter_credit_cards),
+    SUBSCRIPTIONS(R.string.quick_filter_subscriptions),
+    HEALTHCARE(R.string.quick_filter_healthcare),
+    HIGH_SPENDS(R.string.quick_filter_high_spends)
 }
 
 fun Spend.matchesQuickFilter(filter: QuickFilter): Boolean {
+    val p = purpose.lowercase()
+    val c = category.lowercase()
+    val a = appName.lowercase()
+    val n = notes.lowercase()
+
     return when (filter) {
         QuickFilter.ALL -> true
-        QuickFilter.FOOD -> {
-            val p = purpose.lowercase()
-            val c = category.lowercase()
-            val a = appName.lowercase()
-            val n = notes.lowercase()
-            p.contains("food") || p.contains("grocer") || p.contains("dining") || p.contains("restaurant") ||
+        QuickFilter.HOUSING -> {
+            p == "housing" || p.contains("rent") || p.contains("house") || p.contains("maintenance") ||
+            n.contains("rent") || n.contains("maintenance")
+        }
+        QuickFilter.GROCERIES -> {
+            p == "groceries" || p.contains("grocer") ||
             c == "quick commerce" ||
-            a.contains("swiggy") || a.contains("zomato") || a.contains("zepto") || a.contains("blinkit") ||
-            n.contains("food") || n.contains("dinner") || n.contains("lunch") || n.contains("breakfast") || n.contains("grocer")
+            a.contains("zepto") || a.contains("blinkit") || a.contains("instamart") ||
+            n.contains("grocer") || n.contains("kirana") || n.contains("veggie") || n.contains("vegetable") || n.contains("milk")
+        }
+        QuickFilter.COMMUTE -> {
+            p == "commute" || p.contains("commute") || p.contains("cab") || p.contains("fuel") ||
+            a.contains("uber") || a.contains("ola") || a.contains("rapido") ||
+            n.contains("cab") || n.contains("uber") || n.contains("ola") || n.contains("rapido") || n.contains("petrol") || n.contains("fuel") || n.contains("auto")
+        }
+        QuickFilter.SUBSCRIPTIONS -> {
+            p == "subscriptions" || p.contains("subscript") ||
+            a.contains("netflix") || a.contains("spotify") || a.contains("prime") || a.contains("hotstar") ||
+            n.contains("subscription") || n.contains("netflix") || n.contains("spotify") || n.contains("prime")
+        }
+        QuickFilter.HEALTHCARE -> {
+            p == "healthcare" || p.contains("health") || p.contains("medical") ||
+            n.contains("medicine") || n.contains("doctor") || n.contains("hospital") || n.contains("clinic") || n.contains("pharmacy")
+        }
+        QuickFilter.FOOD -> {
+            p == "food & dining" || p.contains("dining") || p.contains("restaurant") ||
+            (p.contains("food") && !p.contains("grocer")) ||
+            a.contains("swiggy") || a.contains("zomato") ||
+            n.contains("dinner") || n.contains("lunch") || n.contains("breakfast") || n.contains("biryani") || n.contains("pizza")
         }
         QuickFilter.SHOPPING -> {
-            val p = purpose.lowercase()
-            val c = category.lowercase()
-            val a = appName.lowercase()
-            val n = notes.lowercase()
-            p.contains("shop") || p.contains("apparel") || p.contains("cloth") ||
+            p == "shopping" || p.contains("shop") || p.contains("apparel") || p.contains("cloth") ||
             c == "e-commerce" ||
             a.contains("amazon") || a.contains("flipkart") || a.contains("myntra") || a.contains("ajio") ||
-            n.contains("shopping") || n.contains("clothes") || n.contains("dress")
+            n.contains("shopping") || n.contains("clothes") || n.contains("dress") || n.contains("shoes")
         }
         QuickFilter.TRAVEL -> {
-            val p = purpose.lowercase()
-            val a = appName.lowercase()
-            val n = notes.lowercase()
-            p.contains("travel") || p.contains("commute") || p.contains("cab") || p.contains("fuel") ||
-            a.contains("uber") || a.contains("ola") || a.contains("rapido") || a.contains("irctc") ||
-            n.contains("travel") || n.contains("cab") || n.contains("uber") || n.contains("ola") || n.contains("rapido") || n.contains("flight") || n.contains("train") || n.contains("petrol") || n.contains("fuel")
+            p == "travel" || p.contains("travel") || p.contains("trip") ||
+            a.contains("irctc") || a.contains("redbus") || a.contains("indigo") ||
+            n.contains("flight") || n.contains("train") || n.contains("hotel") || n.contains("ticket")
         }
         QuickFilter.BILLS -> {
-            val p = purpose.lowercase()
-            val n = notes.lowercase()
-            p.contains("bill") || p.contains("rent") || p.contains("utilit") || p.contains("subscript") || p.contains("recharge") ||
-            n.contains("bill") || n.contains("rent") || n.contains("electricity") || n.contains("recharge") || n.contains("wifi") ||
-            noteUuid.isNotBlank()
+            p == "bills & utilities" || p.contains("utilit") || p.contains("electricity") || p.contains("water") || p.contains("gas") || p.contains("recharge") ||
+            n.contains("electricity") || n.contains("recharge") || n.contains("wifi") || n.contains("broadband") || n.contains("water bill")
         }
         QuickFilter.HIGH_SPENDS -> amount > 1000.0
         QuickFilter.CREDIT_CARDS -> {
-            val p = purpose.lowercase()
-            val c = category.lowercase()
-            val a = appName.lowercase()
-            val n = notes.lowercase()
-            c == "banking & cards" || c.contains("credit") ||
-            p.contains("credit") || p.contains("card bill") || p.contains("cc bill") ||
+            p == "emis & cards" || c == "banking & cards" || c.contains("credit") ||
+            p.contains("credit") || p.contains("card bill") || p.contains("cc bill") || p.contains("emi") ||
             a.contains("cred") || a.contains("card") ||
-            n.contains("credit card") || n.contains("cc bill") || n.contains("card bill")
+            n.contains("credit card") || n.contains("cc bill") || n.contains("card bill") || n.contains("emi")
         }
     }
 }
@@ -260,12 +289,17 @@ fun HistoryScreen(
 
     val initialQuickFilter = remember(initialCategoryFilter) {
         when (initialCategoryFilter) {
-            "Food", "Food & Drinks", "Groceries", "Groceries & Food", "Quick Commerce" -> QuickFilter.FOOD
+            "Housing", "Rent & Utilities" -> QuickFilter.HOUSING
+            "Groceries" -> QuickFilter.GROCERIES
+            "Food", "Food & Drinks", "Food & Dining", "Quick Commerce" -> QuickFilter.FOOD
             "Shopping", "Shopping & Apparels", "E-Commerce" -> QuickFilter.SHOPPING
+            "Commute" -> QuickFilter.COMMUTE
             "Travel", "Travel & Commute" -> QuickFilter.TRAVEL
-            "Bills", "Rent & Utilities" -> QuickFilter.BILLS
+            "Bills", "Bills & Utilities" -> QuickFilter.BILLS
+            "Subscriptions", "Subscription & Leisure" -> QuickFilter.SUBSCRIPTIONS
+            "Healthcare", "Healthcare & Medical" -> QuickFilter.HEALTHCARE
             "High Spends (> ₹1000)" -> QuickFilter.HIGH_SPENDS
-            "Credit Cards", "Banking & Cards", "Credit Card Bill" -> QuickFilter.CREDIT_CARDS
+            "Credit Cards", "Banking & Cards", "Credit Card Bill", "EMIs & Cards" -> QuickFilter.CREDIT_CARDS
             else -> QuickFilter.ALL
         }
     }
@@ -371,6 +405,14 @@ fun HistoryScreen(
         newestKey = groupedHistory.firstOrNull()?.monthHeader,
         searching = searchQuery.isNotBlank()
     )
+
+    androidx.compose.runtime.LaunchedEffect(filteredHistory, isCompact) {
+        if (!isCompact && filteredHistory.isNotEmpty()) {
+            if (selectedSpendForDetails == null || filteredHistory.none { it.uuid == selectedSpendForDetails?.uuid }) {
+                selectedSpendForDetails = filteredHistory.first()
+            }
+        }
+    }
 
     if (showExportPreview) {
         ModalBottomSheet(
@@ -913,6 +955,7 @@ fun HistoryScreen(
                                 }
                                 if (expanded) {
                                     items(spends, key = { it.uuid }) { spend ->
+                                        val isSelected = selectedSpendForDetails?.uuid == spend.uuid
                                         SwipeableLogCard(
                                             onEdit = { onEditSpend(spend) },
                                             onDelete = { spendToDelete = spend },
@@ -922,6 +965,7 @@ fun HistoryScreen(
                                                 spend = spend,
                                                 onEdit = { onEditSpend(spend) },
                                                 onDelete = { spendToDelete = spend },
+                                                selected = isSelected,
                                                 onClick = {
                                                     selectedSpendForDetails = spend
                                                     if (spend.noteUuid.isNotBlank()) {
@@ -992,50 +1036,117 @@ private fun HistoryDetailPaneCard(
             )
 
             if (selectedSpend != null) {
+                val (title, subtitle) = resolveTitleAndSubtitle(selectedSpend)
+                val displayTitle by rememberTranslatedText(title)
+                val displaySubtitle by rememberTranslatedText(subtitle)
+                val categoryAccent = getCategoryAccentColor(selectedSpend.purpose, selectedSpend.category)
+                val appAccent = APP_COLOR_BY_NAME[selectedSpend.appName]
+                    ?: APP_PRESETS.find { it.displayName.equals(selectedSpend.appName, ignoreCase = true) }?.color
+                    ?: categoryAccent
+
+                val isLending = selectedSpend.purpose.equals("Lending", ignoreCase = true)
+                val isBorrowing = selectedSpend.purpose.equals("Borrowing", ignoreCase = true)
+
+                val amountColor = when {
+                    isLending -> MaterialTheme.colorScheme.onSurface
+                    isBorrowing -> MaterialTheme.colorScheme.error
+                    else -> MaterialTheme.colorScheme.onSurface
+                }
+
                 Surface(
                     color = MaterialTheme.colorScheme.surfaceContainerLow,
                     shape = RoundedCornerShape(12.dp),
                     modifier = Modifier.fillMaxWidth()
                 ) {
                     Column(
-                        modifier = Modifier.padding(14.dp),
-                        verticalArrangement = Arrangement.spacedBy(8.dp)
+                        modifier = Modifier.padding(16.dp),
+                        verticalArrangement = Arrangement.spacedBy(10.dp)
                     ) {
-                        Text(
-                            text = getLocalizedPresetName(selectedSpend.appName),
-                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.primary
-                        )
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            horizontalArrangement = Arrangement.spacedBy(10.dp)
+                        ) {
+                            if (isLending || isBorrowing) {
+                                com.alpha.spendtracker.ui.components.PersonInitialAvatar(
+                                    personName = displayTitle,
+                                    backgroundColor = amountColor,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            } else {
+                                com.alpha.spendtracker.ui.components.AppIconImage(
+                                    appName = selectedSpend.appName,
+                                    fallbackColor = appAccent,
+                                    modifier = Modifier.size(36.dp)
+                                )
+                            }
+                            Column(modifier = Modifier.weight(1f)) {
+                                Text(
+                                    text = displayTitle,
+                                    style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSurface,
+                                    maxLines = 1,
+                                    overflow = TextOverflow.Ellipsis
+                                )
+                                Text(
+                                    text = formatShortDate(selectedSpend.timestamp),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+
                         Text(
                             text = "₹${formatCurrency(selectedSpend.amount)}",
-                            style = MaterialTheme.typography.headlineMedium.copy(fontWeight = FontWeight.Bold),
-                            color = MaterialTheme.colorScheme.onSurface
+                            style = MaterialTheme.typography.headlineLarge.copy(fontWeight = FontWeight.Bold),
+                            color = amountColor
                         )
-                        Text(
-                            text = "Purpose: ${getLocalizedPresetName(selectedSpend.purpose)} · Category: ${selectedSpend.category}",
-                            style = MaterialTheme.typography.bodyMedium,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        if (selectedSpend.notes.isNotBlank()) {
+
+                        Row(
+                            horizontalArrangement = Arrangement.spacedBy(8.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Surface(
+                                color = MaterialTheme.colorScheme.primaryContainer,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = getLocalizedPresetName(selectedSpend.purpose),
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onPrimaryContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                            Surface(
+                                color = MaterialTheme.colorScheme.secondaryContainer,
+                                shape = RoundedCornerShape(8.dp)
+                            ) {
+                                Text(
+                                    text = selectedSpend.category,
+                                    style = MaterialTheme.typography.labelSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = MaterialTheme.colorScheme.onSecondaryContainer,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
+                        }
+
+                        if (displaySubtitle.isNotBlank()) {
                             Text(
-                                text = "Notes: ${selectedSpend.notes}",
-                                style = MaterialTheme.typography.bodySmall,
+                                text = displaySubtitle,
+                                style = MaterialTheme.typography.bodyMedium,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                         }
+
                         if (selectedSpend.noteUuid.isNotBlank()) {
                             TextButton(
                                 onClick = { onOpenNote(selectedSpend.noteUuid) },
                                 modifier = Modifier.padding(top = 2.dp)
                             ) {
+                                Icon(AppIcons.Notes, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text("View Attached Note")
                             }
                         }
-                        Text(
-                            text = "Date: ${formatShortDate(selectedSpend.timestamp)}",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
 
                         Row(
                             horizontalArrangement = Arrangement.spacedBy(8.dp),
@@ -1044,16 +1155,20 @@ private fun HistoryDetailPaneCard(
                             Button(
                                 onClick = { onEditSpend(selectedSpend) },
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(10.dp)
                             ) {
+                                Icon(Icons.Rounded.Edit, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text("Edit")
                             }
                             Button(
                                 onClick = { onDeleteSpend(selectedSpend) },
                                 colors = ButtonDefaults.buttonColors(containerColor = MaterialTheme.colorScheme.error),
                                 modifier = Modifier.weight(1f),
-                                shape = RoundedCornerShape(8.dp)
+                                shape = RoundedCornerShape(10.dp)
                             ) {
+                                Icon(Icons.Rounded.Delete, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
                                 Text("Delete")
                             }
                         }
@@ -1644,12 +1759,17 @@ private fun QuickFilterChipsBar(
             val isSelected = selectedQuickFilter == filter
             val icon = when (filter) {
                 QuickFilter.ALL -> Icons.Rounded.AllInclusive
+                QuickFilter.HOUSING -> Icons.Rounded.Home
+                QuickFilter.GROCERIES -> Icons.Rounded.ShoppingBasket
                 QuickFilter.FOOD -> Icons.Rounded.Restaurant
                 QuickFilter.SHOPPING -> Icons.Rounded.ShoppingBag
-                QuickFilter.TRAVEL -> Icons.Rounded.DirectionsCar
+                QuickFilter.COMMUTE -> Icons.Rounded.Commute
+                QuickFilter.TRAVEL -> Icons.Rounded.Flight
                 QuickFilter.BILLS -> Icons.AutoMirrored.Rounded.ReceiptLong
-                QuickFilter.HIGH_SPENDS -> Icons.AutoMirrored.Rounded.TrendingUp
                 QuickFilter.CREDIT_CARDS -> Icons.Rounded.CreditCard
+                QuickFilter.SUBSCRIPTIONS -> Icons.Rounded.Subscriptions
+                QuickFilter.HEALTHCARE -> Icons.Rounded.LocalHospital
+                QuickFilter.HIGH_SPENDS -> Icons.AutoMirrored.Rounded.TrendingUp
             }
 
             val interactionSource = remember { MutableInteractionSource() }

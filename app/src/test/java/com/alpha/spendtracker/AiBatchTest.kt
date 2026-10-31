@@ -106,7 +106,7 @@ class AiBatchTest {
         // The model said Google Pay for the tea, but the user's own words in that entry say PhonePe.
         // The auto names nothing, so it falls to the default; the lunch keeps Swiggy.
         assertEquals(listOf("PhonePe", "Paytm", "Swiggy"), out.map { it.response.appName })
-        assertEquals(listOf("Food & Drinks", "Travel & Commute", "Food & Drinks"), out.map { it.response.purpose })
+        assertEquals(listOf("Food & Dining", "Commute", "Food & Dining"), out.map { it.response.purpose })
         assertEquals(listOf("Tea", "Auto", "Lunch"), out.map { it.response.notes })
         assertEquals("auto 80", out[1].source)
         out.forEach { assertNotNull(it.response.timestamp) }

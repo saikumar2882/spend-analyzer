@@ -103,16 +103,27 @@ object HistoryQuery {
      * here; they are [DuesMode].
      */
     internal val PURPOSE_WORDS: List<Pair<String, Regex>> = listOf(
-        "Food & Drinks" to Regex("""\b(?:foods?|dining|restaurants?|meals?|snacks?)\b"""),
-        "Groceries" to Regex("""\b(?:groceries|grocery|supermarket|kirana)\b"""),
-        "Shopping & Apparels" to Regex("""\b(?:shopping|apparels?|clothes|clothing|fashion)\b"""),
-        "Credit Card Bill" to Regex("""\bcredit\s*cards?\b"""),
-        "Rent & Utilities" to Regex("""\b(?:rent|utilit(?:y|ies)|electricity)\b"""),
-        "Fuel" to Regex("""\b(?:fuel|petrol|diesel|cng)\b"""),
-        "Travel & Commute" to Regex("""\b(?:travel|travelling|traveling|commute|commuting|transport)\b"""),
-        "Subscription & Leisure" to Regex("""\b(?:subscriptions?|leisure|entertainment)\b"""),
-        "Healthcare & Medical" to Regex("""\b(?:health|healthcare|medical|medicines?|hospital|doctor)\b"""),
-        "Investment" to Regex("""\b(?:investments?|investing|stocks?|mutual\s*funds?|sip|shares?)\b""")
+        "Food & Dining" to Regex("""\b(?:foods?|dining|restaurants?|meals?|snacks?|eat|eating|swiggy|zomato)\b"""),
+        "Groceries" to Regex("""\b(?:groceries|grocery|supermarket|kirana|vegetables?|veggies?|fruits?|milk|blinkit|zepto)\b"""),
+        "Housing" to Regex("""\b(?:housing|rent|house\s*rent|maintenance|repairs?|society)\b"""),
+        "Bills & Utilities" to Regex("""\b(?:utilit(?:y|ies)|electricity|water|gas|wifi|internet|broadband|recharge|dth|current\s*bill)\b"""),
+        "Shopping" to Regex("""\b(?:shopping|apparels?|clothes|clothing|fashion|footwear|dress|amazon|flipkart|myntra)\b"""),
+        "Commute" to Regex("""\b(?:commute|commuting|cab|cabs|auto|metro|bus|petrol|diesel|cng|fuel|uber|ola|rapido)\b"""),
+        "Travel" to Regex("""\b(?:travel|travelling|traveling|transport|flight|flights|train|trains|hotel|hotels|holiday|vacation|irctc)\b"""),
+        "EMIs & Cards" to Regex("""\b(?:credit\s*cards?|card\s*bills?|cc\s*bills?|emis?|loans?|cred)\b"""),
+        "Subscriptions" to Regex("""\b(?:subscriptions?|netflix|spotify|prime|youtube|ott|hotstar)\b"""),
+        "Healthcare" to Regex("""\b(?:health|healthcare|medical|medicines?|hospital|doctor|clinic|pharmacy)\b"""),
+        "Investments" to Regex("""\b(?:investments?|investing|stocks?|mutual\s*funds?|sip|shares?|gold)\b"""),
+        "Savings" to Regex("""\b(?:savings?|deposit|rd|fd)\b"""),
+        "Personal Care" to Regex("""\b(?:personal\s*care|grooming|salon|parlour|skincare|cosmetics)\b"""),
+        "Education" to Regex("""\b(?:education|learning|courses?|tuition|books?|school|college|fees)\b"""),
+        "Entertainment" to Regex("""\b(?:entertainment|leisure|movies?|gaming|games?|events?|cinema)\b"""),
+        "Insurance & Taxes" to Regex("""\b(?:insurance|taxes|tax|lic)\b"""),
+        "Gifts & Donations" to Regex("""\b(?:gifts?|donations?|charity)\b"""),
+        "Fitness" to Regex("""\b(?:fitness|gym|sports)\b"""),
+        "Pets" to Regex("""\b(?:pets?|pet\s*food|vet|veterinary)\b"""),
+        "Work Expenses" to Regex("""\b(?:work|office|professional)\b"""),
+        "Miscellaneous" to Regex("""\b(?:miscellaneous|misc|unexpected|others?)\b""")
     )
 
     fun parseScope(
@@ -281,6 +292,25 @@ object HistoryQuery {
 
     private class Selection(val matched: List<Spend>, val excludedDues: Int, val everyday: List<Spend>)
 
+    private fun matchesPurpose(spendPurpose: String, targetPurposes: List<String>): Boolean {
+        if (targetPurposes.isEmpty()) return true
+        return targetPurposes.any { target ->
+            spendPurpose.equals(target, ignoreCase = true) ||
+            when (target) {
+                "Housing" -> spendPurpose.equals("Rent & Utilities", ignoreCase = true) || spendPurpose.equals("Rent", ignoreCase = true)
+                "Bills & Utilities" -> spendPurpose.equals("Rent & Utilities", ignoreCase = true) || spendPurpose.equals("Utilities", ignoreCase = true)
+                "Food & Dining" -> spendPurpose.equals("Food & Drinks", ignoreCase = true) || spendPurpose.equals("Food", ignoreCase = true)
+                "Shopping" -> spendPurpose.equals("Shopping & Apparels", ignoreCase = true)
+                "EMIs & Cards" -> spendPurpose.equals("Credit Card Bill", ignoreCase = true)
+                "Commute", "Travel" -> spendPurpose.equals("Travel & Commute", ignoreCase = true) || spendPurpose.equals("Fuel", ignoreCase = true)
+                "Subscriptions", "Entertainment" -> spendPurpose.equals("Subscription & Leisure", ignoreCase = true)
+                "Healthcare" -> spendPurpose.equals("Healthcare & Medical", ignoreCase = true) || spendPurpose.equals("Health", ignoreCase = true)
+                "Investments" -> spendPurpose.equals("Investment", ignoreCase = true)
+                else -> false
+            }
+        }
+    }
+
     private fun select(spends: List<Spend>, scope: Scope, q: String): Selection {
         val live = spends.filter { !it.deleted }
         val everyday = live.filterNot(::isDues)
@@ -290,7 +320,7 @@ object HistoryQuery {
         fun appOk(s: Spend) = scope.apps.isEmpty() || scope.apps.any { s.appName.contains(it, ignoreCase = true) }
 
         val everydayHits = if (scope.dues == DuesMode.ONLY) emptyList() else everyday.filter {
-            inPeriod(it) && appOk(it) && (scope.purposes.isEmpty() || it.purpose in scope.purposes)
+            inPeriod(it) && appOk(it) && matchesPurpose(it.purpose, scope.purposes)
         }
 
         // A named person narrows the dues rows ("what does Rahul owe me").

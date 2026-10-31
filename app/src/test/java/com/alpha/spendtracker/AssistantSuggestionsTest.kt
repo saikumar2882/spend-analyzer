@@ -70,7 +70,7 @@ class AssistantSuggestionsTest {
     @Test
     fun foodThisWeekNarrowsToGroceriesAndFoodFromMonday() {
         val s = scope("What did I spend on food this week?")
-        assertEquals(listOf("Food & Drinks"), s.purposes)
+        assertEquals(listOf("Food & Dining"), s.purposes)
         // Thursday 1 Oct 2026; the week starts Monday 28 Sep.
         assertEquals(at(2026, Calendar.SEPTEMBER, 28, 0), s.period!!.start)
     }

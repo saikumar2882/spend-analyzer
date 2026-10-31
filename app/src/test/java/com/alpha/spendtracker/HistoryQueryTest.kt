@@ -160,13 +160,13 @@ class HistoryQueryTest {
 
     @Test
     fun purposeWordsNarrowRowsButOnlyOnWholeWords() {
-        assertEquals(listOf("Food & Drinks"), scope("how much did I spend on food").purposes)
-        assertEquals(listOf("Rent & Utilities"), scope("what did I pay for rent").purposes)
+        assertEquals(listOf("Food & Dining"), scope("how much did I spend on food").purposes)
+        assertEquals(listOf("Housing"), scope("what did I pay for rent").purposes)
         assertTrue(scope("what is my current balance").purposes.isEmpty())
 
         val spends = listOf(
             spend(100.0, sep10),
-            spend(900.0, sep10, purpose = "Travel & Commute")
+            spend(900.0, sep10, purpose = "Travel")
         )
         assertEquals(1, ctx("food spend last month", spends).matchedCount)
     }

@@ -84,12 +84,12 @@ val DarkInversePrimary      = Color(0xFF5D45E8)   // matched to the light primar
 val DarkScrim               = Color(0xFF000000)
 
 // ----------------------------------------------------------------------------
-// Light Theme Base Tokens (airy violet-white canvas)
+// Light Theme Base Tokens (airy light canvas matching modern minimal UI)
 // ----------------------------------------------------------------------------
-val LightBackgroundLight      = Color(0xFFF2F1F9)   // page sits *behind* white cards
-val LightSurfaceLight         = Color(0xFFFFFFFF)
-val LightSurfaceElevatedLight = Color(0xFFE6E5F2)
-val LightBorderLight          = Color(0xFFDCD9EC)   // near-invisible hairline on white
+val LightBackgroundLight      = Color(0xFFFAFAFE)   // clean, ultra-light canvas
+val LightSurfaceLight         = Color(0xFFFAFAFE)   // matches canvas for box-free UI
+val LightSurfaceElevatedLight = Color(0xFFF2EFFB)   // subtle elevated container
+val LightBorderLight          = Color(0xFFE5E2F0).copy(alpha = 0.3f)   // near-invisible soft hairline
 val LightBrandLight           = Color(0xFF5D45E8)   // saturated indigo-violet
 
 // Semantic Financial Indicators (Light)
@@ -122,20 +122,20 @@ val LightSurfaceVariant       = LightSurfaceElevatedLight
 val LightOnSurfaceVariant     = Color(0xFF454654)
 
 val LightOutline              = LightBorderLight
-val LightOutlineVariant       = Color(0xFFC6C5D6)
+val LightOutlineVariant       = Color(0xFFE5E2F0)
 val LightError                = LightExpenseRed
 val LightOnError              = Color(0xFFFFFFFF)
 val LightErrorContainer       = Color(0xFFF7DADE)
 val LightOnErrorContainer     = Color(0xFF410008)
 
-// Light Tonal Surface Ladder
-val LightSurfaceDim           = Color(0xFFDDDAEC)
+// Light Tonal Surface Ladder (airy light canvas where low/container steps match canvas for box-free UI)
+val LightSurfaceDim           = Color(0xFFECE9F5)
 val LightSurfaceBright        = Color(0xFFFFFFFF)
-val LightSurfaceContainerLowest  = Color(0xFFFFFFFF)
-val LightSurfaceContainerLow     = Color(0xFFFFFFFF)   // cards read as clean white
-val LightSurfaceContainer        = Color(0xFFF8F7FC)
-val LightSurfaceContainerHigh    = Color(0xFFF1EFF9)
-val LightSurfaceContainerHighest = Color(0xFFE9E6F4)
+val LightSurfaceContainerLowest  = Color(0xFFFAFAFE)
+val LightSurfaceContainerLow     = Color(0xFFFAFAFE)   // Matches canvas — NO background box around cards
+val LightSurfaceContainer        = Color(0xFFFAFAFE)   // Matches canvas — flat seamless rows
+val LightSurfaceContainerHigh    = Color(0xFFF1EFF8)   // Subtle elevated surface for pills & segmented toggles
+val LightSurfaceContainerHighest = Color(0xFFE8E5F4)
 val LightInverseSurface       = Color(0xFF2F2E3A)
 val LightInverseOnSurface     = Color(0xFFF3F0FC)
 val LightInversePrimary       = Color(0xFFC9BFFF)   // matched to the dark primary

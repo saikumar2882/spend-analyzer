@@ -127,12 +127,17 @@
     <string name="history_collapse_month">Hide this month\'s logs</string>
     <string name="total_spend">Total Spend</string>
     <string name="quick_filter_all">All</string>
-    <string name="quick_filter_food">Food</string>
+    <string name="quick_filter_housing">Housing</string>
+    <string name="quick_filter_groceries">Groceries</string>
+    <string name="quick_filter_food">Food &amp; Dining</string>
     <string name="quick_filter_shopping">Shopping</string>
+    <string name="quick_filter_commute">Commute</string>
     <string name="quick_filter_travel">Travel</string>
-    <string name="quick_filter_bills">Bills</string>
-    <string name="quick_filter_high_spends">High Spends (> ₹1000)</string>
-    <string name="quick_filter_credit_cards">Credit Cards</string>
+    <string name="quick_filter_bills">Bills &amp; Utilities</string>
+    <string name="quick_filter_credit_cards">EMIs &amp; Cards</string>
+    <string name="quick_filter_subscriptions">Subscriptions</string>
+    <string name="quick_filter_healthcare">Healthcare</string>
+    <string name="quick_filter_high_spends">High Spends (&gt; ₹1000)</string>
 
     <!-- Notes Screen -->
     <string name="subtotal">Subtotal</string>

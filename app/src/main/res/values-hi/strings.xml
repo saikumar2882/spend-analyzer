@@ -466,12 +466,17 @@
 
     <!-- Quick Filters -->
     <string name="quick_filter_all">सभी</string>
-    <string name="quick_filter_food">भोजन</string>
+    <string name="quick_filter_housing">आवास</string>
+    <string name="quick_filter_groceries">किराना</string>
+    <string name="quick_filter_food">भोजन और भोजन</string>
     <string name="quick_filter_shopping">शॉपिंग</string>
+    <string name="quick_filter_commute">आवागमन</string>
     <string name="quick_filter_travel">यात्रा</string>
-    <string name="quick_filter_bills">बिल</string>
-    <string name="quick_filter_high_spends">उच्च खर्च (> ₹1000)</string>
-    <string name="quick_filter_credit_cards">क्रेडिट कार्ड</string>
+    <string name="quick_filter_bills">बिल और उपयोगिताएं</string>
+    <string name="quick_filter_credit_cards">ईएमआई और कार्ड</string>
+    <string name="quick_filter_subscriptions">सदस्यता</string>
+    <string name="quick_filter_healthcare">स्वास्थ्य सेवा</string>
+    <string name="quick_filter_high_spends">उच्च खर्च (&gt; ₹1000)</string>
     <string name="voice_channel_name">वॉइस लॉगिंग</string>
     <string name="voice_notif_logged_title">वॉइस से दर्ज किया गया</string>
     <string name="voice_notif_review_title">इस खर्च की पुष्टि करें</string>

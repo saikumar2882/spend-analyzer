@@ -120,7 +120,23 @@ fun MyApplicationTheme(
     val colorScheme = when (themePreference) {
         ThemePreference.SYSTEM -> {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (darkTheme) dynamicDarkColorScheme(context) else dynamicLightColorScheme(context)
+                if (darkTheme) {
+                    val dynamicDark = dynamicDarkColorScheme(context)
+                    dynamicDark.copy(
+                        surfaceContainerLowest = dynamicDark.background,
+                        surfaceContainerLow = dynamicDark.background,
+                        surfaceContainer = dynamicDark.background,
+                        surface = dynamicDark.background
+                    )
+                } else {
+                    val dynamicLight = dynamicLightColorScheme(context)
+                    dynamicLight.copy(
+                        surfaceContainerLowest = dynamicLight.background,
+                        surfaceContainerLow = dynamicLight.background,
+                        surfaceContainer = dynamicLight.background,
+                        surface = dynamicLight.background
+                    )
+                }
             } else {
                 if (darkTheme) DarkColorScheme else LightColorScheme
             }

@@ -113,7 +113,7 @@ fun TimeFilterSelectorRow(
 
     Surface(
         modifier = modifier.fillMaxWidth(),
-        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+        color = MaterialTheme.colorScheme.surfaceContainer,
         shape = RoundedCornerShape(16.dp),
         border = null
     ) {
@@ -210,10 +210,10 @@ fun TotalSpentHeroCard(
         modifier = Modifier.fillMaxWidth(),
         shape = RoundedCornerShape(Radius.lg),
         colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f),
+            containerColor = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
             contentColor = MaterialTheme.colorScheme.onSurface
         ),
-        border = null,
+        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
         elevation = CardDefaults.cardElevation(defaultElevation = 0.dp)
     ) {
         Column(modifier = Modifier.padding(Spacing.lg)) {

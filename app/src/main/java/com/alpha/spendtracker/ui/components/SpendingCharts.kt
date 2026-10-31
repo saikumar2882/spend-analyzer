@@ -48,29 +48,55 @@ import kotlin.math.round
 /**
  * Returns a theme-aware color map for spending categories.
  */
+/**
+ * Resolves a theme-aware color for any spending category or purpose string.
+ * Uses exact preset matches first, then falls back to HSL string-hash generation
+ * for custom user categories so every category has a unique, distinct color.
+ */
+fun resolveCategoryColor(name: String, isDark: Boolean): Color {
+    val clean = name.trim()
+    if (clean.isEmpty()) {
+        return if (isDark) CatDark_Other else CatLight_Other
+    }
+    if (clean.equals("Others", ignoreCase = true) || clean.equals("Other", ignoreCase = true)) {
+        return if (isDark) CatDark_Other else CatLight_Other
+    }
+
+    val item = findCategoryPresetItem(clean)
+    val isMiscFallback = item.canonicalName == "Miscellaneous" &&
+            !clean.equals("Miscellaneous", ignoreCase = true) &&
+            !clean.equals("Misc", ignoreCase = true)
+
+    if (!isMiscFallback) {
+        return if (isDark) item.darkColor else item.lightColor
+    }
+
+    // Dynamic, deterministic color generation for unmapped / custom user categories
+    val hash = kotlin.math.abs(clean.lowercase(Locale.ROOT).hashCode())
+    val hue = (hash % 360).toFloat()
+    val saturation = 0.75f
+    val lightness = if (isDark) 0.65f else 0.45f
+    return Color.hsl(hue, saturation, lightness)
+}
+
+/**
+ * Returns a theme-aware color map for spending categories.
+ */
 @Composable
 fun getCategoryColors(): Map<String, Color> {
     val isDark = isAppInDarkTheme
     return remember(isDark) {
-        if (isDark) {
-            mapOf(
-                "UPI Apps" to CatDark_UPI,
-                "Quick Commerce" to CatDark_QuickComm,
-                "E-Commerce" to CatDark_Ecommerce,
-                "Banking & Cards" to CatDark_Banking,
-                "Friend Lending" to CatDark_Lending,
-                "Other" to CatDark_Other
-            )
-        } else {
-            mapOf(
-                "UPI Apps" to CatLight_UPI,
-                "Quick Commerce" to CatLight_QuickComm,
-                "E-Commerce" to CatLight_Ecommerce,
-                "Banking & Cards" to CatLight_Banking,
-                "Friend Lending" to CatLight_Lending,
-                "Other" to CatLight_Other
-            )
-        }
+        ALL_CATEGORY_GRID_ITEMS.associate { item ->
+            item.canonicalName to (if (isDark) item.darkColor else item.lightColor)
+        } + mapOf(
+            "UPI Apps" to (if (isDark) CatDark_UPI else CatLight_UPI),
+            "Quick Commerce" to (if (isDark) CatDark_QuickComm else CatLight_QuickComm),
+            "E-Commerce" to (if (isDark) CatDark_Ecommerce else CatLight_Ecommerce),
+            "Banking & Cards" to (if (isDark) CatDark_Banking else CatLight_Banking),
+            "Friend Lending" to (if (isDark) CatDark_Lending else CatLight_Lending),
+            "Other" to (if (isDark) CatDark_Other else CatLight_Other),
+            "Others" to (if (isDark) CatDark_Other else CatLight_Other)
+        )
     }
 }
 
@@ -81,39 +107,21 @@ fun getCategoryColors(): Map<String, Color> {
 fun getPurposeColors(): Map<String, Color> {
     val isDark = isAppInDarkTheme
     return remember(isDark) {
-        if (isDark) {
-            mapOf(
-                "Food & Drinks" to PurposeDark_Food,
-                "Groceries" to PurposeDark_Food,
-                "Shopping & Apparels" to PurposeDark_Shopping,
-                "Lending" to PurposeDark_Lending,
-                "Borrowing" to PurposeDark_Borrowing,
-                "Credit Card Bill" to PurposeDark_CreditCard,
-                "Rent & Utilities" to PurposeDark_Utilities,
-                "Fuel" to PurposeDark_Travel,
-                "Travel & Commute" to PurposeDark_Travel,
-                "Subscription & Leisure" to PurposeDark_Leisure,
-                "Healthcare & Medical" to PurposeDark_Health,
-                "Investment" to PurposeDark_CreditCard,
-                "Others" to PurposeDark_Other
-            )
-        } else {
-            mapOf(
-                "Food & Drinks" to PurposeLight_Food,
-                "Groceries" to PurposeLight_Food,
-                "Shopping & Apparels" to PurposeLight_Shopping,
-                "Lending" to PurposeLight_Lending,
-                "Borrowing" to PurposeLight_Borrowing,
-                "Credit Card Bill" to PurposeLight_CreditCard,
-                "Rent & Utilities" to PurposeLight_Utilities,
-                "Fuel" to PurposeLight_Travel,
-                "Travel & Commute" to PurposeLight_Travel,
-                "Subscription & Leisure" to PurposeLight_Leisure,
-                "Healthcare & Medical" to PurposeLight_Health,
-                "Investment" to PurposeLight_CreditCard,
-                "Others" to PurposeLight_Other
-            )
-        }
+        ALL_CATEGORY_GRID_ITEMS.associate { item ->
+            item.canonicalName to (if (isDark) item.darkColor else item.lightColor)
+        } + mapOf(
+            "Food & Drinks" to (if (isDark) PurposeDark_Food else PurposeLight_Food),
+            "Shopping & Apparels" to (if (isDark) PurposeDark_Shopping else PurposeLight_Shopping),
+            "Credit Card Bill" to (if (isDark) PurposeDark_CreditCard else PurposeLight_CreditCard),
+            "Rent & Utilities" to (if (isDark) PurposeDark_Utilities else PurposeLight_Utilities),
+            "Fuel" to (if (isDark) PurposeDark_Travel else PurposeLight_Travel),
+            "Travel & Commute" to (if (isDark) PurposeDark_Travel else PurposeLight_Travel),
+            "Subscription & Leisure" to (if (isDark) PurposeDark_Leisure else PurposeLight_Leisure),
+            "Healthcare & Medical" to (if (isDark) PurposeDark_Health else PurposeLight_Health),
+            "Investment" to (if (isDark) PurposeDark_CreditCard else PurposeLight_CreditCard),
+            "Others" to (if (isDark) PurposeDark_Other else PurposeLight_Other),
+            "Other" to (if (isDark) PurposeDark_Other else PurposeLight_Other)
+        )
     }
 }
 
@@ -145,9 +153,10 @@ fun SpendingDonutChart(
         return
     }
 
+    val isDark = isAppInDarkTheme
     val chartColors = if (usePurposeColors) getPurposeColors() else getCategoryColors()
-    // Slice color for anything the palette doesn't name, and for the rolled-up "Others" row.
-    val neutralSwatch = chartColors[if (usePurposeColors) "Others" else "Other"] ?: Color.Gray
+    // Slice color for the rolled-up "Others" row.
+    val neutralSwatch = if (isDark) CatDark_Other else CatLight_Other
     // Hoist the total and the sorted item list so they aren't recomputed on every recomposition
     // (the donut animates, so this composable recomposes frequently).
     val total = remember(categoryBreakdown) { categoryBreakdown.values.sum() }
@@ -233,7 +242,7 @@ fun SpendingDonutChart(
                 items.forEach { (cat, amount) ->
                     val rawSweepAngle = if (total > 0) ((amount / total) * 360f).toFloat() * progressFactor else 0f
                     val sweepAngle = if (rawSweepAngle.isNaN() || rawSweepAngle < 0f) 0f else rawSweepAngle
-                    val color = chartColors[cat] ?: if (usePurposeColors) Color.Gray else chartColors["Other"]!!
+                    val color = chartColors[cat] ?: resolveCategoryColor(cat, isDark)
 
                     drawArc(
                         color = color,
@@ -276,7 +285,7 @@ fun SpendingDonutChart(
                 LegendRow(
                     label = category,
                     percent = if (total > 0) (amount / total * 100).toInt() else 0,
-                    swatch = chartColors[category] ?: neutralSwatch
+                    swatch = chartColors[category] ?: resolveCategoryColor(category, isDark)
                 )
             }
             if (items.size > visibleCount) {

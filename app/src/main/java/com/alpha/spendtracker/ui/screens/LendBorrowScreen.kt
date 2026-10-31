@@ -48,6 +48,8 @@ import com.alpha.spendtracker.data.SpendHistory
 import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.util.rememberTranslatedText
+import com.alpha.spendtracker.ui.theme.WindowWidthSizeClass
+import com.alpha.spendtracker.ui.theme.rememberWindowWidthSizeClass
 import com.alpha.spendtracker.ui.components.*
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.theme.asMoney
@@ -376,104 +378,266 @@ fun LendBorrowScreen(
 
         Spacer(modifier = Modifier.height(16.dp))
 
-        if (filteredSpends.isEmpty()) {
-            Box(
-                modifier = Modifier
-                    .fillMaxSize()
-                    .padding(bottom = 60.dp),
-                contentAlignment = Alignment.Center
-            ) {
-                Column(
-                    horizontalAlignment = Alignment.CenterHorizontally,
-                    modifier = Modifier.padding(24.dp)
+        val windowWidthClass = rememberWindowWidthSizeClass()
+        val isCompact = windowWidthClass == WindowWidthSizeClass.COMPACT
+
+        if (isCompact) {
+            if (filteredSpends.isEmpty()) {
+                Box(
+                    modifier = Modifier
+                        .fillMaxSize()
+                        .padding(bottom = 60.dp),
+                    contentAlignment = Alignment.Center
                 ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.size(72.dp)
+                    Column(
+                        horizontalAlignment = Alignment.CenterHorizontally,
+                        modifier = Modifier.padding(24.dp)
                     ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                Icons.Rounded.SwapHoriz,
-                                contentDescription = null,
-                                modifier = Modifier.size(32.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
-                            )
+                        Surface(
+                            shape = CircleShape,
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
+                            modifier = Modifier.size(72.dp)
+                        ) {
+                            Box(contentAlignment = Alignment.Center) {
+                                Icon(
+                                    Icons.Rounded.SwapHoriz,
+                                    contentDescription = null,
+                                    modifier = Modifier.size(32.dp),
+                                    tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f)
+                                )
+                            }
+                        }
+                        Spacer(modifier = Modifier.height(16.dp))
+                        Text(
+                            text = "No ${mainTabs[selectedTab].lowercase()} records",
+                            style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Spacer(modifier = Modifier.height(6.dp))
+                        Text(
+                            text = if (selectedTab == 0) "Money you lend to others will appear here."
+                                   else "Money you borrow from others will appear here.",
+                            style = MaterialTheme.typography.bodyMedium,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            } else {
+                LazyColumn(
+                    modifier = Modifier.fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp),
+                    contentPadding = PaddingValues(bottom = 120.dp)
+                ) {
+                    // Summary Hero Balance Card
+                    item(key = "summary-hero-$selectedTab") {
+                        SummaryHeroCard(
+                            isLending = selectedTab == 0,
+                            totalAmount = filteredSpends.sumOf { it.amount },
+                            peopleCount = peopleCount
+                        )
+                    }
+
+                    groupedSpends.forEach { (monthHeader, spends) ->
+                        val monthSum = spends.sumOf { it.amount }
+                        val expanded = sections.isExpanded(monthKey(monthHeader))
+                        item(key = "group-$monthHeader-$selectedTab") {
+                            Column(modifier = Modifier.fillMaxWidth()) {
+                                MonthHeader(
+                                    month = monthHeader,
+                                    total = monthSum,
+                                    expanded = expanded,
+                                    onToggle = { sections.toggle(monthKey(monthHeader)) }
+                                )
+
+                                if (expanded) {
+                                    // Flat seamless rows for items in this month (no outer background box)
+                                    Surface(
+                                        shape = RoundedCornerShape(16.dp),
+                                        color = Color.Transparent,
+                                        border = null,
+                                        modifier = Modifier.fillMaxWidth()
+                                    ) {
+                                        Column {
+                                            spends.forEachIndexed { index, spend ->
+                                                SwipeableLogCard(
+                                                    onEdit = { onEditSpend(spend) },
+                                                    onDelete = { spendToDelete = spend }
+                                                ) {
+                                                    DuesSpendCard(
+                                                        spend = spend,
+                                                        isLending = selectedTab == 0,
+                                                        onEdit = { onEditSpend(spend) }
+                                                    )
+                                                }
+                                                if (index < spends.size - 1) {
+                                                    HorizontalDivider(
+                                                        modifier = Modifier.padding(start = 72.dp, end = 16.dp),
+                                                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                                                        thickness = 1.dp
+                                                    )
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
                         }
                     }
-                    Spacer(modifier = Modifier.height(16.dp))
-                    Text(
-                        text = "No ${mainTabs[selectedTab].lowercase()} records",
-                        style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.SemiBold),
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(6.dp))
-                    Text(
-                        text = if (selectedTab == 0) "Money you lend to others will appear here."
-                               else "Money you borrow from others will appear here.",
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        textAlign = TextAlign.Center
-                    )
                 }
             }
         } else {
-            LazyColumn(
+            // Dual-Pane Layout for Foldables / Tablets
+            Row(
                 modifier = Modifier.fillMaxSize(),
-                verticalArrangement = Arrangement.spacedBy(16.dp),
-                contentPadding = PaddingValues(bottom = 120.dp)
+                horizontalArrangement = Arrangement.spacedBy(16.dp)
             ) {
-                // Summary Hero Balance Card
-                item(key = "summary-hero-$selectedTab") {
+                Column(
+                    modifier = Modifier
+                        .weight(1.1f)
+                        .fillMaxSize()
+                ) {
+                    if (filteredSpends.isEmpty()) {
+                        Box(
+                            modifier = Modifier.fillMaxSize(),
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = "No ${mainTabs[selectedTab].lowercase()} records found.",
+                                style = MaterialTheme.typography.bodyMedium,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    } else {
+                        LazyColumn(
+                            modifier = Modifier.fillMaxSize(),
+                            verticalArrangement = Arrangement.spacedBy(12.dp),
+                            contentPadding = PaddingValues(bottom = 120.dp)
+                        ) {
+                            groupedSpends.forEach { (monthHeader, spends) ->
+                                val monthSum = spends.sumOf { it.amount }
+                                val expanded = sections.isExpanded(monthKey(monthHeader))
+                                item(key = "group-dual-$monthHeader-$selectedTab") {
+                                    Column(modifier = Modifier.fillMaxWidth()) {
+                                        MonthHeader(
+                                            month = monthHeader,
+                                            total = monthSum,
+                                            expanded = expanded,
+                                            onToggle = { sections.toggle(monthKey(monthHeader)) }
+                                        )
+
+                                        if (expanded) {
+                                            Surface(
+                                                shape = RoundedCornerShape(16.dp),
+                                                color = Color.Transparent,
+                                                border = null,
+                                                modifier = Modifier.fillMaxWidth()
+                                            ) {
+                                                Column {
+                                                    spends.forEachIndexed { index, spend ->
+                                                        SwipeableLogCard(
+                                                            onEdit = { onEditSpend(spend) },
+                                                            onDelete = { spendToDelete = spend }
+                                                        ) {
+                                                            DuesSpendCard(
+                                                                spend = spend,
+                                                                isLending = selectedTab == 0,
+                                                                onEdit = { onEditSpend(spend) }
+                                                            )
+                                                        }
+                                                        if (index < spends.size - 1) {
+                                                            HorizontalDivider(
+                                                                modifier = Modifier.padding(start = 72.dp, end = 16.dp),
+                                                                color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
+                                                                thickness = 1.dp
+                                                            )
+                                                        }
+                                                    }
+                                                }
+                                            }
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                    }
+                }
+
+                Column(
+                    modifier = Modifier
+                        .weight(0.9f)
+                        .fillMaxSize(),
+                    verticalArrangement = Arrangement.spacedBy(16.dp)
+                ) {
                     SummaryHeroCard(
                         isLending = selectedTab == 0,
                         totalAmount = filteredSpends.sumOf { it.amount },
                         peopleCount = peopleCount
                     )
-                }
 
-                groupedSpends.forEach { (monthHeader, spends) ->
-                    val monthSum = spends.sumOf { it.amount }
-                    val expanded = sections.isExpanded(monthKey(monthHeader))
-                    item(key = "group-$monthHeader-$selectedTab") {
-                        Column(modifier = Modifier.fillMaxWidth()) {
-                            MonthHeader(
-                                month = monthHeader,
-                                total = monthSum,
-                                expanded = expanded,
-                                onToggle = { sections.toggle(monthKey(monthHeader)) }
+                    Surface(
+                        color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f),
+                        border = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f)),
+                        shape = RoundedCornerShape(16.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        Column(
+                            modifier = Modifier.padding(16.dp),
+                            verticalArrangement = Arrangement.spacedBy(12.dp)
+                        ) {
+                            Text(
+                                text = "Dues Overview & Insights",
+                                style = MaterialTheme.typography.titleMedium.copy(fontWeight = FontWeight.Bold),
+                                color = MaterialTheme.colorScheme.onSurface
                             )
 
-                            if (expanded) {
-                                // Flat seamless rows for items in this month (no outer background box)
-                                Surface(
-                                    shape = RoundedCornerShape(16.dp),
-                                    color = Color.Transparent,
-                                    border = null,
-                                    modifier = Modifier.fillMaxWidth()
-                                ) {
-                                    Column {
-                                        spends.forEachIndexed { index, spend ->
-                                            SwipeableLogCard(
-                                                onEdit = { onEditSpend(spend) },
-                                                onDelete = { spendToDelete = spend }
-                                            ) {
-                                                DuesSpendCard(
-                                                    spend = spend,
-                                                    isLending = selectedTab == 0,
-                                                    onEdit = { onEditSpend(spend) }
-                                                )
-                                            }
-                                            if (index < spends.size - 1) {
-                                                HorizontalDivider(
-                                                    modifier = Modifier.padding(start = 72.dp, end = 16.dp),
-                                                    color = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.08f),
-                                                    thickness = 1.dp
-                                                )
-                                            }
-                                        }
-                                    }
-                                }
+                            val lentTotal = remember(allSpends) { allSpends.filter { it.purpose == "Lending" }.sumOf { it.amount } }
+                            val borrowedTotal = remember(allSpends) { allSpends.filter { it.purpose == "Borrowing" }.sumOf { it.amount } }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Total Lent:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("₹${formatCurrency(lentTotal)}", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.primary)
+                            }
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Total Borrowed:", style = MaterialTheme.typography.bodyMedium, color = MaterialTheme.colorScheme.onSurfaceVariant)
+                                Text("₹${formatCurrency(borrowedTotal)}", style = MaterialTheme.typography.bodyMedium.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.error)
+                            }
+
+                            HorizontalDivider(color = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.3f))
+
+                            Row(
+                                modifier = Modifier.fillMaxWidth(),
+                                horizontalArrangement = Arrangement.SpaceBetween
+                            ) {
+                                Text("Net Dues Balance:", style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold), color = MaterialTheme.colorScheme.onSurface)
+                                val net = lentTotal - borrowedTotal
+                                Text(
+                                    text = "${if (net >= 0) "+" else "-"}₹${formatCurrency(kotlin.math.abs(net))}",
+                                    style = MaterialTheme.typography.titleSmall.copy(fontWeight = FontWeight.Bold),
+                                    color = if (net >= 0) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.error
+                                )
+                            }
+
+                            Spacer(modifier = Modifier.height(4.dp))
+
+                            Button(
+                                onClick = {
+                                    exportSpends = filteredSpends
+                                    showExportPreview = true
+                                },
+                                modifier = Modifier.fillMaxWidth(),
+                                shape = RoundedCornerShape(12.dp)
+                            ) {
+                                Icon(Icons.Rounded.FileDownload, contentDescription = null, modifier = Modifier.size(18.dp))
+                                Spacer(modifier = Modifier.width(8.dp))
+                                Text("Export Dues Report")
                             }
                         }
                     }
@@ -491,11 +655,13 @@ private fun SummaryHeroCard(
 ) {
     val labelText = if (isLending) stringResource(R.string.total_outstanding_to_you) else stringResource(R.string.total_outstanding_by_you)
     val peopleText = stringResource(R.string.across_people, peopleCount)
-    val cardBg = if (isLending) MaterialTheme.colorScheme.onSurface.copy(alpha = 0.05f) else MaterialTheme.colorScheme.errorContainer
-    val contentFg = if (isLending) MaterialTheme.colorScheme.onSurface else MaterialTheme.colorScheme.onErrorContainer
+    val cardBg = MaterialTheme.colorScheme.onSurface.copy(alpha = 0.03f)
+    val cardBorder = BorderStroke(1.dp, MaterialTheme.colorScheme.onSurface.copy(alpha = 0.06f))
+    val contentFg = MaterialTheme.colorScheme.onSurface
 
     Surface(
         color = cardBg,
+        border = cardBorder,
         shape = RoundedCornerShape(20.dp),
         modifier = Modifier.fillMaxWidth()
     ) {

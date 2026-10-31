@@ -50,7 +50,7 @@ object AiParser {
         }
 
     internal val PURPOSE_KEYWORDS: Map<String, List<String>> = mapOf(
-        "Food & Drinks" to listOf(
+        "Food & Dining" to listOf(
             "biryani", "pizza", "burger", "lunch", "dinner", "breakfast", "brunch",
             "snack", "snacks", "food", "meal", "coffee", "tea", "chai", "juice",
             "shake", "ice cream", "dessert", "sweet", "sweets", "restaurant", "cafe",
@@ -64,43 +64,48 @@ object AiParser {
             "veggies", "fruit", "fruits", "rice", "dal", "milk", "bread", "atta", "wheat",
             "oil", "sugar", "salt", "zepto", "blinkit", "instamart"
         ),
-        "Shopping & Apparels" to listOf(
+        "Housing" to listOf(
+            "rent", "house rent", "room rent", "pg rent", "flat rent", "maintenance",
+            "society", "repairs", "plumber", "electrician", "housing"
+        ),
+        "Bills & Utilities" to listOf(
+            "electricity", "water bill", "water", "gas bill", "gas", "current bill",
+            "internet", "wifi", "phone bill", "recharge", "broadband", "utility",
+            "utilities", "dth"
+        ),
+        "Shopping" to listOf(
             "shirt", "tshirt", "t-shirt", "t shirt", "pant", "pants", "jeans", "dress",
             "saree", "sari", "shoe", "shoes", "sandal", "sandals", "watch", "bag",
             "purse", "wallet", "clothes", "clothing", "apparel", "apparels", "fashion",
             "kurta", "kurti", "shorts", "jacket", "sweater", "hoodie", "tie", "belt",
             "cosmetic", "cosmetics", "makeup", "lipstick", "perfume", "myntra", "ajio"
         ),
-        "Fuel" to listOf(
-            "petrol", "fuel", "diesel", "cng", "gas station"
-        ),
-        "Travel & Commute" to listOf(
+        "Commute" to listOf(
             "uber", "ola", "rapido", "auto", "rickshaw", "cab", "taxi", "metro",
-            "bus", "train", "flight", "parking", "toll", "ride", "travel", "trip",
-            "ticket", "ticket booking", "irctc", "redbus", "indigo", "spicejet", "vistara"
+            "bus", "petrol", "fuel", "diesel", "cng", "parking", "toll", "ride"
         ),
-        "Subscription & Leisure" to listOf(
-            "netflix", "prime", "amazon prime", "spotify", "youtube", "movie",
-            "movies", "bookmyshow", "concert", "game", "gaming", "subscription",
-            "membership", "gym", "fitness", "yoga", "hotstar", "jio cinema",
-            "disney"
+        "Travel" to listOf(
+            "train", "flight", "travel", "trip", "ticket", "ticket booking", "irctc",
+            "redbus", "indigo", "spicejet", "vistara", "hotel", "vacation"
         ),
-        "Healthcare & Medical" to listOf(
+        "Subscriptions" to listOf(
+            "netflix", "prime", "amazon prime", "spotify", "youtube", "subscription",
+            "membership", "hotstar", "jio cinema", "disney"
+        ),
+        "Entertainment" to listOf(
+            "movie", "movies", "bookmyshow", "concert", "game", "gaming", "gym", "fitness", "yoga"
+        ),
+        "Healthcare" to listOf(
             "medicine", "medicines", "doctor", "hospital", "clinic", "pharmacy",
             "medical", "health", "checkup", "consultation", "lab", "blood test",
             "test", "1mg", "pharmeasy", "apollo", "tablet", "tablets", "syrup",
             "ointment", "vaccine"
         ),
-        "Rent & Utilities" to listOf(
-            "rent", "electricity", "water bill", "water", "gas bill", "gas",
-            "internet", "wifi", "phone bill", "recharge", "broadband", "utility",
-            "utilities", "maintenance", "society"
-        ),
-        "Credit Card Bill" to listOf(
+        "EMIs & Cards" to listOf(
             "credit card bill", "cc bill", "card bill", "credit card payment",
             "credit card", "emi", "loan payment"
         ),
-        "Investment" to listOf(
+        "Investments" to listOf(
             "investment", "investments", "savings", "stocks", "stock", "mutual fund",
             "mutual funds", "sip", "shares", "fd", "fixed deposit", "crypto"
         ),
@@ -110,7 +115,7 @@ object AiParser {
         "Borrowing" to listOf(
             "borrowed", "borrowed from", "owed", "owe", "took from", "took loan", "took cash"
         ),
-        "Others" to listOf(
+        "Miscellaneous" to listOf(
             "misc", "miscellaneous", "others", "other"
         )
     )
@@ -515,6 +520,16 @@ object AiParser {
     fun normalizePurpose(raw: String?): String? {
         if (raw.isNullOrBlank()) return null
         val lower = raw.trim().lowercase()
+        when (lower) {
+            "rent & utilities", "rent" -> return "Housing"
+            "food & drinks", "food" -> return "Food & Dining"
+            "shopping & apparels" -> return "Shopping"
+            "credit card bill" -> return "EMIs & Cards"
+            "travel & commute" -> return "Commute"
+            "subscription & leisure" -> return "Subscriptions"
+            "healthcare & medical", "health" -> return "Healthcare"
+            "investment" -> return "Investments"
+        }
         // Exact (case-insensitive) match first
         PURPOSE_PRESETS.firstOrNull { it.equals(raw.trim(), ignoreCase = true) }?.let { return it }
         // Partial match by significant token

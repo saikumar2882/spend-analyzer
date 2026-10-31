@@ -65,6 +65,7 @@ import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.rounded.Lock
 import androidx.compose.material.icons.rounded.Fingerprint
 import androidx.compose.material3.*
+import androidx.compose.material3.pulltorefresh.PullToRefreshBox
 import androidx.compose.runtime.*
 import androidx.compose.runtime.saveable.listSaver
 import androidx.compose.runtime.saveable.rememberSaveable
@@ -681,6 +682,8 @@ LaunchedEffect(Unit) {
         }
     }
 
+    val isLoading by viewModel.isLoading.collectAsStateWithLifecycle()
+    val isRefreshing by viewModel.isRefreshing.collectAsStateWithLifecycle()
     val analyticsState by viewModel.uiState.collectAsStateWithLifecycle()
     val currentMonthSpent by viewModel.currentMonthSpent.collectAsStateWithLifecycle()
     val currentFilter by viewModel.selectedFilter.collectAsStateWithLifecycle()
@@ -1310,8 +1313,27 @@ LaunchedEffect(Unit) {
                     .padding(bottom = innerPadding.calculateBottomPadding())
                     .nestedScroll(fabScrollConnection)
             ) {
-                AnimatedContent(
-                    targetState = activeView,
+                val canPullToRefresh = !showAiHistoryAssistant &&
+                    !showAiInput &&
+                    !showVoiceInput &&
+                    !showBillTrackingSheet &&
+                    aiProcessingResult == null &&
+                    (activeView == ActiveView.DASHBOARD ||
+                     activeView == ActiveView.HISTORY ||
+                     activeView == ActiveView.LEND_BORROW ||
+                     activeView == ActiveView.NOTES ||
+                     activeView == ActiveView.RECURRING_BILLS)
+
+                RefreshWrapper(
+                    enabled = canPullToRefresh,
+                    isRefreshing = isRefreshing,
+                    onRefresh = { viewModel.refreshData() }
+                ) {
+                    if (isLoading && canPullToRefresh) {
+                        com.alpha.spendtracker.ui.components.DashboardSkeleton()
+                    } else {
+                        AnimatedContent(
+                            targetState = activeView,
                     transitionSpec = {
                         // Shared-axis style: a subtle slide along X + fade. Direction follows the
                         // enum ordinal so moving "forward" slides in from the right, "back" from
@@ -1704,6 +1726,9 @@ LaunchedEffect(Unit) {
                         )
                     }
                 }
+                }
+                }
+                }
 
                 FabOverlay(visible = showFabMenu, onClick = { showFabMenu = false })
 
@@ -1958,7 +1983,6 @@ LaunchedEffect(Unit) {
             }
         }
     }
-}
 
 /**
  * "Saved on this device" bar shown while the Firestore push is failing.
@@ -2039,5 +2063,27 @@ private fun FabOverlay(visible: Boolean, onClick: () -> Unit) {
                     onClick = onClick
                 )
         )
+    }
+}
+
+@Composable
+private fun RefreshWrapper(
+    enabled: Boolean,
+    isRefreshing: Boolean,
+    onRefresh: () -> Unit,
+    content: @Composable () -> Unit
+) {
+    if (enabled) {
+        PullToRefreshBox(
+            isRefreshing = isRefreshing,
+            onRefresh = onRefresh,
+            modifier = Modifier.fillMaxSize()
+        ) {
+            content()
+        }
+    } else {
+        Box(modifier = Modifier.fillMaxSize()) {
+            content()
+        }
     }
 }

@@ -637,19 +637,19 @@ fun BillEditDialog(
 
     val purposeOptions = remember {
         listOf(
-            "Credit Card Bill",
-            "Rent & Utilities",
-            "Subscription & Leisure",
-            "Food & Drinks",
+            "Housing",
+            "Bills & Utilities",
+            "EMIs & Cards",
+            "Subscriptions",
             "Groceries",
-            "Shopping & Apparels",
-            "Fuel",
-            "Travel & Commute",
-            "Healthcare & Medical",
-            "Investment",
-            "Lending",
-            "Borrowing",
-            "Others"
+            "Food & Dining",
+            "Shopping",
+            "Commute",
+            "Travel",
+            "Healthcare",
+            "Investments",
+            "Personal Care",
+            "Miscellaneous"
         )
     }
 
@@ -657,7 +657,7 @@ fun BillEditDialog(
     var purpose by remember(initial, defaultIsCreditCard) {
         mutableStateOf(
             initial?.purpose.takeIf { !it.isNullOrBlank() }
-                ?: if (defaultIsCreditCard || initial?.isCreditCardBill == true) "Credit Card Bill" else "Rent & Utilities"
+                ?: if (defaultIsCreditCard || initial?.isCreditCardBill == true) "EMIs & Cards" else "Housing"
         )
     }
     var isCreditCardMode by remember(purpose, defaultIsCreditCard) {

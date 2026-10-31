@@ -286,7 +286,7 @@ fun NotesScreen(
                 )
             } else {
                 LazyVerticalGrid(
-                    columns = GridCells.Fixed(if (isNotesGridView) 2 else 1),
+                    columns = if (isNotesGridView) GridCells.Adaptive(minSize = 220.dp) else GridCells.Fixed(1),
                     modifier = Modifier.fillMaxSize().padding(padding),
                     contentPadding = PaddingValues(horizontal = 12.dp, vertical = 10.dp),
                     horizontalArrangement = Arrangement.spacedBy(10.dp),
@@ -340,7 +340,7 @@ fun NotesScreen(
                     )
                 } else {
                     LazyVerticalGrid(
-                        columns = GridCells.Fixed(if (isEntriesGridView) 2 else 1),
+                        columns = if (isEntriesGridView) GridCells.Adaptive(minSize = 220.dp) else GridCells.Fixed(1),
                         modifier = Modifier.fillMaxSize(),
                         contentPadding = PaddingValues(start = 12.dp, top = 8.dp, end = 12.dp, bottom = 120.dp),
                         horizontalArrangement = Arrangement.spacedBy(10.dp),

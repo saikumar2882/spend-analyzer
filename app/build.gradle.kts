@@ -16,8 +16,8 @@ android {
     applicationId = "com.alpha.spendtracker"
     minSdk = 24
     targetSdk = 37
-    versionCode = 24
-    versionName = "2.4.0"
+    versionCode = 25
+    versionName = "2.4.1"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -102,7 +102,7 @@ dependencies {
   implementation(libs.androidx.appcompat)
   implementation(libs.mlkit.translate)
   implementation(libs.mlkit.text.recognition)
-  // Experimental: lets Gemini call "track expense" by voice (Android 16+). See VoiceTracker.
+  // Voice assistant logging via Android AppFunctions framework (Android 16+). See VoiceTracker.
   implementation(libs.androidx.appfunctions)
   implementation(libs.androidx.appfunctions.service)
   ksp(libs.androidx.appfunctions.compiler)

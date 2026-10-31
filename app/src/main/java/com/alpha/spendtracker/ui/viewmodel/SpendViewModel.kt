@@ -150,7 +150,53 @@ class SpendViewModel @Inject constructor(
         _isBiometricAuthenticated.value = authenticated
     }
 
+    private val _isInitialLoading = MutableStateFlow(true)
+    val isInitialLoading: StateFlow<Boolean> = _isInitialLoading.asStateFlow()
+
+    private val _isRefreshing = MutableStateFlow(false)
+    val isRefreshing: StateFlow<Boolean> = _isRefreshing.asStateFlow()
+
+    /** Combined loading state for initial app launch and pull-to-refresh */
+    val isLoading: StateFlow<Boolean> = combine(_isInitialLoading, _isRefreshing) { initial, refreshing ->
+        initial || refreshing
+    }.stateIn(
+        scope = viewModelScope,
+        started = SharingStarted.WhileSubscribed(5000),
+        initialValue = true
+    )
+
+    /**
+     * Triggers a manual refresh and re-sync of all spend data, notes, and recurring bills.
+     */
+    fun refreshData(onComplete: ((Boolean) -> Unit)? = null) {
+        if (_isRefreshing.value) return
+        viewModelScope.launch {
+            _isRefreshing.value = true
+            var success = true
+            try {
+                val uid = _userId.value
+                if (uid.isNotBlank() && uid != "anonymous") {
+                    repository.startSync(uid, viewModelScope)
+                }
+                // Smooth animation delay for pull-to-refresh UI feedback
+                delay(1200L)
+            } catch (e: Exception) {
+                Log.e(TAG, "Failed to refresh data", e)
+                success = false
+            } finally {
+                _isRefreshing.value = false
+                onComplete?.invoke(success)
+            }
+        }
+    }
+
     init {
+        // Display skeleton UI on startup while initial data loads
+        viewModelScope.launch {
+            delay(1000L)
+            _isInitialLoading.value = false
+        }
+
         // Start sync if user is already logged in
         auth.currentUser?.let { user ->
             _userId.value = user.uid
