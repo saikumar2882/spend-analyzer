@@ -55,7 +55,7 @@ graph TD
 
 ### 6. Settings, Privacy & Auth
 - **Authentication**: Modular `AuthComponents.kt` drives the `LoginScreen.kt` and `RegisterScreen.kt`, mandating Email Verification and Google Sign-up (via Credential Manager).
-- **Settings** (`SettingsScreen.kt`): Controls app defaults, multi-device Room sync triggers, themes (OLED Black, Pitch Black, Dark, System Default), and sign sounds.
+- **Settings** (`SettingsScreen.kt`): Controls app defaults, multi-device Room sync triggers, themes (OLED Black, Pitch Black, Dark, System Default), sign sounds, and Custom Apps & Categories management (`ManageCustomPresetsSheet.kt`), allowing users to add/remove custom payment apps (via "Other Platform" tile or settings) and custom categories (via category grid's "Add new" tile or settings), with reordering and deletion in `CustomizePresetsBottomSheet.kt`.
 - **Privacy & Profile**: Handled via `PrivacyPolicyDialog.kt` and `ProfileDialog.kt`.
 
 ### 7. Conversational AI Assistant
@@ -83,6 +83,7 @@ The app relies heavily on Android `WorkManager` to execute background logic flaw
 
 ### Advanced AI Processing
 - **AI Parsers**: `AiParser.kt` serves as the offline baseline, while `AiTransactionProcessor.kt` manages Groq/Gemini calls. `AiBatchParser.kt` splits multi-expense sentences.
+- **Custom Presets**: `CustomPresets.kt` manages user-added payment apps and categories (up to 25 items each, 30 chars max). Integrates seamlessly with offline parsing, structured AI prompts, model reply preservation, history Q&A scoping, defaults selection, privacy-mode on-device matching, and multi-device sync via `profile/settings` Firestore sync.
 - **Correction Memory**: `AiCorrectionMemory.kt` and `AiCorrectionRepository.kt` locally save user edits to AI predictions, training future offline/online inputs via an internal DataStore.
 - **PII Sanitization**: `PiiSanitizer.kt` automatically scrubs personal data (names, phones, UPIs) before the query leaves the device.
 - **Exact Math Fetching**: `HistoryQuery.kt` calculates the mathematical totals natively from the Room DB before sending context to the AI Assistant.

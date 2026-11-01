@@ -31,7 +31,9 @@ data class AiPreferences(
     val isE2eEncryptionEnabled: Boolean = false,
     val hasAcceptedPrivacyPolicy: Boolean = false,
     val userAppOrder: List<String> = emptyList(),
-    val userCategoryOrder: List<String> = emptyList()
+    val userCategoryOrder: List<String> = emptyList(),
+    // Apps and categories the user added; see CustomPresets.
+    val customPresets: CustomPresets = CustomPresets.EMPTY
 )
 
 class AiPreferencesRepository(private val context: Context) {
@@ -54,6 +56,8 @@ class AiPreferencesRepository(private val context: Context) {
         val HAS_ACCEPTED_PRIVACY_POLICY = booleanPreferencesKey("has_accepted_privacy_policy")
         val APP_ORDER = stringPreferencesKey("user_app_order")
         val CATEGORY_ORDER = stringPreferencesKey("user_category_order")
+        val CUSTOM_APPS = stringPreferencesKey("custom_apps")
+        val CUSTOM_CATEGORIES = stringPreferencesKey("custom_categories")
     }
 
     val aiPreferencesFlow: Flow<AiPreferences> = context.dataStore.data
@@ -92,7 +96,11 @@ class AiPreferencesRepository(private val context: Context) {
                 isE2eEncryptionEnabled = preferences[PreferencesKeys.IS_E2E_ENCRYPTION_ENABLED] ?: false,
                 hasAcceptedPrivacyPolicy = preferences[PreferencesKeys.HAS_ACCEPTED_PRIVACY_POLICY] ?: false,
                 userAppOrder = appOrderList,
-                userCategoryOrder = catOrderList
+                userCategoryOrder = catOrderList,
+                customPresets = CustomPresets(
+                    apps = CustomPresets.decode(preferences[PreferencesKeys.CUSTOM_APPS]),
+                    categories = CustomPresets.decode(preferences[PreferencesKeys.CUSTOM_CATEGORIES])
+                )
             )
         }
 
@@ -177,6 +185,37 @@ class AiPreferencesRepository(private val context: Context) {
     suspend fun updateCategoryOrder(order: List<String>) {
         context.dataStore.edit { preferences ->
             preferences[PreferencesKeys.CATEGORY_ORDER] = order.joinToString(",")
+        }
+    }
+
+    /** Remembers [name] as one of the user's apps. A name that is already known is ignored (see [CustomPresets.withApp]). */
+    suspend fun addCustomApp(name: String) = updateCustomPresets { it.withApp(name) }
+
+    suspend fun addCustomCategory(name: String) = updateCustomPresets { it.withCategory(name) }
+
+    suspend fun removeCustomApp(name: String) = updateCustomPresets { it.withoutApp(name) }
+
+    suspend fun removeCustomCategory(name: String) = updateCustomPresets { it.withoutCategory(name) }
+
+    suspend fun setCustomPresets(apps: List<String>, categories: List<String>) {
+        context.dataStore.edit { preferences ->
+            preferences[PreferencesKeys.CUSTOM_APPS] = CustomPresets.encode(apps)
+            preferences[PreferencesKeys.CUSTOM_CATEGORIES] = CustomPresets.encode(categories)
+        }
+    }
+
+    // Read-modify-write inside one edit, so two quick additions can't overwrite each other.
+    private suspend fun updateCustomPresets(change: (CustomPresets) -> CustomPresets) {
+        context.dataStore.edit { preferences ->
+            val current = CustomPresets(
+                apps = CustomPresets.decode(preferences[PreferencesKeys.CUSTOM_APPS]),
+                categories = CustomPresets.decode(preferences[PreferencesKeys.CUSTOM_CATEGORIES])
+            )
+            val updated = change(current)
+            if (updated != current) {
+                preferences[PreferencesKeys.CUSTOM_APPS] = CustomPresets.encode(updated.apps)
+                preferences[PreferencesKeys.CUSTOM_CATEGORIES] = CustomPresets.encode(updated.categories)
+            }
         }
     }
 

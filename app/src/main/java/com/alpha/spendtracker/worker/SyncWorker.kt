@@ -96,15 +96,21 @@ class SyncWorker @AssistedInject constructor(
             upload(userDoc.collection("note_history"), notesDao.getNoteHistoryForSync(userId).first(), { it.historyUuid }, { it.updatedAt }, NoteHistory::class.java, userId, isE2E)
 
             try {
-                val currentBudget = aiPreferencesRepository.aiPreferencesFlow.first().monthlyBudget
-                if (currentBudget > 0.0) {
-                    userDoc.collection("profile").document("settings")
-                        .set(mapOf("monthlyBudget" to currentBudget, "updatedAt" to System.currentTimeMillis()), com.google.firebase.firestore.SetOptions.merge())
-                        .await()
-                }
+                val prefs = aiPreferencesRepository.aiPreferencesFlow.first()
+                val settingsData = mapOf(
+                    "monthlyBudget" to prefs.monthlyBudget,
+                    "customApps" to prefs.customPresets.apps,
+                    "customCategories" to prefs.customPresets.categories,
+                    "userAppOrder" to prefs.userAppOrder,
+                    "userCategoryOrder" to prefs.userCategoryOrder,
+                    "updatedAt" to System.currentTimeMillis()
+                )
+                userDoc.collection("profile").document("settings")
+                    .set(settingsData, com.google.firebase.firestore.SetOptions.merge())
+                    .await()
             } catch (e: Exception) {
                 if (e is CancellationException) throw e
-                Log.w(TAG, "Syncing monthly budget in background worker failed: ${e.message}")
+                Log.w(TAG, "Syncing user settings in background worker failed: ${e.message}")
             }
 
             Log.d(TAG, "Background sync successful for all collections (E2EE=$isE2E) for user: $userId")

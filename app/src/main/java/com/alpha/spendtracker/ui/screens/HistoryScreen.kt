@@ -262,6 +262,8 @@ fun HistoryScreen(
     monthlyBudget: Double? = null,
     // Hoisted by the caller so open/closed months survive leaving the screen (see MonthChoices).
     monthChoices: MonthChoices = rememberMonthChoices(),
+    // Hoisted for the same reason as monthChoices: edit-from-calendar leaves and re-enters the screen.
+    calendarState: HistoryCalendarState = rememberHistoryCalendarState(),
     onEditSpend: (Spend) -> Unit,
     onDeleteSpend: (Spend) -> Unit,
     onShowHistory: () -> Unit = {},
@@ -606,16 +608,26 @@ fun HistoryScreen(
 
         Spacer(modifier = Modifier.height(4.dp))
 
-        // Quick Category & Smart Filter Chips Bar
-        QuickFilterChipsBar(
-            selectedQuickFilter = selectedQuickFilter,
-            onQuickFilterSelected = { filter ->
-                selectedQuickFilter = filter
-                if (filter != QuickFilter.ALL) {
-                    selectedCategory = ALL_CATEGORIES
-                }
-            }
-        )
+        // Calendar toggle + Quick Category & Smart Filter Chips Bar
+        Row(
+            verticalAlignment = Alignment.CenterVertically,
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            CalendarToggleButton(
+                active = calendarState.showCalendar,
+                onClick = { calendarState.showCalendar = !calendarState.showCalendar }
+            )
+            QuickFilterChipsBar(
+                selectedQuickFilter = selectedQuickFilter,
+                onQuickFilterSelected = { filter ->
+                    selectedQuickFilter = filter
+                    if (filter != QuickFilter.ALL) {
+                        selectedCategory = ALL_CATEGORIES
+                    }
+                },
+                modifier = Modifier.weight(1f)
+            )
+        }
 
         if (showFilters) {
             ModalBottomSheet(
@@ -863,51 +875,62 @@ fun HistoryScreen(
         Spacer(modifier = Modifier.height(8.dp))
 
         if (isCompact) {
-            if (filteredHistory.isNotEmpty()) {
-                FilterSummaryBar(
-                    total = filteredTotal
+            if (calendarState.showCalendar) {
+                SpendCalendarView(
+                    spends = filteredHistory,
+                    state = calendarState,
+                    onEditSpend = onEditSpend,
+                    onDeleteSpend = { spendToDelete = it },
+                    onOpenNote = onOpenNote,
+                    modifier = Modifier.weight(1f)
                 )
-                Spacer(modifier = Modifier.height(12.dp))
-            }
-
-            if (filteredHistory.isEmpty()) {
-                EmptyHistoryState(modifier = Modifier.weight(1f))
             } else {
-                LazyColumn(
-                    modifier = Modifier.weight(1f),
-                    verticalArrangement = Arrangement.spacedBy(8.dp),
-                    contentPadding = PaddingValues(bottom = 120.dp)
-                ) {
-                    groupedHistory.forEach { group ->
-                        val monthHeader = group.monthHeader
-                        val spends = group.spends
-                        val expanded = sections.isExpanded(monthHeader)
-                        item(key = "header-$monthHeader") {
-                            MonthHeader(
-                                month = monthHeader,
-                                total = group.total,
-                                expanded = expanded,
-                                onToggle = { sections.toggle(monthHeader) }
-                            )
-                        }
-                        if (expanded) {
-                            items(spends, key = { it.uuid }) { spend ->
-                                SwipeableLogCard(
-                                    onEdit = { onEditSpend(spend) },
-                                    onDelete = { spendToDelete = spend },
-                                    modifier = Modifier.animateItem()
-                                ) {
-                                    HistorySpendCard(
-                                        spend = spend,
+                if (filteredHistory.isNotEmpty()) {
+                    FilterSummaryBar(
+                        total = filteredTotal
+                    )
+                    Spacer(modifier = Modifier.height(12.dp))
+                }
+
+                if (filteredHistory.isEmpty()) {
+                    EmptyHistoryState(modifier = Modifier.weight(1f))
+                } else {
+                    LazyColumn(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        contentPadding = PaddingValues(bottom = 120.dp)
+                    ) {
+                        groupedHistory.forEach { group ->
+                            val monthHeader = group.monthHeader
+                            val spends = group.spends
+                            val expanded = sections.isExpanded(monthHeader)
+                            item(key = "header-$monthHeader") {
+                                MonthHeader(
+                                    month = monthHeader,
+                                    total = group.total,
+                                    expanded = expanded,
+                                    onToggle = { sections.toggle(monthHeader) }
+                                )
+                            }
+                            if (expanded) {
+                                items(spends, key = { it.uuid }) { spend ->
+                                    SwipeableLogCard(
                                         onEdit = { onEditSpend(spend) },
                                         onDelete = { spendToDelete = spend },
-                                        onClick = {
-                                            selectedSpendForDetails = spend
-                                            if (spend.noteUuid.isNotBlank()) {
-                                                onOpenNote(spend.noteUuid)
+                                        modifier = Modifier.animateItem()
+                                    ) {
+                                        HistorySpendCard(
+                                            spend = spend,
+                                            onEdit = { onEditSpend(spend) },
+                                            onDelete = { spendToDelete = spend },
+                                            onClick = {
+                                                selectedSpendForDetails = spend
+                                                if (spend.noteUuid.isNotBlank()) {
+                                                    onOpenNote(spend.noteUuid)
+                                                }
                                             }
-                                        }
-                                    )
+                                        )
+                                    }
                                 }
                             }
                         }
@@ -928,51 +951,62 @@ fun HistoryScreen(
                         .weight(1.1f)
                         .fillMaxSize()
                 ) {
-                    if (filteredHistory.isNotEmpty()) {
-                        FilterSummaryBar(total = filteredTotal)
-                        Spacer(modifier = Modifier.height(8.dp))
-                    }
-
-                    if (filteredHistory.isEmpty()) {
-                        EmptyHistoryState(modifier = Modifier.weight(1f))
+                    if (calendarState.showCalendar) {
+                        SpendCalendarView(
+                            spends = filteredHistory,
+                            state = calendarState,
+                            onEditSpend = onEditSpend,
+                            onDeleteSpend = { spendToDelete = it },
+                            onOpenNote = onOpenNote,
+                            modifier = Modifier.weight(1f)
+                        )
                     } else {
-                        LazyColumn(
-                            modifier = Modifier.weight(1f),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            contentPadding = PaddingValues(bottom = 120.dp)
-                        ) {
-                            groupedHistory.forEach { group ->
-                                val monthHeader = group.monthHeader
-                                val spends = group.spends
-                                val expanded = sections.isExpanded(monthHeader)
-                                item(key = "header-$monthHeader") {
-                                    MonthHeader(
-                                        month = monthHeader,
-                                        total = group.total,
-                                        expanded = expanded,
-                                        onToggle = { sections.toggle(monthHeader) }
-                                    )
-                                }
-                                if (expanded) {
-                                    items(spends, key = { it.uuid }) { spend ->
-                                        val isSelected = selectedSpendForDetails?.uuid == spend.uuid
-                                        SwipeableLogCard(
-                                            onEdit = { onEditSpend(spend) },
-                                            onDelete = { spendToDelete = spend },
-                                            modifier = Modifier.animateItem()
-                                        ) {
-                                            HistorySpendCard(
-                                                spend = spend,
+                        if (filteredHistory.isNotEmpty()) {
+                            FilterSummaryBar(total = filteredTotal)
+                            Spacer(modifier = Modifier.height(8.dp))
+                        }
+
+                        if (filteredHistory.isEmpty()) {
+                            EmptyHistoryState(modifier = Modifier.weight(1f))
+                        } else {
+                            LazyColumn(
+                                modifier = Modifier.weight(1f),
+                                verticalArrangement = Arrangement.spacedBy(8.dp),
+                                contentPadding = PaddingValues(bottom = 120.dp)
+                            ) {
+                                groupedHistory.forEach { group ->
+                                    val monthHeader = group.monthHeader
+                                    val spends = group.spends
+                                    val expanded = sections.isExpanded(monthHeader)
+                                    item(key = "header-$monthHeader") {
+                                        MonthHeader(
+                                            month = monthHeader,
+                                            total = group.total,
+                                            expanded = expanded,
+                                            onToggle = { sections.toggle(monthHeader) }
+                                        )
+                                    }
+                                    if (expanded) {
+                                        items(spends, key = { it.uuid }) { spend ->
+                                            val isSelected = selectedSpendForDetails?.uuid == spend.uuid
+                                            SwipeableLogCard(
                                                 onEdit = { onEditSpend(spend) },
                                                 onDelete = { spendToDelete = spend },
-                                                selected = isSelected,
-                                                onClick = {
-                                                    selectedSpendForDetails = spend
-                                                    if (spend.noteUuid.isNotBlank()) {
-                                                        onOpenNote(spend.noteUuid)
+                                                modifier = Modifier.animateItem()
+                                            ) {
+                                                HistorySpendCard(
+                                                    spend = spend,
+                                                    onEdit = { onEditSpend(spend) },
+                                                    onDelete = { spendToDelete = spend },
+                                                    selected = isSelected,
+                                                    onClick = {
+                                                        selectedSpendForDetails = spend
+                                                        if (spend.noteUuid.isNotBlank()) {
+                                                            onOpenNote(spend.noteUuid)
+                                                        }
                                                     }
-                                                }
-                                            )
+                                                )
+                                            }
                                         }
                                     }
                                 }

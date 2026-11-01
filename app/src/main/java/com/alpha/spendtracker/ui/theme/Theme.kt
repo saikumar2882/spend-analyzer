@@ -4,12 +4,8 @@
 package com.alpha.spendtracker.ui.theme
 
 import android.app.Activity
-import android.os.Build
-import androidx.compose.foundation.isSystemInDarkTheme
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.darkColorScheme
-import androidx.compose.material3.dynamicDarkColorScheme
-import androidx.compose.material3.dynamicLightColorScheme
 import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
@@ -119,27 +115,7 @@ fun MyApplicationTheme(
     val context = LocalContext.current
     val colorScheme = when (themePreference) {
         ThemePreference.SYSTEM -> {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
-                if (darkTheme) {
-                    val dynamicDark = dynamicDarkColorScheme(context)
-                    dynamicDark.copy(
-                        surfaceContainerLowest = dynamicDark.background,
-                        surfaceContainerLow = dynamicDark.background,
-                        surfaceContainer = dynamicDark.background,
-                        surface = dynamicDark.background
-                    )
-                } else {
-                    val dynamicLight = dynamicLightColorScheme(context)
-                    dynamicLight.copy(
-                        surfaceContainerLowest = dynamicLight.background,
-                        surfaceContainerLow = dynamicLight.background,
-                        surfaceContainer = dynamicLight.background,
-                        surface = dynamicLight.background
-                    )
-                }
-            } else {
-                if (darkTheme) DarkColorScheme else LightColorScheme
-            }
+            if (darkTheme) DarkColorScheme else LightColorScheme
         }
         ThemePreference.LIGHT -> LightColorScheme
         ThemePreference.DARK -> DarkColorScheme
@@ -149,12 +125,12 @@ fun MyApplicationTheme(
                 background = oledBlackColor,
                 surface = oledBlackColor,
                 surfaceDim = oledBlackColor,
-                surfaceBright = Color(0xFF0D0D0D),
+                surfaceBright = Color(0xFF0C0C0E),
                 surfaceContainerLowest = oledBlackColor,
                 surfaceContainerLow = oledBlackColor,
                 surfaceContainer = oledBlackColor,
-                surfaceContainerHigh = Color(0xFF121212),
-                surfaceContainerHighest = Color(0xFF181818),
+                surfaceContainerHigh = Color(0xFF121215),
+                surfaceContainerHighest = Color(0xFF18181B),
                 scrim = oledBlackColor
             )
         }
@@ -163,7 +139,7 @@ fun MyApplicationTheme(
     val view = LocalView.current
     if (!view.isInEditMode) {
         SideEffect {
-            val window = (view.context as? Activity)?.window ?: return@SideEffect
+            val window = (context as? Activity)?.window ?: (view.context as? Activity)?.window ?: return@SideEffect
             WindowCompat.getInsetsController(window, view).apply {
                 isAppearanceLightStatusBars = !darkTheme
                 isAppearanceLightNavigationBars = !darkTheme

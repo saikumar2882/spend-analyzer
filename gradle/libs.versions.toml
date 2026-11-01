@@ -41,11 +41,13 @@ playCore = "2.1.0"
 playServicesAuth = "21.6.0"
 mlkitTranslate = "17.0.3"
 playServicesMlkitTextRecognition = "19.0.1"
+mlkitGenaiPrompt = "1.0.0-beta5"
 appfunctions = "1.0.0-alpha09"
 splashScreen = "1.0.1"
 
 [libraries]
 mlkit-translate = { group = "com.google.mlkit", name = "translate", version.ref = "mlkitTranslate" }
+mlkit-genai-prompt = { group = "com.google.mlkit", name = "genai-prompt", version.ref = "mlkitGenaiPrompt" }
 mlkit-text-recognition = { group = "com.google.android.gms", name = "play-services-mlkit-text-recognition", version.ref = "playServicesMlkitTextRecognition" }
 androidx-appfunctions = { group = "androidx.appfunctions", name = "appfunctions", version.ref = "appfunctions" }
 androidx-appfunctions-service = { group = "androidx.appfunctions", name = "appfunctions-service", version.ref = "appfunctions" }

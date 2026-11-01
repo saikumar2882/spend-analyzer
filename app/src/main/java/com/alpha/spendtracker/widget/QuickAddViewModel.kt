@@ -7,6 +7,7 @@ import androidx.lifecycle.viewModelScope
 import com.alpha.spendtracker.data.AiParser
 import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.data.AiPreferencesRepository
+import com.alpha.spendtracker.data.AiPurposes
 import com.alpha.spendtracker.data.AiTransactionProcessor
 import com.alpha.spendtracker.data.SharedPaymentText
 import com.alpha.spendtracker.data.Spend
@@ -94,7 +95,7 @@ class QuickAddViewModel @Inject constructor(
 
                         val savedSpends = mutableListOf<NewSpend>()
                         validResponses.forEach { resp ->
-                            val newSpend = resp.toNewSpend(defaultApp, defaultPurpose, now)
+                            val newSpend = resp.toNewSpend(defaultApp, defaultPurpose, now, prefs.customPresets)
                             val spend = Spend(
                                 uuid = java.util.UUID.randomUUID().toString(),
                                 userId = userId,
@@ -144,12 +145,15 @@ class QuickAddViewModel @Inject constructor(
         parseJob = viewModelScope.launch {
             val prefs = aiPreferences.value
             val result = processor.parse(text, prefs, allowMultiple = false).getOrNull()?.firstOrNull()
-                ?: AiParser.parseToBaseline(text, prefs.defaultApp, prefs.defaultPurpose)
+                ?: AiParser.parseToBaseline(text, prefs.defaultApp, prefs.defaultPurpose, prefs.customPresets)
                     .takeIf { it.amount != null }
+                    // The baseline's purpose is keyword-inferred or the user's saved default, which may be a
+                    // legacy twin ("Food & Drinks") or "Others"; the processor canonicalises model output the same way.
+                    ?.let { it.copy(purpose = AiPurposes.normalizePurpose(it.purpose, custom = prefs.customPresets)) }
             if (result != null && (result.amount ?: 0.0) > 0.0) {
                 val userId = FirebaseAuth.getInstance().currentUser?.uid.orEmpty()
                 val currency = prefs.defaultCurrency.ifBlank { "₹" }
-                val newSpend = result.toNewSpend(prefs.defaultApp, prefs.defaultPurpose)
+                val newSpend = result.toNewSpend(prefs.defaultApp, prefs.defaultPurpose, custom = prefs.customPresets)
                 val spend = Spend(
                     uuid = java.util.UUID.randomUUID().toString(),
                     userId = userId,

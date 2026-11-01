@@ -51,7 +51,9 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.rounded.CallMade
 import androidx.compose.material.icons.automirrored.rounded.CallReceived
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.AutoAwesome
+import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.DirectionsCar
 import androidx.compose.material.icons.rounded.Favorite
@@ -78,6 +80,10 @@ import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import androidx.compose.ui.res.stringResource
+import com.alpha.spendtracker.R
+import com.alpha.spendtracker.data.AiPurposes
+import com.alpha.spendtracker.data.CustomPresets
 import com.alpha.spendtracker.ui.theme.isAppInDarkTheme
 import com.alpha.spendtracker.ui.theme.rememberPressScale
 
@@ -144,9 +150,23 @@ fun findCategoryPresetItem(name: String): CategoryPresetItem {
     } ?: ALL_CATEGORY_GRID_ITEMS.last()
 }
 
-fun getOrderedCategoryGridItems(customOrder: List<String>): List<CategoryPresetItem> {
-    if (customOrder.isEmpty()) return ALL_CATEGORY_GRID_ITEMS
-    val itemMap = ALL_CATEGORY_GRID_ITEMS.associateBy { it.canonicalName }
+/**
+ * A category the user added, as a grid tile: one generic icon and the colour the charts already
+ * derive for any unmapped name, so a category looks the same in the picker and in the analytics.
+ */
+fun customCategoryItem(name: String): CategoryPresetItem =
+    CategoryPresetItem(name, name, Icons.Rounded.Category, resolveCategoryColor(name, isDark = false), resolveCategoryColor(name, isDark = true))
+
+/** The built-in grid with the user's own categories in front of "Miscellaneous", which stays the catch-all at the end. */
+fun categoryGridItems(custom: CustomPresets = CustomPresets.EMPTY): List<CategoryPresetItem> {
+    if (custom.categories.isEmpty()) return ALL_CATEGORY_GRID_ITEMS
+    return ALL_CATEGORY_GRID_ITEMS.dropLast(1) + custom.categories.map { customCategoryItem(it) } + ALL_CATEGORY_GRID_ITEMS.last()
+}
+
+fun getOrderedCategoryGridItems(customOrder: List<String>, custom: CustomPresets = CustomPresets.EMPTY): List<CategoryPresetItem> {
+    val allItems = categoryGridItems(custom)
+    if (customOrder.isEmpty()) return allItems
+    val itemMap = allItems.associateBy { it.canonicalName }
     val orderedList = mutableListOf<CategoryPresetItem>()
     val visited = mutableSetOf<String>()
 
@@ -158,13 +178,30 @@ fun getOrderedCategoryGridItems(customOrder: List<String>): List<CategoryPresetI
         }
     }
 
-    for (item in ALL_CATEGORY_GRID_ITEMS) {
+    for (item in allItems) {
         if (visited.add(item.canonicalName)) {
             orderedList.add(item)
         }
     }
 
     return orderedList
+}
+
+/**
+ * [items] plus a tile for [stored] when none of them stands for it: a legacy twin ("Food & Drinks",
+ * "Fuel", "Others") or a custom category the user has since removed. Editing an old record then
+ * shows its purpose selected, and saving keeps it, instead of a grid with nothing picked. The tile
+ * goes last and only ever comes from a value that is already stored, so the picker never offers a
+ * legacy name for a new entry.
+ */
+fun withStoredCategory(items: List<CategoryPresetItem>, stored: String?): List<CategoryPresetItem> {
+    val name = stored?.trim().orEmpty()
+    if (name.isEmpty() || items.any { isCategorySelected(name, it) }) return items
+    // A legacy twin borrows its canonical sibling's icon and colour; anything else reads as a custom category.
+    val sibling = AiPurposes.canonicalOrNull(name)?.let { canonical ->
+        ALL_CATEGORY_GRID_ITEMS.firstOrNull { it.canonicalName == canonical }
+    }
+    return items + (sibling?.copy(canonicalName = name, displayName = name) ?: customCategoryItem(name))
 }
 
 /**
@@ -176,7 +213,10 @@ fun CategorySelectionGrid(
     onCategorySelected: (String) -> Unit,
     modifier: Modifier = Modifier,
     items: List<CategoryPresetItem> = ALL_CATEGORY_GRID_ITEMS,
-    columns: Int = 4
+    columns: Int = 4,
+    /** When set, a final "Add new" tile calls this; the caller then asks for the new name. */
+    onAddNew: (() -> Unit)? = null,
+    addNewSelected: Boolean = false
 ) {
     LazyVerticalGrid(
         columns = GridCells.Fixed(columns),
@@ -185,12 +225,21 @@ fun CategorySelectionGrid(
         verticalArrangement = Arrangement.spacedBy(10.dp)
     ) {
         items(items, key = { it.canonicalName }) { item ->
-            val isSelected = isCategorySelected(selectedCategory, item)
+            val isSelected = !addNewSelected && isCategorySelected(selectedCategory, item)
             CategoryGridTile(
                 item = item,
                 isSelected = isSelected,
                 onClick = { onCategorySelected(item.canonicalName) }
             )
+        }
+        if (onAddNew != null) {
+            // "|" can't appear in a saved name (CustomPresets.cleanName strips it), so this key can't clash with a category.
+            item(key = "|add_new") {
+                val primary = MaterialTheme.colorScheme.primary
+                val label = stringResource(R.string.category_add_new)
+                val addItem = remember(label, primary) { CategoryPresetItem("|add_new", label, Icons.Rounded.Add, primary, primary) }
+                CategoryGridTile(item = addItem, isSelected = addNewSelected, onClick = onAddNew)
+            }
         }
     }
 }
@@ -276,9 +325,13 @@ private fun CategoryGridTile(
 @Composable
 fun CategoryDropdownItemContent(
     categoryName: String,
-    modifier: Modifier = Modifier
+    modifier: Modifier = Modifier,
+    /** The user's own categories; checked first, because the fuzzy built-in match would rename "Pet Grooming" to "Pets". */
+    customCategories: List<String> = emptyList()
 ) {
-    val item = findCategoryPresetItem(categoryName)
+    val item = customCategories.firstOrNull { it.equals(categoryName, ignoreCase = true) }
+        ?.let { customCategoryItem(it) }
+        ?: findCategoryPresetItem(categoryName)
     val categoryColor = item.getColor()
     val isDark = isAppInDarkTheme
 

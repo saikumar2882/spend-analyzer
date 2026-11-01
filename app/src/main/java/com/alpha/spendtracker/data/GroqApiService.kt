@@ -46,13 +46,27 @@ data class GroqRequest(
 
 data class GroqMessage(
     val role: String,
-    val content: String,
+    /**
+     * Always set on requests. Nullable because a reasoning model that runs out of
+     * `max_completion_tokens` mid-thought can answer `"content": null`; with a non-null Kotlin
+     * type Moshi throws on that instead of letting the client see an empty, truncated reply.
+     */
+    val content: String?,
     /** Only ever populated on responses; omitted from requests (Moshi skips nulls). */
     val reasoning: String? = null
 )
 
 data class GroqResponseFormat(
-    val type: String = "json_object"
+    /** "json_object" (any valid JSON) or "json_schema" (constrained to [json_schema]). */
+    val type: String = "json_object",
+    /** Only set for `type = "json_schema"`; Moshi omits it otherwise. */
+    val json_schema: GroqJsonSchema? = null
+)
+
+data class GroqJsonSchema(
+    val name: String,
+    val schema: Map<String, Any>,
+    val strict: Boolean = true
 )
 
 data class GroqResponse(

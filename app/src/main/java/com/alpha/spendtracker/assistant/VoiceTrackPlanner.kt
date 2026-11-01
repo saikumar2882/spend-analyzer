@@ -1,6 +1,7 @@
 package com.alpha.spendtracker.assistant
 
 import com.alpha.spendtracker.data.AiTransactionResponse
+import com.alpha.spendtracker.data.CustomPresets
 import com.alpha.spendtracker.ui.components.toDraft
 import com.alpha.spendtracker.ui.components.toNewSpend
 import com.alpha.spendtracker.ui.viewmodel.SpendDraft
@@ -27,6 +28,8 @@ object VoiceTrackPlanner {
         defaultApp: String,
         defaultPurpose: String,
         now: Long = System.currentTimeMillis(),
+        // Before newUuid: callers pass newUuid as a trailing lambda, which binds to the last parameter.
+        custom: CustomPresets = CustomPresets.EMPTY,
         newUuid: () -> String = { UUID.randomUUID().toString() }
     ): Plan {
         if (results.isEmpty() || results.any { (it.amount ?: 0.0) <= 0.0 || it.needsAmount }) {
@@ -41,7 +44,7 @@ object VoiceTrackPlanner {
         if (results.any { it.usedFallback }) {
             return Plan.Review(Reason.UNSURE)
         }
-        return Plan.Save(results.map { it.toNewSpend(defaultApp, defaultPurpose, now).toDraft(newUuid()) })
+        return Plan.Save(results.map { it.toNewSpend(defaultApp, defaultPurpose, now, custom).toDraft(newUuid()) })
     }
 
     private fun AiTransactionResponse.isDues() =

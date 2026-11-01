@@ -33,7 +33,7 @@ import com.alpha.spendtracker.R
 private object AdaptiveWidgetColors {
     val barBackground = ColorProvider(
         day = Color(0xFFF1EFF9),
-        night = Color(0xFF252A38)
+        night = Color(0xFF18181B)
     )
     val text = ColorProvider(
         day = Color(0xFF191A23),
@@ -41,7 +41,7 @@ private object AdaptiveWidgetColors {
     )
     val iconTint = ColorProvider(
         day = Color(0xFF5D45E8),
-        night = Color(0xFF9D8BFF)
+        night = Color(0xFFF4F4F5)
     )
 }
 

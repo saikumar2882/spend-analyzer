@@ -21,6 +21,7 @@ import okhttp3.OkHttpClient
 import okhttp3.logging.HttpLoggingInterceptor
 import retrofit2.Retrofit
 import retrofit2.converter.moshi.MoshiConverterFactory
+import java.util.concurrent.TimeUnit
 import javax.inject.Singleton
 
 @Module
@@ -48,6 +49,12 @@ object AppModule {
         }
         return OkHttpClient.Builder()
             .addInterceptor(logging)
+            // OkHttp's 10s default read timeout is shorter than a long non-streaming completion:
+            // a per-person history breakdown on gpt-oss-120b (4096-token ceiling, reasoning
+            // included) can take longer under load. A timeout there is classified as a network
+            // error, retried and failed over, which hides the real cause and wastes the quota.
+            .readTimeout(30, TimeUnit.SECONDS)
+            .callTimeout(60, TimeUnit.SECONDS)
             .build()
     }
 

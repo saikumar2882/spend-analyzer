@@ -22,6 +22,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import com.alpha.spendtracker.R
+import com.alpha.spendtracker.data.CustomPresets
 import com.alpha.spendtracker.data.AiTransactionResponse
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.screens.NewSpend
@@ -49,7 +50,10 @@ fun AiBatchConfirmationScreen(
     onLearnCorrection: (notes: String, app: String?, purpose: String?) -> Unit = { _, _, _ -> },
     defaultApp: String = "Google Pay",
     defaultPurpose: String = "Others",
-    currencySymbol: String = "₹"
+    currencySymbol: String = "₹",
+    customPresets: CustomPresets = CustomPresets.EMPTY,
+    onAddCustomApp: (String) -> Unit = {},
+    onAddCustomCategory: (String) -> Unit = {}
 ) {
     val logs = remember(extracted) {
         extracted.mapIndexed { index, response -> BatchLog(index, response) }.toMutableStateList()
@@ -73,7 +77,10 @@ fun AiBatchConfirmationScreen(
             onLearnCorrection = onLearnCorrection,
             defaultApp = defaultApp,
             defaultPurpose = defaultPurpose,
-            currencySymbol = currencySymbol
+            currencySymbol = currencySymbol,
+            customPresets = customPresets,
+            onAddCustomApp = onAddCustomApp,
+            onAddCustomCategory = onAddCustomCategory
         )
         return
     }
@@ -82,7 +89,7 @@ fun AiBatchConfirmationScreen(
 
     // One clock reading for the whole list, so a log with no stated date doesn't tick.
     val now = remember(extracted) { System.currentTimeMillis() }
-    val spends = logs.map { it to it.response.toNewSpend(defaultApp, defaultPurpose, now) }
+    val spends = logs.map { it to it.response.toNewSpend(defaultApp, defaultPurpose, now, customPresets) }
     val total = spends.sumOf { it.second.amount }
     val canSave = spends.isNotEmpty() && spends.all { it.second.isSavable() }
     val locale = LocalConfiguration.current.locales[0]

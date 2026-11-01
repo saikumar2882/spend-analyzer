@@ -365,7 +365,9 @@ private fun PurposeDropdown(
             colors = cleanTextFieldColors
         )
         ExposedDropdownMenu(expanded = expanded, onDismissRequest = { expanded = false }) {
-            PURPOSE_PRESETS.forEach { p ->
+            // Canonical only: PURPOSE_PRESETS also carries every legacy twin, so the list showed
+            // "Food & Drinks" next to "Food & Dining". A bill's stored legacy value still shows in `selected`.
+            CANONICAL_PURPOSES.forEach { p ->
                 DropdownMenuItem(
                     text = { CategoryDropdownItemContent(p) },
                     onClick = { onSelect(p); expanded = false }

@@ -93,7 +93,7 @@ object AiParser {
             "membership", "hotstar", "jio cinema", "disney"
         ),
         "Entertainment" to listOf(
-            "movie", "movies", "bookmyshow", "concert", "game", "gaming", "gym", "fitness", "yoga"
+            "movie", "movies", "bookmyshow", "concert", "game", "gaming"
         ),
         "Healthcare" to listOf(
             "medicine", "medicines", "doctor", "hospital", "clinic", "pharmacy",
@@ -106,7 +106,7 @@ object AiParser {
             "credit card", "emi", "loan payment"
         ),
         "Investments" to listOf(
-            "investment", "investments", "savings", "stocks", "stock", "mutual fund",
+            "investment", "investments", "stocks", "stock", "mutual fund",
             "mutual funds", "sip", "shares", "fd", "fixed deposit", "crypto"
         ),
         "Lending" to listOf(
@@ -115,10 +115,66 @@ object AiParser {
         "Borrowing" to listOf(
             "borrowed", "borrowed from", "owed", "owe", "took from", "took loan", "took cash"
         ),
+        // Savings through Work Expenses sit before Miscellaneous so the catch-all stays last and
+        // loses every tie. Cue words follow AiPrompt.PURPOSE_HINTS, minus the ones too ambiguous
+        // to act on without a model ("classes", "course" alone would still be Education).
+        "Savings" to listOf(
+            "savings", "saving", "emergency fund", "recurring deposit", "piggy bank"
+        ),
+        "Personal Care" to listOf(
+            "personal care", "salon", "haircut", "spa", "grooming", "skincare", "barber",
+            "parlour", "parlor", "facial", "manicure", "pedicure", "waxing", "shampoo", "beauty"
+        ),
+        "Education" to listOf(
+            "education", "tuition", "school", "school fees", "college", "college fees", "course",
+            "books", "textbook", "notebook", "stationery", "exam", "exam fee", "coaching",
+            "udemy", "coursera"
+        ),
+        "Insurance & Taxes" to listOf(
+            "insurance", "health insurance", "premium", "tax", "income tax", "gst", "itr", "tds", "lic"
+        ),
+        "Gifts & Donations" to listOf(
+            "gift", "donation", "donate", "charity", "temple", "festival", "puja", "diwali", "hundi"
+        ),
+        // "gym membership" is listed whole so it outscores the one "membership" hit in Subscriptions.
+        "Fitness" to listOf(
+            "gym", "gym membership", "fitness", "yoga", "sports", "trainer", "zumba", "crossfit",
+            "pilates", "swimming"
+        ),
+        // "dog food" / "pet food" likewise outscore the one "food" hit in Food & Dining.
+        "Pets" to listOf(
+            "pet", "pet food", "pet shop", "vet", "veterinary", "dog", "dog food", "cat", "cat food",
+            "puppy", "kitten"
+        ),
+        "Work Expenses" to listOf(
+            "office", "office supplies", "client meeting", "coworking", "co-working",
+            "work expense", "business expense"
+        ),
         "Miscellaneous" to listOf(
             "misc", "miscellaneous", "others", "other"
         )
     )
+
+    /** Keywords up to this long are the ones that hide inside unrelated words; see [keywordRegex]. */
+    private const val SHORT_KEYWORD = 4
+
+    /**
+     * [keyword] as a whole word, so a keyword can't fire from inside a longer word: "atta" in the
+     * Telugu "kattanu" (paid, not Groceries), "ola" in "chocolate", "lent" in "lentils", "tea" in
+     * "instead", "cat" in "education", "pet" in "petrol". A plural may follow ("taxis", "buses"); a
+     * keyword longer than [SHORT_KEYWORD] also takes a verb ending ("recharged", "donated"), which
+     * a short one can't safely ("tea"/"tead", "bus"/"bused"). The lookarounds are the same ones the
+     * app-alias table uses, not `\b`: `\b` is ASCII-only here and never fires beside Indic script,
+     * so a Latin keyword next to Telugu/Hindi text still matches and Indic letters still count as
+     * part of a word.
+     */
+    private fun keywordRegex(keyword: String): Regex {
+        val ending = if (keyword.length <= SHORT_KEYWORD) "(?:e?s)?" else "(?:e?s|e?d|ing)?"
+        return Regex("""(?<![\p{L}\p{M}])${Regex.escape(keyword)}$ending(?![\p{L}\p{M}])""")
+    }
+
+    private val PURPOSE_KEYWORD_PATTERNS: Map<String, List<Regex>> =
+        PURPOSE_KEYWORDS.mapValues { (_, keywords) -> keywords.map { keywordRegex(it) } }
 
     /**
      * Every individual word drawn from [PURPOSE_KEYWORDS] (multi-word phrases split into their
@@ -136,10 +192,34 @@ object AiParser {
             .toSet()
     }
 
-    fun findAppPreset(text: String): AppPreset? {
+    /**
+     * The app named in [text]. The user's own apps ([custom]) are checked first, longest name
+     * first: they are explicit, and "Zepto Cafe" must not be read as plain Zepto.
+     */
+    fun findAppPreset(text: String, custom: CustomPresets = CustomPresets.EMPTY): AppPreset? {
         val lower = text.lowercase()
+        custom.apps.sortedByDescending { it.length }
+            .firstOrNull { mentionsName(lower, it) }
+            ?.let { return CustomPresets.customAppPreset(it) }
         return SORTED_APP_ALIASES.firstOrNull { (_, regex) -> regex.containsMatchIn(lower) }?.first
     }
+
+    /** True when [lowerText] contains [name] as a whole word or phrase (Indic-script safe, like the alias table). */
+    internal fun mentionsName(lowerText: String, name: String): Boolean =
+        Regex("""(?<![\p{L}\p{M}])${Regex.escape(name.lowercase())}(?![\p{L}\p{M}])""").containsMatchIn(lowerText)
+
+    private val EXACT_APP_NAMES: Map<String, AppPreset> by lazy {
+        buildMap {
+            APP_PRESETS.filter { it.id != "other" }.forEach { put(CustomPresets.key(it.displayName), it) }
+            APP_ALIASES.forEach { (id, aliases) ->
+                val preset = APP_PRESETS.firstOrNull { it.id == id } ?: return@forEach
+                aliases.forEach { putIfAbsent(CustomPresets.key(it), preset) }
+            }
+        }
+    }
+
+    /** The built-in app whose name or alias is exactly [name] (not merely contained in it), or null. */
+    internal fun appByExactName(name: String): AppPreset? = EXACT_APP_NAMES[CustomPresets.key(name)]
 
     /** True when [preset] is named in [text] under any known alias. */
     fun mentionsApp(text: String, preset: AppPreset): Boolean {
@@ -147,23 +227,32 @@ object AiParser {
         return SORTED_APP_ALIASES.any { (p, regex) -> p.id == preset.id && regex.containsMatchIn(lower) }
     }
 
-    fun inferPurpose(text: String): String? {
+    fun inferPurpose(text: String, custom: CustomPresets = CustomPresets.EMPTY): String? {
         val lower = text.lowercase()
-        val scored = PURPOSE_KEYWORDS.mapValues { (_, keywords) ->
-            keywords.count { kw -> lower.contains(kw) }
+        val scored = PURPOSE_KEYWORD_PATTERNS.mapValues { (_, patterns) ->
+            patterns.count { it.containsMatchIn(lower) }
         }.filterValues { it > 0 }
         // "lent 500 to rahul for lunch" is a loan, not food: the lend/borrow verb decides the type.
         scored.keys.firstOrNull { it == "Lending" || it == "Borrowing" }?.let { return it }
+        // A category the user created and then named in the sentence is as explicit as it gets.
+        custom.categories.sortedByDescending { it.length }
+            .firstOrNull { mentionsName(lower, it) }
+            ?.let { return it }
         return scored.maxByOrNull { it.value }?.key
     }
 
     /**
      * Runs all local heuristic parsers and bundles them into a baseline response.
      */
-    fun parseToBaseline(text: String, defaultApp: String, defaultPurpose: String): AiTransactionResponse {
+    fun parseToBaseline(
+        text: String,
+        defaultApp: String,
+        defaultPurpose: String,
+        custom: CustomPresets = CustomPresets.EMPTY
+    ): AiTransactionResponse {
         val amount = extractAmount(text)
-        val appPreset = findAppPreset(text)
-        val purpose = inferPurpose(text) ?: defaultPurpose
+        val appPreset = findAppPreset(text, custom)
+        val purpose = inferPurpose(text, custom) ?: defaultPurpose
         val description = extractDescription(text)
         val timestamp = extractTimestamp(text)
         val isLendBorrow = purpose == "Lending" || purpose == "Borrowing"
@@ -247,8 +336,11 @@ object AiParser {
             Regex("""(?:₹|rs\.?|inr|rupees?)\s*(\d+(?:[,.]?\d+)*)"""),
             // 300 ₹ / 300 rs / 300 rupees
             Regex("""(\d+(?:[,.]?\d+)*)\s*(?:₹|rs\.?|inr|rupees?)"""),
-            // Standalone number (last resort)
-            Regex("""(?<![\w.])(\d+(?:\.\d+)?)(?![\w.])""")
+            // Standalone number (last resort). "1,299" and "1,50,000" are one number each, not "1".
+            // A comma groups only when a full group follows, so "tea 20,30" is not 2030. The group is
+            // atomic: if what follows then rejects it ("1,299." — a full stop still hides a figure, as
+            // for "300."), the match must not shrink to "1".
+            Regex("""(?<![\w.])((?>(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})+,\d{3}|\d+)(?:\.\d+)?))(?![\w.])""")
         )
 
         for ((idx, regex) in patterns.withIndex()) {
@@ -542,9 +634,9 @@ object AiParser {
     /**
      * Normalize a free-form app name from the LLM to a known preset (or null).
      */
-    fun normalizeAppToPreset(raw: String?): AppPreset? {
+    fun normalizeAppToPreset(raw: String?, custom: CustomPresets = CustomPresets.EMPTY): AppPreset? {
         if (raw.isNullOrBlank()) return null
-        return findAppPreset(raw)
+        return findAppPreset(raw, custom)
             ?: APP_PRESETS.firstOrNull { it.displayName.equals(raw.trim(), ignoreCase = true) }
     }
 }

@@ -30,6 +30,7 @@ import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import coil.compose.SubcomposeAsyncImage
+import com.alpha.spendtracker.data.CustomPresets
 import com.alpha.spendtracker.ui.theme.isAppInDarkTheme
 import coil.request.ImageRequest
 import com.alpha.spendtracker.util.activeAppLocale
@@ -70,9 +71,11 @@ val APP_PRESETS = listOf(
 
 val APP_COLOR_BY_NAME: Map<String, Color> = APP_PRESETS.associate { it.displayName to it.color }
 
-fun getOrderedAppPresets(customOrder: List<String>): List<AppPreset> {
-    if (customOrder.isEmpty()) return APP_PRESETS
-    val presetMap = APP_PRESETS.associateBy { it.id }
+/** The app row in the user's order; [custom] apps are included (before "Other Platform" until reordered). */
+fun getOrderedAppPresets(customOrder: List<String>, custom: CustomPresets = CustomPresets.EMPTY): List<AppPreset> {
+    val allPresets = custom.allAppPresets()
+    if (customOrder.isEmpty()) return allPresets
+    val presetMap = allPresets.associateBy { it.id }
     val orderedList = mutableListOf<AppPreset>()
     val visited = mutableSetOf<String>()
 
@@ -84,7 +87,7 @@ fun getOrderedAppPresets(customOrder: List<String>): List<AppPreset> {
         }
     }
 
-    for (preset in APP_PRESETS) {
+    for (preset in allPresets) {
         if (visited.add(preset.id)) {
             orderedList.add(preset)
         }
@@ -129,6 +132,43 @@ val PURPOSE_PRESETS = listOf(
     "Personal Care",
     "Education",
     "Entertainment",
+    "Insurance & Taxes",
+    "Gifts & Donations",
+    "Fitness",
+    "Pets",
+    "Work Expenses",
+    "Miscellaneous"
+)
+
+/**
+ * The purposes the AI Track parser may write: the category grid's taxonomy
+ * (`ALL_CATEGORY_GRID_ITEMS`, same order), which is what the taxonomy refresh settled on.
+ *
+ * ⚠️ A strict subset of [PURPOSE_PRESETS] on purpose, so the confirmation screen's picker can
+ * always show whatever the parser produced. [PURPOSE_PRESETS] still carries the legacy twins
+ * ("Food & Drinks", "Travel & Commute", "Rent & Utilities", "Fuel", …) because existing records
+ * and saved defaults use them and must keep rendering — never delete those. New AI output must not
+ * use them: the prompt, the response schema and `AiPurposes.normalizePurpose` all work from this
+ * list, so two spellings of one bucket can no longer split the analytics.
+ */
+val CANONICAL_PURPOSES = listOf(
+    "Food & Dining",
+    "Groceries",
+    "Housing",
+    "Commute",
+    "Lending",
+    "Borrowing",
+    "Shopping",
+    "Bills & Utilities",
+    "EMIs & Cards",
+    "Investments",
+    "Savings",
+    "Subscriptions",
+    "Healthcare",
+    "Personal Care",
+    "Education",
+    "Entertainment",
+    "Travel",
     "Insurance & Taxes",
     "Gifts & Donations",
     "Fitness",
@@ -231,6 +271,16 @@ private val TELUGU_PRESET_MAP = mapOf(
     "Health" to "ఆరోగ్యం",
     "Investment" to "పెట్టుబడి",
     "Investments" to "పెట్టుబడులు",
+    "Savings" to "పొదుపు",
+    "Personal Care" to "పర్సనల్ కేర్",
+    "Education" to "విద్య",
+    "Insurance & Taxes" to "బీమా & పన్నులు",
+    "Gifts & Donations" to "బహుమతులు & విరాళాలు",
+    // ‌ keeps ట్ and నె from fusing into a conjunct, as in the other loanwords here.
+    "Fitness" to "ఫిట్‌నెస్",
+    "Pets" to "పెంపుడు జంతువులు",
+    "Work Expenses" to "పని ఖర్చులు",
+    "Miscellaneous" to "వివిధ",
     "Others" to "ఇతరములు",
 
     // Frequencies
@@ -311,7 +361,7 @@ private val HINDI_PRESET_MAP = mapOf(
     // Purposes & Display Names
     "Groceries & Food" to "किराना और भोजन",
     "Food & Drinks" to "भोजन और पेय",
-    "Food & Dining" to "भोजन और भोजन",
+    "Food & Dining" to "खान-पान",
     "Groceries" to "किराना",
     "Housing" to "आवास",
     "Shopping & Apparels" to "खरीदारी और कपड़े",
@@ -335,6 +385,15 @@ private val HINDI_PRESET_MAP = mapOf(
     "Health" to "स्वास्थ्य",
     "Investment" to "निवेश",
     "Investments" to "निवेश",
+    "Savings" to "बचत",
+    "Personal Care" to "पर्सनल केयर",
+    "Education" to "शिक्षा",
+    "Insurance & Taxes" to "बीमा और कर",
+    "Gifts & Donations" to "उपहार और दान",
+    "Fitness" to "फिटनेस",
+    "Pets" to "पालतू जानवर",
+    "Work Expenses" to "काम के खर्च",
+    "Miscellaneous" to "विविध",
     "Others" to "अन्य",
 
     // Frequencies
@@ -345,11 +404,13 @@ private val HINDI_PRESET_MAP = mapOf(
     "Yearly" to "वार्षिक"
 )
 
-fun getLocalizedPresetName(text: String): String {
+fun getLocalizedPresetName(text: String): String = localizedPresetName(text, activeAppLocale.language)
+
+/** [getLocalizedPresetName] for an explicit language code, so the tables can be unit-tested off-device. */
+internal fun localizedPresetName(text: String, language: String): String {
     if (text.isBlank()) return text
-    val locale = activeAppLocale
     val trimmed = text.trim()
-    return when (locale.language) {
+    return when (language) {
         "te" -> TELUGU_PRESET_MAP[trimmed]
             ?: TELUGU_PRESET_MAP.entries.firstOrNull { it.key.equals(trimmed, ignoreCase = true) }?.value
             ?: text

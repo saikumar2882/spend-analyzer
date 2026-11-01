@@ -105,6 +105,15 @@
     <string name="history_expand_month">इस महीने के लेनदेन दिखाएँ</string>
     <string name="history_collapse_month">इस महीने के लेनदेन छिपाएँ</string>
     <string name="total_spend">कुल खर्च</string>
+    <string name="history_show_calendar">कैलेंडर दिखाएँ</string>
+    <string name="history_show_list">सूची दिखाएँ</string>
+    <string name="calendar_prev_month">पिछला महीना</string>
+    <string name="calendar_next_month">अगला महीना</string>
+    <string name="calendar_month_summary">%1$s · %3$d में से %2$d दिन खर्च</string>
+    <string name="calendar_empty_month">इस महीने कुछ दर्ज नहीं है</string>
+    <string name="calendar_day_description">%1$d तारीख, %2$s खर्च</string>
+    <string name="calendar_amount_thousand">%1$sk</string>
+    <string name="calendar_amount_lakh">%1$sL</string>
 
     <!-- Notes Screen -->
     <string name="subtotal">उप-कुल</string>
@@ -468,7 +477,7 @@
     <string name="quick_filter_all">सभी</string>
     <string name="quick_filter_housing">आवास</string>
     <string name="quick_filter_groceries">किराना</string>
-    <string name="quick_filter_food">भोजन और भोजन</string>
+    <string name="quick_filter_food">खान-पान</string>
     <string name="quick_filter_shopping">शॉपिंग</string>
     <string name="quick_filter_commute">आवागमन</string>
     <string name="quick_filter_travel">यात्रा</string>
@@ -497,4 +506,20 @@
     <string name="reorder_categories_subtitle">अपनी पसंदीदा कैटेगरी को सबसे आगे रखें</string>
     <string name="reset_default">रीसेट करें</string>
     <string name="save_order">क्रम सेव करें</string>
+
+    <!-- Custom apps & categories -->
+    <string name="category_add_new">नया जोड़ें</string>
+    <string name="enter_category_name">श्रेणी का नाम दर्ज करें</string>
+    <string name="category_name_required">श्रेणी का नाम दर्ज करें</string>
+    <string name="saved_for_next_time">अगली बार के लिए सूची में सहेजा जाएगा</string>
+    <string name="remove_from_list">सूची से हटाएं</string>
+    <string name="custom_presets_title">ऐप और श्रेणियां</string>
+    <string name="custom_presets_subtitle">अपने खुद के जोड़ें - AI ट्रैक भी इन्हें इस्तेमाल करता है</string>
+    <string name="custom_presets_sheet_hint">खर्च दर्ज करते समय दिखते हैं। AI ट्रैक इन्हें आपकी एंट्री पहचानने में इस्तेमाल करता है।</string>
+    <string name="my_apps">मेरे ऐप</string>
+    <string name="my_categories">मेरी श्रेणियां</string>
+    <string name="custom_presets_add">जोड़ें</string>
+    <string name="custom_presets_none">अभी तक कुछ नहीं जोड़ा</string>
+    <string name="custom_name_exists">सूची में पहले से है</string>
+    <string name="custom_presets_full">सूची भरी है - पहले एक हटाएं</string>
 </resources>

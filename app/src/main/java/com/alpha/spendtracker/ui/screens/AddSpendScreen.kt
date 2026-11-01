@@ -82,17 +82,19 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
+import com.alpha.spendtracker.data.CustomPresets
 import com.alpha.spendtracker.data.Spend
 import com.alpha.spendtracker.ui.components.APP_PRESETS
 import com.alpha.spendtracker.ui.components.AppIconImage
 import com.alpha.spendtracker.ui.components.AppPreset
+import com.alpha.spendtracker.ui.components.CANONICAL_PURPOSES
 import com.alpha.spendtracker.ui.components.CategorySelectionGrid
 import com.alpha.spendtracker.ui.components.NotificationType
-import com.alpha.spendtracker.ui.components.PURPOSE_PRESETS
 import com.alpha.spendtracker.ui.components.PresetGridCard
 import com.alpha.spendtracker.ui.components.getLocalizedPresetName
 import com.alpha.spendtracker.ui.components.buildLendBorrowNotes
 import com.alpha.spendtracker.ui.components.parseLendBorrowNotes
+import com.alpha.spendtracker.ui.components.withStoredCategory
 import com.alpha.spendtracker.ui.theme.MyApplicationTheme
 import com.alpha.spendtracker.ui.theme.asMoney
 import com.alpha.spendtracker.ui.theme.rememberPressScale
@@ -123,12 +125,21 @@ fun AddSpendScreen(
     onSaveCategoryOrder: (List<String>) -> Unit = {},
     onResetAppOrder: () -> Unit = {},
     onResetCategoryOrder: () -> Unit = {},
+    customPresets: CustomPresets = CustomPresets.EMPTY,
+    onAddCustomApp: (String) -> Unit = {},
+    onAddCustomCategory: (String) -> Unit = {},
+    onRemoveCustomApp: (String) -> Unit = {},
+    onRemoveCustomCategory: (String) -> Unit = {},
     onDismiss: () -> Unit,
     onShowNotification: (String, NotificationType) -> Unit,
     onSave: (NewSpend) -> Unit
 ) {
-    val orderedAppPresets = remember(userAppOrder) { getOrderedAppPresets(userAppOrder) }
-    val orderedCategoryItems = remember(userCategoryOrder) { getOrderedCategoryGridItems(userCategoryOrder) }
+    val orderedAppPresets = remember(userAppOrder, customPresets) { getOrderedAppPresets(userAppOrder, customPresets) }
+    val orderedCategoryItems = remember(userCategoryOrder, customPresets) { getOrderedCategoryGridItems(userCategoryOrder, customPresets) }
+    // An old log can carry a purpose the grid no longer offers (a legacy twin, a removed custom category);
+    // the picker gets a tile for it so it shows selected, while the customize sheet keeps the plain list.
+    val storedPurpose = editingSpend?.purpose ?: prefilledSpend?.purpose
+    val pickerItems = remember(orderedCategoryItems, storedPurpose) { withStoredCategory(orderedCategoryItems, storedPurpose) }
 
     var showCustomizeAppsSheet by remember { mutableStateOf(false) }
     var showCustomizeCategoriesSheet by remember { mutableStateOf(false) }
@@ -150,7 +161,7 @@ fun AddSpendScreen(
     }
     var purposeInput by rememberSaveable { 
         mutableStateOf(
-            editingSpend?.purpose ?: prefilledSpend?.purpose ?: PURPOSE_PRESETS.first()
+            editingSpend?.purpose ?: prefilledSpend?.purpose ?: CANONICAL_PURPOSES.first()
         ) 
     }
 
@@ -179,7 +190,16 @@ fun AddSpendScreen(
         ) 
     }
 
-    val isLendBorrow = purposeInput.equals("Lending", ignoreCase = true) || purposeInput.equals("Borrowing", ignoreCase = true)
+    // "Add new" works like "Other Platform": pick it, type a name, and the name is saved to the list.
+    var addingCategory by rememberSaveable { mutableStateOf(false) }
+    var newCategoryInput by rememberSaveable { mutableStateOf("") }
+    val typedCategory = CustomPresets.cleanName(newCategoryInput)
+    // A typed name that already exists ("food", "Lending") means that category, so the person field follows suit.
+    val effectivePurpose = if (addingCategory && typedCategory.isNotBlank()) {
+        customPresets.resolveCategory(typedCategory) ?: typedCategory
+    } else purposeInput
+
+    val isLendBorrow = effectivePurpose.equals("Lending", ignoreCase = true) || effectivePurpose.equals("Borrowing", ignoreCase = true)
 
     LaunchedEffect(prefilledSpend) {
         if (prefilledSpend != null && editingSpend == null) {
@@ -194,17 +214,25 @@ fun AddSpendScreen(
 
     var amountError by remember { mutableStateOf<String?>(null) }
     var customAppError by remember { mutableStateOf<String?>(null) }
+    var categoryError by remember { mutableStateOf<String?>(null) }
+    val categoryRequiredMessage = stringResource(R.string.category_name_required)
 
     val snackbarHostState = remember { SnackbarHostState() }
     val coroutineScope = rememberCoroutineScope()
 
+    // Opening an existing log keeps its stored purpose: the app-based suggestions below are for when
+    // the user changes the app, not for the first composition (which would turn a Swiggy log saved
+    // as "Groceries" into "Food & Dining" just by opening it).
+    val openedPresetId = remember { selectedPreset.id }
     LaunchedEffect(selectedPreset) {
-        purposeInput = suggestedPurposeFor(selectedPreset, purposeInput)
+        val reopened = editingSpend != null && selectedPreset.id == openedPresetId && purposeInput == editingSpend.purpose
+        if (!reopened) purposeInput = suggestedPurposeFor(selectedPreset, purposeInput)
         if (selectedPreset.id != "other") customAppError = null
     }
 
     LaunchedEffect(customAppNameInput) {
-        if (selectedPreset.id == "other" && customAppNameInput.isNotBlank()) {
+        val reopened = editingSpend != null && customAppNameInput == editingSpend.appName
+        if (!reopened && selectedPreset.id == "other" && customAppNameInput.isNotBlank()) {
             AiParser.inferPurpose(customAppNameInput)?.let { inferred ->
                 purposeInput = inferred
             }
@@ -291,7 +319,7 @@ fun AddSpendScreen(
                     OutlinedTextField(
                         value = customAppNameInput,
                         onValueChange = {
-                            customAppNameInput = it
+                            customAppNameInput = it.take(CustomPresets.MAX_NAME_LENGTH)
                             customAppError = null
                         },
                         label = { Text(stringResource(R.string.enter_app_name)) },
@@ -307,7 +335,12 @@ fun AddSpendScreen(
                         } else null,
                         singleLine = true,
                         isError = customAppError != null,
-                        supportingText = customAppError?.let { msg -> { Text(msg) } },
+                        supportingText = when {
+                            customAppError != null -> ({ Text(customAppError.orEmpty()) })
+                            customAppNameInput.isNotBlank() && customPresets.resolveApp(customAppNameInput) == null ->
+                                ({ Text(stringResource(R.string.saved_for_next_time)) })
+                            else -> null
+                        },
                         modifier = Modifier.fillMaxWidth(),
                         shape = RoundedCornerShape(12.dp),
                         colors = OutlinedTextFieldDefaults.colors(
@@ -337,9 +370,39 @@ fun AddSpendScreen(
                     )
                     CategorySelectionGrid(
                         selectedCategory = purposeInput,
-                        onCategorySelected = { purposeInput = it },
-                        items = orderedCategoryItems
+                        onCategorySelected = {
+                            purposeInput = it
+                            addingCategory = false
+                            categoryError = null
+                        },
+                        items = pickerItems,
+                        onAddNew = { addingCategory = true },
+                        addNewSelected = addingCategory
                     )
+                    if (addingCategory) {
+                        OutlinedTextField(
+                            value = newCategoryInput,
+                            onValueChange = {
+                                newCategoryInput = it.take(CustomPresets.MAX_NAME_LENGTH)
+                                categoryError = null
+                            },
+                            label = { Text(stringResource(R.string.enter_category_name)) },
+                            singleLine = true,
+                            isError = categoryError != null,
+                            supportingText = when {
+                                categoryError != null -> ({ Text(categoryError.orEmpty()) })
+                                typedCategory.isNotBlank() && customPresets.resolveCategory(typedCategory) == null ->
+                                    ({ Text(stringResource(R.string.saved_for_next_time)) })
+                                else -> null
+                            },
+                            modifier = Modifier.fillMaxWidth(),
+                            shape = RoundedCornerShape(12.dp),
+                            colors = OutlinedTextFieldDefaults.colors(
+                                focusedBorderColor = MaterialTheme.colorScheme.primary,
+                                unfocusedBorderColor = MaterialTheme.colorScheme.outlineVariant.copy(alpha = 0.5f)
+                            )
+                        )
+                    }
                 }
             }
 
@@ -394,21 +457,34 @@ fun AddSpendScreen(
 
                         amountError = amtIssue
                         customAppError = null
+                        categoryError = null
 
                         if (amtIssue != null) {
                             coroutineScope.launch { snackbarHostState.showSnackbar(amtIssue) }
                             return@Button
                         }
+                        if (addingCategory && typedCategory.isBlank()) {
+                            categoryError = categoryRequiredMessage
+                            coroutineScope.launch { snackbarHostState.showSnackbar(categoryRequiredMessage) }
+                            return@Button
+                        }
 
                         val finalNotes = if (isLendBorrow) buildLendBorrowNotes(personNameInput, notesInput) else notesInput
 
+                        // A name typed under "Other Platform" that is already in the list means that app.
+                        val typedApp = CustomPresets.cleanName(customAppNameInput)
+                        val knownApp = if (selectedPreset.id == "other" && typedApp.isNotBlank()) customPresets.resolveApp(typedApp) else null
+                        val finalPreset = knownApp ?: selectedPreset
+                        if (finalPreset.id == "other" && typedApp.isNotBlank()) onAddCustomApp(typedApp)
+                        if (addingCategory && customPresets.resolveCategory(typedCategory) == null) onAddCustomCategory(typedCategory)
+
                         onSave(
                             NewSpend(
-                                preset = selectedPreset,
+                                preset = finalPreset,
                                 amount = parsedAmount!!,
-                                purpose = purposeInput.ifBlank { "Miscellaneous" },
+                                purpose = effectivePurpose.ifBlank { "Miscellaneous" },
                                 notes = finalNotes,
-                                customAppName = if (selectedPreset.id == "other" && customAppNameInput.isBlank()) "Other" else customAppNameInput,
+                                customAppName = if (finalPreset.id == "other") typedApp.ifBlank { "Other" } else "",
                                 timestamp = transactionTimestamp
                             )
                         )
@@ -443,7 +519,8 @@ fun AddSpendScreen(
             currentOrderedPresets = orderedAppPresets,
             onSaveOrder = onSaveAppOrder,
             onResetDefault = onResetAppOrder,
-            onDismiss = { showCustomizeAppsSheet = false }
+            onDismiss = { showCustomizeAppsSheet = false },
+            onRemoveApp = { onRemoveCustomApp(it.displayName) }
         )
     }
 
@@ -452,7 +529,9 @@ fun AddSpendScreen(
             currentOrderedItems = orderedCategoryItems,
             onSaveOrder = onSaveCategoryOrder,
             onResetDefault = onResetCategoryOrder,
-            onDismiss = { showCustomizeCategoriesSheet = false }
+            onDismiss = { showCustomizeCategoriesSheet = false },
+            customCategoryNames = customPresets.categories,
+            onRemoveCategory = onRemoveCustomCategory
         )
     }
 }

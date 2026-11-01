@@ -12,11 +12,7 @@ import com.alpha.spendtracker.ui.components.APP_PRESETS
 import com.alpha.spendtracker.ui.components.toDraft
 import com.alpha.spendtracker.ui.components.toNewSpend
 import com.alpha.spendtracker.util.activeAppLocale
-import com.google.ai.client.generativeai.GenerativeModel
-import com.google.ai.client.generativeai.type.content
 import com.google.firebase.auth.FirebaseAuth
-import com.google.firebase.remoteconfig.FirebaseRemoteConfig
-import com.google.firebase.remoteconfig.remoteConfigSettings
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.ExperimentalCoroutinesApi
@@ -32,7 +28,6 @@ import kotlinx.coroutines.flow.flatMapLatest
 import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
-import kotlinx.coroutines.tasks.await
 import java.text.SimpleDateFormat
 import java.util.Calendar
 import java.util.Date
@@ -69,13 +64,25 @@ enum class AiErrorType {
 }
 
 /**
+ * Which chat error a failed history call is shown as. [LlmClient] has already retried (and failed
+ * over to the other provider), so this is only the final verdict: a busy service or a quota is
+ * "try again in a few minutes", a missing or rejected key is a configuration problem, and
+ * everything else (bad request, empty answer, no connection) is the generic apology.
+ */
+internal fun historyErrorType(kind: LlmException.Kind?): AiErrorType = when (kind) {
+    LlmException.Kind.RATE_LIMIT, LlmException.Kind.UNAVAILABLE -> AiErrorType.SERVER_RATE_LIMIT
+    LlmException.Kind.NO_KEY, LlmException.Kind.AUTH -> AiErrorType.API_KEY_MISSING
+    else -> AiErrorType.GENERIC
+}
+
+/**
  * Main ViewModel to manage Spending Tracker operations, analytics, and states
  */
 @HiltViewModel
 class SpendViewModel @Inject constructor(
     private val repository: SpendRepository,
     private val aiPrefsRepository: AiPreferencesRepository,
-    private val groqApiService: GroqApiService,
+    private val llmClient: LlmClient,
     private val aiTransactionProcessor: AiTransactionProcessor,
     private val aiCorrectionRepository: AiCorrectionRepository,
     private val subscriptionDismissalRepository: SubscriptionDismissalRepository,
@@ -85,8 +92,13 @@ class SpendViewModel @Inject constructor(
 
     companion object {
         private const val TAG = "SpendViewModel"
-        private const val GEMINI_MODEL = "gemini-3.5-flash"
         private const val DAY_MS = 24L * 60 * 60 * 1000
+
+        /** Longest question sent to the model; a pasted essay is neither a finance question nor worth the tokens. */
+        private const val MAX_QUESTION_CHARS = 600
+
+        /** [askedScopeText] is pruned to the live conversation once it grows past this. */
+        private const val MAX_REMEMBERED_QUESTIONS = 32
 
         /**
          * Day the trend chart's week buckets start on. Deliberately Monday rather than the locale's
@@ -124,6 +136,14 @@ class SpendViewModel @Inject constructor(
     private var historyJob: Job? = null
 
     private var currentSessionId: String = ""
+
+    /**
+     * What [HistoryQuery] read for each question asked in this process (message uuid → scope text).
+     * A suggestion chip's chat bubble shows a localized label while its scope came from an English
+     * sentence, so a later follow-up resolves against this, not the stored message text. Lost on
+     * process death, when the stored text is used instead.
+     */
+    private val askedScopeText = HashMap<String, String>()
 
     /**
      * Health of the background push to Firestore, straight from the repository. Surfaced so the UI
@@ -626,7 +646,7 @@ class SpendViewModel @Inject constructor(
                 val defaultPurpose = historyPrefs.defaultPurpose
                 val now = System.currentTimeMillis()
                 val drafts = validResponses.map { response ->
-                    response.toNewSpend(defaultApp, defaultPurpose, now)
+                    response.toNewSpend(defaultApp, defaultPurpose, now, historyPrefs.customPresets)
                         .toDraft(UUID.randomUUID().toString())
                 }
 
@@ -778,6 +798,7 @@ class SpendViewModel @Inject constructor(
                 sessionId = currentSessionId
             )
             repository.insertChatMessage(userMsg)
+            askedScopeText[userMsg.uuid] = scopeText
             _historyStatus.value = AiHistoryStatus.Analyzing
 
             val historyPrefs = aiPreferences.value
@@ -789,50 +810,106 @@ class SpendViewModel @Inject constructor(
                 }
             }
 
-            // 3. Proxy/Audit Layer: Intent Classification
-            // We use a small, fast model to check if the question is within the Spendley domain.
-            var isOffTopic = false
-            try {
-                remoteConfig.fetchAndActivate().await()
-                val groqKey = remoteConfig.getString("groq_api_key")
-                if (groqKey.isNotBlank()) {
-                    val classificationPrompt = """
-                        Classify the following user question for a personal finance app.
-                        Respond with:
-                        - "TRACKING" if the user wants to log, record, or track new expense(s) or income/dues (e.g. "track ₹1000 for rent", "spent 500 on dinner", "paid 200 for tea").
-                        - "FINANCIAL" if it is a question about the user's spending, transactions, budgets, categories, payment apps, history, analytics, or lend/borrow — including greetings and questions about what this assistant can do.
-                        - "OFF_TOPIC" for anything else (general knowledge, coding, news, recipes, or maths unrelated to the user's own data).
-
-                        QUESTION: "$question"
-                    """.trimIndent()
-
-                    val classifierRequest = GroqRequest(
-                        model = GroqModels.FAST,
-                        messages = listOf(GroqMessage("user", classificationPrompt)),
-                        temperature = 0.0,
-                        reasoning_effort = "low",
-                        include_reasoning = false,
-                        max_completion_tokens = 16
-                    )
-                    val response = groqApiService.getCompletion("Bearer $groqKey", classifierRequest)
-                    if (response.isSuccessful) {
-                        val verdict = response.body()?.choices?.firstOrNull()?.message?.content
-                            ?.trim()?.uppercase().orEmpty()
-                        if (verdict.contains("TRACKING")) {
-                            if (processAndTrackInAssistant(question, userId, historyPrefs)) {
-                                return@launch
-                            }
-                        }
-                        isOffTopic = verdict.contains("OFF_TOPIC") && !verdict.contains("FINANCIAL") && !verdict.contains("TRACKING")
-                    } else {
-                        val errorBody = response.errorBody()?.string().orEmpty().take(300)
-                        Log.w(TAG, "Classification HTTP ${response.code()} - $errorBody")
-                    }
-                }
+            // 3. Conversation memory. Only this session, and only what the user can still see: a
+            // cleared chat is hidden by a cutoff, not deleted, so without it old context would
+            // leak into the next answer. Best effort: a failure here must not stop the answer.
+            val visible = try {
+                val clearedAt = aiPrefsRepository.chatClearedAtFlow(userId).first()
+                HistoryConversation.sessionMessages(
+                    repository.getChatMessages(userId).first(), currentSessionId, clearedAt, userMsg.uuid
+                )
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
-                Log.w(TAG, "Classification failed, continuing with strict prompt: ${e.message}")
+                Log.w(TAG, "History: conversation memory unavailable: ${e.message}")
+                emptyList()
+            }
+            val conversation = HistoryConversation.render(visible)
+            // A chip's bubble shows a localized label, but its scope came from an English
+            // sentence, so earlier questions are looked up by what HistoryQuery actually read.
+            val earlier = HistoryConversation.earlierQuestions(visible) { askedScopeText[it.uuid] ?: it.text }
+            if (askedScopeText.size > MAX_REMEMBERED_QUESTIONS) {
+                askedScopeText.keys.retainAll(visible.map { it.uuid }.toSet() + userMsg.uuid)
+            }
+
+            // 4. Prepare Context
+            // HistoryQuery scopes the rows to what the question names (period, purpose, app,
+            // dues vs spending), carries a follow-up's missing parts over from the previous
+            // question, and computes the totals, comparison deltas and budget pace itself, so the
+            // model is handed exact figures instead of the whole log to add up.
+            val currency = historyPrefs.defaultCurrency.ifBlank { "₹" }
+            val today = java.text.SimpleDateFormat("yyyy-MM-dd EEEE", Locale.getDefault()).format(System.currentTimeMillis())
+            fun contextFor(limits: HistoryQuery.Limits) = HistoryQuery.build(
+                question = scopeText,
+                spends = allSpendsFlow.value,
+                currency = currency,
+                notes = notes.value,
+                noteEntries = noteEntries.value,
+                recurringBills = recurringBills.value,
+                monthlyBudget = historyPrefs.monthlyBudget,
+                earlier = earlier,
+                custom = historyPrefs.customPresets,
+                limits = limits
+            )
+            val historyContext = contextFor(HistoryQuery.Limits.FULL)
+            val contextText = historyContext.text
+            val includesDues = historyContext.scope.dues != HistoryQuery.DuesMode.EXCLUDE
+
+            // 5. Proxy/Audit Layer: Intent Classification
+            // A small, fast model checks the question is within the Spendley domain. It costs a
+            // call per question, so it is skipped when local evidence is conclusive (a named
+            // period/purpose/app, or a clear finance word). A question with an amount in it always
+            // goes through: "put 500 on groceries" is logging, and the TRACKING verdict is the
+            // only thing that catches it once the keyword check above has had its chance.
+            var isOffTopic = false
+            if (HistoryQuery.isConclusivelyFinancial(scopeText, historyContext.scope)) {
+                Log.d(TAG, "History: classifier skipped, question is conclusively financial")
+            } else {
+                val classificationPrompt = """
+                    Classify the following user question for a personal finance app.
+                    Respond with:
+                    - "TRACKING" if the user wants to log, record, or track new expense(s) or income/dues (e.g. "track ₹1000 for rent", "spent 500 on dinner", "paid 200 for tea").
+                    - "FINANCIAL" if it is a question about the user's spending, transactions, budgets, categories, payment apps, history, analytics, or lend/borrow — including greetings and questions about what this assistant can do.
+                    - "OFF_TOPIC" for anything else (general knowledge, coding, news, recipes, or maths unrelated to the user's own data).
+
+                    ${PromptGuard.untrustedBlock("QUESTION", question, MAX_QUESTION_CHARS)}
+                """.trimIndent()
+
+                // The phone's own model may take it (the question never leaves the device), except
+                // for Telugu/Hindi script it is not trusted with.
+                val classifyRequest = LlmRequest(
+                    label = "classify",
+                    tier = LlmTier.FAST,
+                    user = classificationPrompt,
+                    temperature = 0.0,
+                    reasoningEffort = "low",
+                    maxTokens = 16,
+                    local = if (AiTransactionProcessor.hasIndicScript(question)) LocalUse.Never else LocalUse.Same
+                )
+                val firstVerdict = llmClient.complete(classifyRequest)
+                // A small model's OFF_TOPIC would turn away a real question (and cost one of the
+                // session's 7 messages), so the cloud confirms it. If the cloud cannot answer the
+                // question goes on: the answer prompt declines off-topic questions itself.
+                val verdictReply = firstVerdict.getOrNull()
+                val classification = if (verdictReply?.provider == LlmProvider.LOCAL && HistoryQuery.isOffTopicVerdict(verdictReply.text)) {
+                    llmClient.complete(classifyRequest.copy(local = LocalUse.Never))
+                } else {
+                    firstVerdict
+                }
+
+                // Fails open: a classifier error (including no key, which the answer call reports
+                // properly) just means the question goes on to be answered.
+                classification.onSuccess { reply ->
+                    val verdict = reply.text.trim().uppercase()
+                    if (verdict.contains("TRACKING")) {
+                        if (processAndTrackInAssistant(question, userId, historyPrefs)) {
+                            return@launch
+                        }
+                    }
+                    isOffTopic = HistoryQuery.isOffTopicVerdict(verdict)
+                }.onFailure { e ->
+                    Log.w(TAG, "Classification failed, continuing with strict prompt: ${e.message}")
+                }
             }
 
             if (isOffTopic) {
@@ -851,190 +928,139 @@ class SpendViewModel @Inject constructor(
                 return@launch
             }
 
-            // 4. Prepare Context (Only if on-topic)
-            // HistoryQuery scopes the rows to what the question names (period, purpose, app,
-            // dues vs spending) and computes the totals itself, so the model is handed exact
-            // figures and a capped sample of rows instead of the whole log to add up.
-            val currency = historyPrefs.defaultCurrency.ifBlank { "₹" }
-            val today = java.text.SimpleDateFormat("yyyy-MM-dd EEEE", Locale.getDefault()).format(System.currentTimeMillis())
-            val historyContext = HistoryQuery.build(
-                question = scopeText,
-                spends = allSpendsFlow.value,
-                currency = currency,
-                notes = notes.value,
-                noteEntries = noteEntries.value,
-                recurringBills = recurringBills.value
-            )
-            val contextText = historyContext.text
-            val includesDues = historyContext.scope.dues != HistoryQuery.DuesMode.EXCLUDE
-
-            // 5. Call AI (Prefer Groq/Llama for open-source & speed) with Retry logic
-            var responseText: String? = null
-            var lastError: Exception? = null
-
-            for (attempt in 0..1) {
-                if (responseText != null) break
-                
-                try {
-                    val groqKey = remoteConfig.getString("groq_api_key")
-
-                    val currentAppLocale = activeAppLocale
-                    val targetLangName = when (currentAppLocale.language) {
-                        "te" -> "Telugu (తెలుగు)"
-                        "hi" -> "Hindi (हिंदी)"
-                        else -> "English"
-                    }
-
-                    val systemPrompt = """
-                        You are a smart, concise Expense Tracker Assistant. Today is $today.
-                        
-                        USER PREFERENCE:
-                        - Default Currency: $currency
-                        - Language: Respond in $targetLangName. All explanatory text, summaries, and bullet points MUST be written in $targetLangName.
-                        
-                        CRITICAL:
-                        - All monetary amounts in your response MUST be prefixed with the user's currency: **$currency**.
-                        - Use the currency symbol **$currency** consistently for every amount mentioned.
-
-                        TRANSACTION DATA:
-                        $contextText
-
-                        ANALYSIS GUIDELINES:
-                        - The SCOPE block states exactly which period, filters and record types the data covers. Answer only about that scope; never bring in anything outside it.
-                        - Every figure under TOTALS is already computed exactly over ALL matching transactions. Quote those figures as they are. Never re-add the TRANSACTIONS rows: they can be a sample of the matches.
-                        - Use the TRANSACTIONS rows for dates, notes and itemised lists, and for questions about a specific item or note.
-                        - NOTES & NOTE ENTRIES: User-created custom collections (e.g., trip expenses, project budgets, wishlists). Refer to the NOTES & NOTE ENTRIES section when asked about notes, note entries, note titles, custom fields, or note amounts. Note entries are kept separate from everyday spending totals.
-                        - RECURRING BILLS & SUBSCRIPTIONS: Scheduled or repeating payments (subscriptions, utility bills, credit card bills, rent). Refer to RECURRING BILLS & SUBSCRIPTIONS when asked about recurring bills, subscriptions, due dates, or monthly recurring costs.
-                        - Lending and borrowing are loans, not spending. Never include them in a spending total or summary unless the SCOPE says they are included, and then keep them in a separate section.
-                        - Identify the top spending category/app and flag unusually large single transactions when relevant.
-                        - For trend questions, derive day-over-day or week-over-week patterns from the rows when available, and month-over-month from "By month".
-                        - If the SCOPE says 0 transactions matched, but the user is asking about Notes or Recurring Bills, answer directly using the NOTES & NOTE ENTRIES or RECURRING BILLS & SUBSCRIPTIONS section instead of saying nothing matched.
-                        - If data is insufficient to answer precisely, still give the closest useful answer you can from the data above, then say in one line what is missing.
-                        - Never fabricate transactions or amounts not present in the data.
-                        - Never reply with only a refusal or only a clarifying question — always give the user something concrete from their data.
-                        - If the question is outside the scope of personal finance/transactions, politely decline.
-
-                        RESPONSE FORMAT:
-                        - Use **bold** for amounts, category names, app names, and key numbers.
-                        - For monetary amounts, write negative values as -$currency<amount> instead of $currency-<amount>.
-                        - For category breakdowns, app summaries, or multi-item comparisons, prefer Markdown tables (| Category | Amount | Share |) or bullet lists.
-                        ${if (includesDues) """- For person-grouped data (lending/borrowing), use hierarchical lists:
-                          * **<person>** (Total: **$currency<total>**)
-                            - **<date>**: **$currency<amount>** — <that row's note text>
-                        - Angle brackets mark placeholders. Never print the brackets and never print
-                          the word inside them — substitute the real value. If a transaction has no
-                          note, drop the "— <note>" part completely rather than writing "note".""" else "- If a transaction has no note, say nothing about a note — never write the word \"note\" in its place."}
-                        - Indent nested items with 2 spaces.
-                        - Finish every list you start. If there are too many transactions to list in
-                          full, group or summarise them instead of stopping mid-line.
-                        - Always start final takeaways or actionable advice with **Insight:** <text>.
-                        - Keep responses concise. Do not restate the user's question.
-                    """.trimIndent()
-
-                    if (groqKey.isNotBlank()) {
-                        Log.d(TAG, "History: Calling Groq (${GroqModels.SMART})")
-                        val groqRequest = GroqRequest(
-                            model = GroqModels.SMART,
-                            messages = listOf(
-                                GroqMessage("system", systemPrompt),
-                                GroqMessage("user", "USER QUESTION: \"$question\"")
-                            ),
-                            temperature = 0.5,
-                            // GPT-OSS is a reasoning model: without include_reasoning=false the
-                            // chain-of-thought is what lands in `content` and the user sees the
-                            // model thinking out loud instead of an answer.
-                            //
-                            // `reasoning_effort` and the token budget are coupled here. A
-                            // per-person breakdown over a few hundred transactions is a long
-                            // answer, and at "medium" effort a 1500-token budget ran out partway
-                            // through the list — the reply arrived cut off mid-date. Low effort
-                            // plus a much larger ceiling leaves room for the whole answer;
-                            // finish_reason below reports it if that is still not enough.
-                            reasoning_effort = "low",
-                            include_reasoning = false,
-                            max_completion_tokens = 4096
-                        )
-                        val response = groqApiService.getCompletion("Bearer $groqKey", groqRequest)
-                        if (response.isSuccessful) {
-                            val choice = response.body()?.choices?.firstOrNull()
-                            if (choice?.finish_reason == "length") {
-                                Log.w(TAG, "History: answer truncated (hit max_completion_tokens)")
-                            }
-                            responseText = choice?.message?.content
-                        } else {
-                            // The body is the only place a decommissioned model announces itself.
-                            val errorBody = response.errorBody()?.string().orEmpty().take(300)
-                            Log.e(TAG, "Groq History Error: ${response.code()} - $errorBody")
-                            throw Exception("Groq API error: ${response.code()} $errorBody")
-                        }
-                    } else {
-                        Log.d(TAG, "History: Groq key missing, falling back to Gemini")
-                        val geminiKey = remoteConfig.getString("gemini_api_key")
-                        if (geminiKey.isBlank()) {
-                            _historyStatus.value = AiHistoryStatus.Error("AI configuration is missing.", AiErrorType.API_KEY_MISSING)
-                            repository.deleteChatMessage(userMsg)
-                            return@launch
-                        }
-                        val generativeModel = GenerativeModel(modelName = GEMINI_MODEL, apiKey = geminiKey)
-                        responseText = generativeModel.generateContent(content {
-                            text(systemPrompt)
-                            text("USER QUESTION: \"$question\"")
-                        }).text
-                    }
-                } catch (e: CancellationException) {
-                    throw e
-                } catch (e: Exception) {
-                    lastError = e
-                    val rawError = e.message ?: ""
-                    // 429 (per-minute rate limit) is transient like a 503/504 and worth one retry,
-                    // unlike an account-level "quota" error which a 2s delay won't fix.
-                    val isRetryable = rawError.contains("503") ||
-                            rawError.contains("504") ||
-                            rawError.contains("429") ||
-                            rawError.contains("rate limit", ignoreCase = true) ||
-                            rawError.contains("high demand", ignoreCase = true) ||
-                            rawError.contains("unavailable", ignoreCase = true)
-
-                    if (isRetryable && attempt == 0) {
-                        delay(2000) // Wait 2 seconds before retrying
-                        continue
-                    }
-                    break // Non-retryable error or max retries reached
-                }
+            // 6. Call AI. LlmClient owns the key lookup, the retries with backoff and the
+            // Groq -> Gemini failover, so there is no retry loop here.
+            val targetLangName = when (activeAppLocale.language) {
+                "te" -> "Telugu (తెలుగు)"
+                "hi" -> "Hindi (हिंदी)"
+                else -> "English"
             }
 
-            if (!responseText.isNullOrBlank()) {
+            val systemPrompt = """
+                You are a smart, concise Expense Tracker Assistant. Today is $today.
+                
+                USER PREFERENCE:
+                - Default Currency: $currency
+                - Language: Respond in $targetLangName. All explanatory text, summaries, and bullet points MUST be written in $targetLangName.
+                
+                CRITICAL:
+                - All monetary amounts in your response MUST be prefixed with the user's currency: **$currency**.
+                - Use the currency symbol **$currency** consistently for every amount mentioned.
+
+                TRANSACTION DATA:
+                $contextText
+
+                ANALYSIS GUIDELINES:
+                - The SCOPE block states exactly which period, filters and record types the data covers. Answer only about that scope; never bring in anything outside it.
+                - Every figure under TOTALS is already computed exactly over ALL matching transactions. Quote those figures as they are. Never re-add the TRANSACTIONS rows: they can be a sample of the matches.
+                - A COMPARISON block sets two periods, purposes or apps side by side, each with its own exact TOTALS, and a DELTA with the difference and percentage already worked out. Quote the DELTA exactly; never recompute a difference or a percentage. If the two periods cover different numbers of days (a month still in progress against a full month), say so and lead with the per-day pace.
+                - A BUDGET block holds the user's monthly budget picture: spent so far, remaining, days left, daily average and the projected month-end spend. Quote its figures exactly; never recompute them. Answer "am I on track?" from the projection: say plainly whether the pace ends over or under budget. Describe the pace; never tell the user how much they may or should spend. If the block says no budget is set, say that.
+                - CONVERSATION SO FAR (in the user message) is only there so you can tell what a follow-up like "and last month?" or "just food" refers to; the SCOPE above already reflects it. Never take figures from it, they may belong to another scope: always quote TOTALS, COMPARISON and BUDGET.
+                - Use the TRANSACTIONS rows for dates, notes and itemised lists, and for questions about a specific item or note.
+                - NOTES & NOTE ENTRIES: User-created custom collections (e.g., trip expenses, project budgets, wishlists). Refer to the NOTES & NOTE ENTRIES section when asked about notes, note entries, note titles, custom fields, or note amounts. Note entries are kept separate from everyday spending totals.
+                - RECURRING BILLS & SUBSCRIPTIONS: Scheduled or repeating payments (subscriptions, utility bills, credit card bills, rent). Refer to RECURRING BILLS & SUBSCRIPTIONS when asked about recurring bills, subscriptions, due dates, or monthly recurring costs.
+                - Lending and borrowing are loans, not spending. Never include them in a spending total or summary unless the SCOPE says they are included, and then keep them in a separate section.
+                - Identify the top spending category/app and flag unusually large single transactions when relevant.
+                - For trend questions, derive day-over-day or week-over-week patterns from the rows when available, and month-over-month from "By month".
+                - If the SCOPE says 0 transactions matched, but the user is asking about Notes or Recurring Bills, answer directly using the NOTES & NOTE ENTRIES or RECURRING BILLS & SUBSCRIPTIONS section instead of saying nothing matched.
+                - If data is insufficient to answer precisely, still give the closest useful answer you can from the data above, then say in one line what is missing.
+                - Never fabricate transactions or amounts not present in the data.
+                - Never reply with only a refusal or only a clarifying question — always give the user something concrete from their data.
+                - If the question is outside the scope of personal finance/transactions, politely decline.
+
+                RESPONSE FORMAT:
+                - Use **bold** for amounts, category names, app names, and key numbers.
+                - For monetary amounts, write negative values as -$currency<amount> instead of $currency-<amount>.
+                - For category breakdowns, app summaries, or multi-item comparisons, prefer Markdown tables (| Category | Amount | Share |) or bullet lists.
+                ${if (includesDues) """- For person-grouped data (lending/borrowing), use hierarchical lists:
+                  * **<person>** (Total: **$currency<total>**)
+                    - **<date>**: **$currency<amount>** — <that row's note text>
+                - Angle brackets mark placeholders. Never print the brackets and never print
+                  the word inside them — substitute the real value. If a transaction has no
+                  note, drop the "— <note>" part completely rather than writing "note".""" else "- If a transaction has no note, say nothing about a note — never write the word \"note\" in its place."}
+                - Indent nested items with 2 spaces.
+                - Finish every list you start. If there are too many transactions to list in
+                  full, group or summarise them instead of stopping mid-line.
+                - Always start final takeaways or actionable advice with **Insight:** <text>.
+                - Keep responses concise. Do not restate the user's question.
+
+                ${PromptGuard.UNTRUSTED_INPUT_RULE}
+            """.trimIndent()
+
+            val userPrompt = buildString {
+                if (conversation.isNotEmpty()) {
+                    appendLine(conversation)
+                    appendLine()
+                }
+                append(PromptGuard.untrustedBlock("USER QUESTION", question, MAX_QUESTION_CHARS))
+            }
+
+            // The phone's own model gets first go when it has one, with a context and prompt cut to
+            // fit its window (the TOTALS, deltas and budget in it are the same exact figures; only
+            // the sampled rows and the side sections shrink). English only, and without the earlier
+            // turns: the scope already carries a follow-up's subject, and the window is small.
+            // Anything that does not fit, or fails, is answered by the cloud from the full prompt.
+            val onDevice = if (
+                activeAppLocale.language == "en" &&
+                !AiTransactionProcessor.hasIndicScript(question) &&
+                llmClient.canUseLocal()
+            ) {
+                LocalUse.Compact(
+                    HistoryPrompt.compactSystem(today, currency, contextFor(HistoryQuery.Limits.LOCAL).text),
+                    PromptGuard.untrustedBlock("USER QUESTION", question, MAX_QUESTION_CHARS)
+                )
+            } else {
+                LocalUse.Never
+            }
+
+            Log.d(TAG, "History: calling LLM (conversation turns: ${visible.takeLast(HistoryConversation.MAX_MESSAGES).size}, onDevice=${onDevice !== LocalUse.Never})")
+            val result = llmClient.complete(
+                LlmRequest(
+                    label = "history",
+                    tier = LlmTier.SMART,
+                    system = systemPrompt,
+                    user = userPrompt,
+                    local = onDevice,
+                    // Low: this answer quotes exact figures, so it should not improvise them.
+                    temperature = 0.2,
+                    // `reasoning_effort` and the token budget are coupled here. A per-person
+                    // breakdown over a few hundred transactions is a long answer, and at "medium"
+                    // effort a 1500-token budget ran out partway through the list — the reply
+                    // arrived cut off mid-date. Low effort plus a much larger ceiling leaves room
+                    // for the whole answer; `truncated` below reports it if that is still not
+                    // enough. (Hiding the reasoning, so the user doesn't see the model thinking
+                    // out loud, is LlmClient's job.)
+                    reasoningEffort = "low",
+                    maxTokens = 4096
+                )
+            )
+
+            val reply = result.getOrNull()
+            if (reply != null && reply.text.isNotBlank()) {
+                if (reply.truncated) {
+                    Log.w(TAG, "History: answer truncated (hit max_completion_tokens)")
+                }
                 repository.insertChatMessage(
                     ChatMessage(
                         uuid = java.util.UUID.randomUUID().toString(),
                         userId = userId,
-                        text = responseText,
+                        text = reply.text,
                         fromUser = false,
                         timestamp = System.currentTimeMillis(),
                         sessionId = currentSessionId
                     )
                 )
                 _historyStatus.value = AiHistoryStatus.Idle
-            } else if (lastError != null) {
-                val e = lastError
-                Log.e(TAG, "History AI Error: ${e.message}", e)
-                val rawError = e.message ?: "An unexpected error occurred."
-                
-                val errorType = when {
-                    rawError.contains("quota", ignoreCase = true) || 
-                    rawError.contains("rate limit", ignoreCase = true) ||
-                    rawError.contains("429") -> AiErrorType.SERVER_RATE_LIMIT
-                    
-                    rawError.contains("503") || 
-                    rawError.contains("high demand", ignoreCase = true) ||
-                    rawError.contains("unavailable", ignoreCase = true) ||
-                    rawError.contains("overloaded", ignoreCase = true) ||
-                    rawError.contains("experiencing high demand", ignoreCase = true) -> AiErrorType.SERVER_RATE_LIMIT
-                    
-                    rawError.contains("API key", ignoreCase = true) -> AiErrorType.API_KEY_MISSING
-                    else -> AiErrorType.GENERIC
+            } else {
+                val failure = result.exceptionOrNull() as? LlmException
+                Log.e(TAG, "History AI Error: ${failure?.message}", failure)
+                if (failure?.kind == LlmException.Kind.NO_KEY) {
+                    _historyStatus.value = AiHistoryStatus.Error("AI configuration is missing.", AiErrorType.API_KEY_MISSING)
+                    repository.deleteChatMessage(userMsg)
+                    return@launch
                 }
 
+                val errorType = historyErrorType(failure?.kind)
                 val userFriendlyMsg = when (errorType) {
                     AiErrorType.SERVER_RATE_LIMIT -> "The AI service is currently under high demand or you've reached the rate limit. Please try again in a few minutes."
                     AiErrorType.API_KEY_MISSING -> "AI configuration is incorrect or missing."
@@ -1130,27 +1156,52 @@ class SpendViewModel @Inject constructor(
     fun updateAppOrder(order: List<String>) {
         viewModelScope.launch {
             aiPrefsRepository.updateAppOrder(order)
+            publishUserSettings()
         }
     }
 
     fun updateCategoryOrder(order: List<String>) {
         viewModelScope.launch {
             aiPrefsRepository.updateCategoryOrder(order)
+            publishUserSettings()
         }
     }
 
-    private val remoteConfig by lazy {
-        FirebaseRemoteConfig.getInstance().apply {
-            val configSettings = remoteConfigSettings {
-                // Lower interval for development to pick up key changes faster
-                minimumFetchIntervalInSeconds = 60 
-            }
-            setConfigSettingsAsync(configSettings)
-            setDefaultsAsync(mapOf(
-                "gemini_api_key" to "",
-                "groq_api_key" to ""
-            ))
+    // The user's own apps and categories (see CustomPresets): remembered from the "Other" /
+    // "Add new" entries on the log forms, removable from the customize sheets.
+    fun addCustomApp(name: String) {
+        viewModelScope.launch {
+            aiPrefsRepository.addCustomApp(name)
+            publishUserSettings()
         }
+    }
+
+    fun addCustomCategory(name: String) {
+        viewModelScope.launch {
+            aiPrefsRepository.addCustomCategory(name)
+            publishUserSettings()
+        }
+    }
+
+    fun removeCustomApp(name: String) {
+        viewModelScope.launch {
+            aiPrefsRepository.removeCustomApp(name)
+            publishUserSettings()
+        }
+    }
+
+    fun removeCustomCategory(name: String) {
+        viewModelScope.launch {
+            aiPrefsRepository.removeCustomCategory(name)
+            publishUserSettings()
+        }
+    }
+
+    private suspend fun publishUserSettings() {
+        try {
+            val prefs = aiPrefsRepository.aiPreferencesFlow.first()
+            repository.publishUserSettings(_userId.value, prefs)
+        } catch (_: Exception) {}
     }
 
     // A list: one sentence can hold several expenses ("tea 20, auto 80"). Never empty on success.

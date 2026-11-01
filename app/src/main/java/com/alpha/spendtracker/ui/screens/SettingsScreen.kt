@@ -32,6 +32,7 @@ import androidx.compose.material.icons.automirrored.rounded.ArrowBack
 import androidx.compose.material.icons.automirrored.rounded.Logout
 import androidx.compose.material.icons.automirrored.rounded.ReceiptLong
 import androidx.compose.material.icons.rounded.CalendarMonth
+import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.ChevronRight
 import androidx.compose.material.icons.rounded.Edit
 import androidx.compose.material.icons.rounded.Fingerprint
@@ -59,6 +60,7 @@ import com.alpha.spendtracker.data.AiPreferences
 import com.alpha.spendtracker.ui.components.AiSettingsDialog
 import com.alpha.spendtracker.ui.components.AppAvatar
 import com.alpha.spendtracker.ui.components.BudgetEditorDialog
+import com.alpha.spendtracker.ui.components.ManageCustomPresetsSheet
 import com.alpha.spendtracker.ui.components.NotificationType
 import com.alpha.spendtracker.ui.components.ProfileDialog
 import com.alpha.spendtracker.ui.components.formatCurrencyRounded
@@ -85,7 +87,11 @@ fun SettingsScreen(
     onWrappedClick: () -> Unit,
     onShareApp: () -> Unit,
     onLogout: () -> Unit,
-    onUpdateMonthlyBudget: (Double) -> Unit = {}
+    onUpdateMonthlyBudget: (Double) -> Unit = {},
+    onAddCustomApp: (String) -> Unit = {},
+    onAddCustomCategory: (String) -> Unit = {},
+    onRemoveCustomApp: (String) -> Unit = {},
+    onRemoveCustomCategory: (String) -> Unit = {}
 ) {
     var showSecurityOptions by remember { mutableStateOf(false) }
     var showPasswordUpdateDialog by remember { mutableStateOf(false) }
@@ -94,6 +100,7 @@ fun SettingsScreen(
     var showLanguageDialog by remember { mutableStateOf(false) }
     var showBudgetEditorDialog by remember { mutableStateOf(false) }
     var showPrivacyPolicyDialog by remember { mutableStateOf(false) }
+    var showCustomPresetsSheet by remember { mutableStateOf(false) }
 
     val context = LocalContext.current
 
@@ -271,12 +278,24 @@ fun SettingsScreen(
     if (showAiSettingsDialog) {
         AiSettingsDialog(
             currentPrefs = aiPreferences,
+            customPresets = aiPreferences.customPresets,
             onSave = { currency, app, purpose ->
                 onUpdateAiPreferences(currency, app, purpose)
                 showAiSettingsDialog = false
                 onShowNotification("Default settings updated", NotificationType.SUCCESS)
             },
             onDismiss = { showAiSettingsDialog = false }
+        )
+    }
+
+    if (showCustomPresetsSheet) {
+        ManageCustomPresetsSheet(
+            custom = aiPreferences.customPresets,
+            onAddApp = onAddCustomApp,
+            onAddCategory = onAddCustomCategory,
+            onRemoveApp = onRemoveCustomApp,
+            onRemoveCategory = onRemoveCustomCategory,
+            onDismiss = { showCustomPresetsSheet = false }
         )
     }
 
@@ -528,6 +547,13 @@ fun SettingsScreen(
                             title = stringResource(R.string.ai_assistant_title),
                             subtitle = stringResource(R.string.ai_assistant_subtitle),
                             onClick = onAiAssistantClick
+                        )
+                        SettingsDivider()
+                        SettingsRow(
+                            icon = Icons.Rounded.Category,
+                            title = stringResource(R.string.custom_presets_title),
+                            subtitle = stringResource(R.string.custom_presets_subtitle),
+                            onClick = { showCustomPresetsSheet = true }
                         )
                         SettingsDivider()
                         SettingsRow(

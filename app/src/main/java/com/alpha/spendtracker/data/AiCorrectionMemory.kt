@@ -110,12 +110,17 @@ object AiCorrectionMemory {
      * Overlays learned values on a parsed result. An app the user explicitly named in [text]
      * still beats a learned app; otherwise learned values beat the LLM guess and the defaults.
      */
-    fun apply(result: AiTransactionResponse, text: String, rules: List<CorrectionRule>): AiTransactionResponse {
+    fun apply(
+        result: AiTransactionResponse,
+        text: String,
+        rules: List<CorrectionRule>,
+        custom: CustomPresets = CustomPresets.EMPTY
+    ): AiTransactionResponse {
         val m = match(rules, text)
         var out = result
 
-        if (m.app != null && AiParser.findAppPreset(text) == null) {
-            val preset = AiParser.normalizeAppToPreset(m.app)
+        if (m.app != null && AiParser.findAppPreset(text, custom) == null) {
+            val preset = AiParser.normalizeAppToPreset(m.app, custom)
             val appName = preset?.displayName ?: m.app
             if (!appName.equals(out.appName, ignoreCase = true)) {
                 out = out.copy(appName = appName, appPresetId = preset?.id ?: "other", learnedApp = true)

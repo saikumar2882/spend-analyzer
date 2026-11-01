@@ -18,24 +18,24 @@ import androidx.compose.ui.graphics.Color
 // 1. BRAND & CORE TOKENS
 // ============================================================================
 
-// Dark Theme Base Tokens (pitch-dark slate canvas matching modern clean dark mode)
-val DarkBackground          = Color(0xFF0B0E14)   // pitch dark canvas
-val DarkSurface             = Color(0xFF0E1118)   // soft dark surface
-val DarkSurfaceElevated     = Color(0xFF12151E)   // subtle elevated container
-val DarkBorder              = Color(0xFF181B26)   // soft hairline border
+// Dark Theme Base Tokens (greyish canvas instead of pure black/white)
+val DarkBackground          = Color(0xFF121212)   // soft dark grey neutral canvas
+val DarkSurface             = Color(0xFF1E1E1E)   // slightly elevated grey surface
+val DarkSurfaceElevated     = Color(0xFF2C2C2C)   // clean elevated container
+val DarkBorder              = Color(0xFF383838)   // subtle neutral border
 
-val DarkTextPrimary         = Color(0xFFFFFFFF)   // crisp white text
-val DarkTextSecondary       = Color(0xFFA0A5B5)   // clean subtext
-val DarkTextDisabled        = Color(0xFF505565)   // disabled / placeholder
+val DarkTextPrimary         = Color(0xFFE3E3E3)   // off-white/light grey text
+val DarkTextSecondary       = Color(0xFFA0A0A0)   // medium grey subtext
+val DarkTextDisabled        = Color(0xFF6E6E6E)   // disabled / placeholder
 
-val DarkBrand               = Color(0xFF9D8BFF)   // electric periwinkle violet — vivid but controlled
-val DarkBrandContainer      = Color(0xFF1E1C38)   // smooth deep violet container
+val DarkBrand               = Color(0xFF8AB4F8)   // light blue primary CTA & active accent
+val DarkBrandContainer      = Color(0xFF1F2B3E)   // subtle blue-grey container
 
 // Semantic Financial Indicators (Dark)
-val DarkIncomeGreen         = Color(0xFFFFFFFF)   // crisp white for dues / income text
-val DarkExpenseRed          = Color(0xFFFF6F7E)   // coral — Expense / Borrowed / Debit
-val DarkWarningAmber        = Color(0xFFFBBF24)   // amber gold — due dates / pending / Notes accent
-val DarkInfoBlue            = Color(0xFF6E9BFF)   // informational blue
+val DarkIncomeGreen         = Color(0xFF81C995)   // soft green for dues / income text
+val DarkExpenseRed          = Color(0xFFEF9A9A)   // light red — Expense / Borrowed / Debit
+val DarkWarningAmber        = Color(0xFFFFCC80)   // light amber — due dates / pending / Notes accent
+val DarkInfoBlue            = Color(0xFF8AB4F8)   // informational light blue
 
 val DarkSuccess             = DarkIncomeGreen
 val DarkDanger              = DarkExpenseRed
@@ -43,44 +43,44 @@ val DarkWarning             = DarkWarningAmber
 
 // Dark Mode Material 3 Mappings
 val DarkPrimary             = DarkBrand
-val DarkOnPrimary           = Color(0xFF1B1340)
+val DarkOnPrimary           = Color(0xFF121212)
 val DarkPrimaryContainer    = DarkBrandContainer
-val DarkOnPrimaryContainer  = Color(0xFFE6E1FA)
+val DarkOnPrimaryContainer  = Color(0xFFD2E3FC)
 
-val DarkSecondary           = DarkBrand
-val DarkOnSecondary         = Color(0xFF1B1340)
-val DarkSecondaryContainer  = DarkBrandContainer
-val DarkOnSecondaryContainer= Color(0xFFE6E1FA)
+val DarkSecondary           = Color(0xFFB0BEC5)   // greyish for secondary elements / Lend
+val DarkOnSecondary         = Color(0xFF121212)
+val DarkSecondaryContainer  = Color(0xFF37474F)
+val DarkOnSecondaryContainer= Color(0xFFCFD8DC)
 
 // Tertiary stays amber: it tints the Notes shortcut in the dashboard header.
 val DarkTertiary            = DarkWarningAmber
-val DarkOnTertiary          = Color(0xFF412D03)
-val DarkTertiaryContainer   = Color(0xFF38290B)
-val DarkOnTertiaryContainer = Color(0xFFFDEBC4)
+val DarkOnTertiary          = Color(0xFF121212)
+val DarkTertiaryContainer   = Color(0xFF422C10)
+val DarkOnTertiaryContainer = Color(0xFFFFE0B2)
 
 val DarkOnBackground        = DarkTextPrimary
 val DarkOnSurface           = DarkTextPrimary
 val DarkSurfaceVariant      = DarkSurfaceElevated
 val DarkOnSurfaceVariant    = DarkTextSecondary
 
-val DarkOutline             = Color(0xFF181B26).copy(alpha = 0.3f)
-val DarkOutlineVariant      = Color(0xFF141722)   // subtle hairline stroke
+val DarkOutline             = Color(0xFF424242)
+val DarkOutlineVariant      = Color(0xFF2C2C2C)   // subtle hairline stroke
 val DarkError               = DarkExpenseRed
-val DarkOnError             = Color(0xFF49101A)
-val DarkErrorContainer      = Color(0xFF3D1B22)
-val DarkOnErrorContainer    = Color(0xFFFADADE)
+val DarkOnError             = Color(0xFF121212)
+val DarkErrorContainer      = Color(0xFF5C2929)
+val DarkOnErrorContainer    = Color(0xFFFFDADA)
 
-// Dark Tonal Surface Ladder (pitch-dark canvas where low/container steps match canvas for box-free UI)
-val DarkSurfaceDim          = Color(0xFF080A0E)
-val DarkSurfaceBright       = Color(0xFF141722)
-val DarkSurfaceContainerLowest  = Color(0xFF0B0E14)
-val DarkSurfaceContainerLow     = Color(0xFF0B0E14)   // Matches canvas — NO background box around cards
-val DarkSurfaceContainer        = Color(0xFF0B0E14)   // Matches canvas — flat seamless rows
-val DarkSurfaceContainerHigh    = Color(0xFF0E1118)
-val DarkSurfaceContainerHighest = Color(0xFF12151E)
-val DarkInverseSurface      = Color(0xFFEDEAF5)
-val DarkInverseOnSurface    = Color(0xFF302F42)
-val DarkInversePrimary      = Color(0xFF5D45E8)   // matched to the light primary
+// Dark Tonal Surface Ladder (greyish canvas where low/container steps match canvas for box-free UI)
+val DarkSurfaceDim          = Color(0xFF121212)
+val DarkSurfaceBright       = Color(0xFF2C2C2C)
+val DarkSurfaceContainerLowest  = Color(0xFF0F0F0F)
+val DarkSurfaceContainerLow     = Color(0xFF121212)   // Matches canvas — NO background box around cards
+val DarkSurfaceContainer        = Color(0xFF121212)   // Matches canvas — flat seamless rows
+val DarkSurfaceContainerHigh    = Color(0xFF1E1E1E)
+val DarkSurfaceContainerHighest = Color(0xFF2C2C2C)
+val DarkInverseSurface      = Color(0xFFE3E3E3)
+val DarkInverseOnSurface    = Color(0xFF121212)
+val DarkInversePrimary      = Color(0xFF3362CC)
 val DarkScrim               = Color(0xFF000000)
 
 // ----------------------------------------------------------------------------
@@ -144,11 +144,10 @@ val LightScrim                = Color(0xFF000000)
 // ============================================================================
 // 2. BRAND GRADIENT & ACCENTS (hero card, badges)
 // ============================================================================
-// Indigo -> violet-magenta -> rose ramp. All stops are mid-dark tones, so white text and icons
-// drawn on the hero stay high-contrast in both themes.
-val BrandGradientStart = Color(0xFF6E5BE8)   // electric indigo
-val BrandGradientMid   = Color(0xFF9B52D6)   // violet-magenta
-val BrandGradientEnd   = Color(0xFFE0608F)   // rose-pink
+// Sleek neutral slate ramp for clean modern hero cards.
+val BrandGradientStart = Color(0xFF1E293B)   // clean dark slate
+val BrandGradientMid   = Color(0xFF334155)   // minimal slate grey
+val BrandGradientEnd   = Color(0xFF475569)   // neutral slate
 val BrandAccentMint    = Color(0xFF3FE0C4)   // matches the vivid dark secondary
 
 // ============================================================================
@@ -166,7 +165,7 @@ val CatLight_Other      = Color(0xFF868B98)   // neutral grey
 val CatDark_UPI         = Color(0xFF5C95F0)
 val CatDark_QuickComm   = Color(0xFFF08A3E)
 val CatDark_Ecommerce   = Color(0xFFE86CA5)
-val CatDark_Banking     = Color(0xFF9D7CF0)
+val CatDark_Banking     = Color(0xFF60A5FA)
 val CatDark_Lending     = Color(0xFF2ED4A6)
 val CatDark_Other       = Color(0xFF8B909C)
 
@@ -185,10 +184,10 @@ val PurposeDark_Food         = Color(0xFF4FD188)
 val PurposeDark_Shopping     = Color(0xFFF2A44F)
 val PurposeDark_Lending      = Color(0xFF3FE0C4)   // matches BrandAccentMint
 val PurposeDark_Borrowing    = Color(0xFFFF93A6)
-val PurposeDark_CreditCard   = Color(0xFFA48BFF)
+val PurposeDark_CreditCard   = Color(0xFF818CF8)
 val PurposeDark_Utilities    = Color(0xFF6E9BFF)
 val PurposeDark_Travel       = Color(0xFF45BDD6)
-val PurposeDark_Leisure      = Color(0xFFD07FE8)
+val PurposeDark_Leisure      = Color(0xFFF472B6)
 val PurposeDark_Health       = Color(0xFFFF7A72)
 val PurposeDark_Other        = Color(0xFF939AA8)
 

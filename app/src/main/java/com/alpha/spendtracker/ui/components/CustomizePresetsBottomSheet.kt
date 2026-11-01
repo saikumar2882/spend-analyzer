@@ -28,6 +28,7 @@ import androidx.compose.material.icons.rounded.ArrowDownward
 import androidx.compose.material.icons.rounded.ArrowUpward
 import androidx.compose.material.icons.rounded.CheckCircle
 import androidx.compose.material.icons.rounded.Close
+import androidx.compose.material.icons.rounded.DeleteOutline
 import androidx.compose.material.icons.rounded.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
@@ -54,6 +55,7 @@ import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.alpha.spendtracker.R
+import com.alpha.spendtracker.data.CustomPresets
 import com.alpha.spendtracker.ui.theme.isAppInDarkTheme
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -63,9 +65,11 @@ fun CustomizeAppPresetsSheet(
     onSaveOrder: (List<String>) -> Unit,
     onResetDefault: () -> Unit,
     onDismiss: () -> Unit,
+    onRemoveApp: (AppPreset) -> Unit = {},
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
-    val itemsList = remember(currentOrderedPresets) {
+    // Not keyed on the incoming list: removing a custom app updates it, and re-seeding here would drop reorders not yet saved.
+    val itemsList = remember {
         mutableStateListOf<AppPreset>().apply { addAll(currentOrderedPresets) }
     }
 
@@ -79,6 +83,8 @@ fun CustomizeAppPresetsSheet(
             subtitle = stringResource(R.string.reorder_apps_subtitle),
             itemList = itemsList,
             getItemKey = { it.id },
+            isRemovable = { CustomPresets.isCustomAppId(it.id) },
+            onRemove = onRemoveApp,
             getItemTitle = { getLocalizedPresetName(it.displayName) },
             getItemIcon = { app ->
                 AppIconImage(
@@ -107,9 +113,11 @@ fun CustomizeCategoryPresetsSheet(
     onSaveOrder: (List<String>) -> Unit,
     onResetDefault: () -> Unit,
     onDismiss: () -> Unit,
+    customCategoryNames: List<String> = emptyList(),
+    onRemoveCategory: (String) -> Unit = {},
     sheetState: SheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true)
 ) {
-    val itemsList = remember(currentOrderedItems) {
+    val itemsList = remember {
         mutableStateListOf<CategoryPresetItem>().apply { addAll(currentOrderedItems) }
     }
 
@@ -123,6 +131,8 @@ fun CustomizeCategoryPresetsSheet(
             subtitle = stringResource(R.string.reorder_categories_subtitle),
             itemList = itemsList,
             getItemKey = { it.canonicalName },
+            isRemovable = { item -> customCategoryNames.any { it == item.canonicalName } },
+            onRemove = { onRemoveCategory(it.canonicalName) },
             getItemTitle = { getLocalizedPresetName(it.displayName) },
             getItemIcon = { category ->
                 val color = category.getColor()
@@ -163,6 +173,8 @@ private fun <T> CustomizePresetsSheetContent(
     getItemKey: (T) -> String,
     getItemTitle: (T) -> String,
     getItemIcon: @Composable (T) -> Unit,
+    isRemovable: (T) -> Boolean = { false },
+    onRemove: (T) -> Unit = {},
     onSave: () -> Unit,
     onReset: () -> Unit,
     onDismiss: () -> Unit
@@ -216,6 +228,12 @@ private fun <T> CustomizePresetsSheetContent(
                     icon = { getItemIcon(item) },
                     index = index,
                     totalCount = itemList.size,
+                    onRemove = if (isRemovable(item)) {
+                        {
+                            itemList.remove(item)
+                            onRemove(item)
+                        }
+                    } else null,
                     onMoveToTop = {
                         val element = itemList.removeAt(index)
                         itemList.add(0, element)
@@ -283,7 +301,8 @@ private fun ReorderableItemRow(
     totalCount: Int,
     onMoveToTop: () -> Unit,
     onMoveUp: () -> Unit,
-    onMoveDown: () -> Unit
+    onMoveDown: () -> Unit,
+    onRemove: (() -> Unit)? = null
 ) {
     val isTopItem = index == 0
 
@@ -373,6 +392,20 @@ private fun ReorderableItemRow(
                             imageVector = Icons.Rounded.ArrowDownward,
                             contentDescription = "Move down",
                             tint = MaterialTheme.colorScheme.onSurfaceVariant.copy(alpha = 0.7f),
+                            modifier = Modifier.size(18.dp)
+                        )
+                    }
+                }
+
+                if (onRemove != null) {
+                    IconButton(
+                        onClick = onRemove,
+                        modifier = Modifier.size(32.dp)
+                    ) {
+                        Icon(
+                            imageVector = Icons.Rounded.DeleteOutline,
+                            contentDescription = stringResource(R.string.remove_from_list),
+                            tint = MaterialTheme.colorScheme.error.copy(alpha = 0.8f),
                             modifier = Modifier.size(18.dp)
                         )
                     }

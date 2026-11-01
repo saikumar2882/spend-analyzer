@@ -10,21 +10,23 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
 import com.alpha.spendtracker.R
 import com.alpha.spendtracker.data.AiPreferences
+import com.alpha.spendtracker.data.CustomPresets
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun AiSettingsDialog(
     currentPrefs: AiPreferences,
     onSave: (currency: String, app: String, purpose: String) -> Unit,
-    onDismiss: () -> Unit
+    onDismiss: () -> Unit,
+    customPresets: CustomPresets = CustomPresets.EMPTY
 ) {
     var currency by remember { mutableStateOf(currentPrefs.defaultCurrency) }
     var app by remember { mutableStateOf(currentPrefs.defaultApp) }
     var purpose by remember { mutableStateOf(currentPrefs.defaultPurpose) }
 
     val currencies = listOf("₹", "$", "€", "£")
-    val apps = APP_PRESETS.map { it.displayName }
-    val purposes = PURPOSE_PRESETS.filter { it != "Lending" && it != "Borrowing" }
+    val apps = customPresets.allAppPresets().map { it.displayName }
+    val purposes = customPresets.allPurposeNames().filter { it != "Lending" && it != "Borrowing" }
 
     AlertDialog(
         onDismissRequest = onDismiss,

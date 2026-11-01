@@ -104,6 +104,7 @@ import androidx.fragment.app.FragmentActivity
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.compose.LifecycleEventEffect
 import com.alpha.spendtracker.data.AiResultIntent
+import com.alpha.spendtracker.data.AiTransactionProcessor
 import com.alpha.spendtracker.data.AiTransactionResponse
 import com.alpha.spendtracker.data.SyncStatus
 import com.alpha.spendtracker.data.userMessageOrGeneric
@@ -128,6 +129,7 @@ import com.alpha.spendtracker.ui.screens.DashboardScreen
 import com.alpha.spendtracker.ui.screens.HistoryScreen
 import com.alpha.spendtracker.ui.screens.LendBorrowScreen
 import com.alpha.spendtracker.ui.screens.LoginScreen
+import com.alpha.spendtracker.ui.screens.rememberHistoryCalendarState
 import com.alpha.spendtracker.ui.screens.rememberMonthChoices
 import com.alpha.spendtracker.ui.components.WrappedBannerInfo
 import com.alpha.spendtracker.data.RecapPreferences
@@ -615,6 +617,7 @@ LaunchedEffect(Unit) {
     // AnimatedContent drops a screen's state on navigation, which reopened months the user had closed.
     val historyMonthChoices = rememberMonthChoices()
     val duesMonthChoices = rememberMonthChoices()
+    val historyCalendarState = rememberHistoryCalendarState()
     var editingSpend by remember { mutableStateOf<Spend?>(null) }
     var prefilledBillSpend by remember { mutableStateOf<NewSpend?>(null) }
     var showBillTrackingSheet by remember { mutableStateOf(false) }
@@ -1617,6 +1620,10 @@ LaunchedEffect(Unit) {
                                 onShowNotification = { msg, type -> showNotification(msg, type) },
                                 onUpdateAiPreferences = viewModel::updateAiPreferences,
                                 onUpdateMonthlyBudget = viewModel::updateMonthlyBudget,
+                                onAddCustomApp = viewModel::addCustomApp,
+                                onAddCustomCategory = viewModel::addCustomCategory,
+                                onRemoveCustomApp = viewModel::removeCustomApp,
+                                onRemoveCustomCategory = viewModel::removeCustomCategory,
                                 onToggleBiometrics = viewModel::updateBiometricEnabled,
                                 onToggleE2eEncryption = viewModel::updateE2eEncryptionEnabled,
                                 onAiAssistantClick = { showAiHistoryAssistant = true },
@@ -1651,6 +1658,7 @@ LaunchedEffect(Unit) {
                             initialDateRange = customDateRange,
                             monthlyBudget = aiPrefs.monthlyBudget,
                             monthChoices = historyMonthChoices,
+                            calendarState = historyCalendarState,
                             onEditSpend = { spend ->
                                 editingSpend = spend
                                 returnTo = activeView
@@ -1673,6 +1681,11 @@ LaunchedEffect(Unit) {
                             onSaveCategoryOrder = { order -> viewModel.updateCategoryOrder(order) },
                             onResetAppOrder = { viewModel.updateAppOrder(emptyList()) },
                             onResetCategoryOrder = { viewModel.updateCategoryOrder(emptyList()) },
+                            customPresets = aiPrefs.customPresets,
+                            onAddCustomApp = viewModel::addCustomApp,
+                            onAddCustomCategory = viewModel::addCustomCategory,
+                            onRemoveCustomApp = viewModel::removeCustomApp,
+                            onRemoveCustomCategory = viewModel::removeCustomCategory,
                             onDismiss = {
                                 editingSpend = null
                                 prefilledBillSpend = null
@@ -1746,7 +1759,7 @@ LaunchedEffect(Unit) {
         if (showAiInput) {
             AiInputBottomSheet(
                 sheetState = aiInputSheetState,
-                remainingRequests = 15 - aiPrefs.dailyUsageCount,
+                remainingRequests = AiTransactionProcessor.DAILY_LIMIT - aiPrefs.dailyUsageCount,
                 onProcess = { viewModel.processAiInput(it) },
                 onDismiss = dismissAiInput
             )
@@ -1800,6 +1813,9 @@ LaunchedEffect(Unit) {
                         defaultApp = aiPrefs.defaultApp,
                         defaultPurpose = aiPrefs.defaultPurpose,
                         currencySymbol = aiCurrency,
+                        customPresets = aiPrefs.customPresets,
+                        onAddCustomApp = viewModel::addCustomApp,
+                        onAddCustomCategory = viewModel::addCustomCategory,
                         onShowNotification = { msg, type -> showNotification(msg, type) },
                         onLearnCorrection = viewModel::learnAiCorrection,
                         onConfirm = { newSpend ->
@@ -1828,6 +1844,9 @@ LaunchedEffect(Unit) {
                         defaultApp = aiPrefs.defaultApp,
                         defaultPurpose = aiPrefs.defaultPurpose,
                         currencySymbol = aiCurrency,
+                        customPresets = aiPrefs.customPresets,
+                        onAddCustomApp = viewModel::addCustomApp,
+                        onAddCustomCategory = viewModel::addCustomCategory,
                         onShowNotification = { msg, type -> showNotification(msg, type) },
                         onLearnCorrection = viewModel::learnAiCorrection,
                         onConfirm = { newSpends ->

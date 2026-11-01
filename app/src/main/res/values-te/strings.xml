@@ -104,6 +104,15 @@
     <string name="history_expand_month">ఈ నెల లావాదేవీలను చూపించు</string>
     <string name="history_collapse_month">ఈ నెల లావాదేవీలను దాచు</string>
     <string name="total_spend">మొత్తం ఖర్చు</string>
+    <string name="history_show_calendar">క్యాలెండర్ చూపించు</string>
+    <string name="history_show_list">జాబితా చూపించు</string>
+    <string name="calendar_prev_month">మునుపటి నెల</string>
+    <string name="calendar_next_month">తదుపరి నెల</string>
+    <string name="calendar_month_summary">%1$s · %3$d రోజుల్లో %2$d రోజులు ఖర్చు</string>
+    <string name="calendar_empty_month">ఈ నెలలో ఏమీ నమోదు కాలేదు</string>
+    <string name="calendar_day_description">%1$d తేదీ, %2$s ఖర్చు</string>
+    <string name="calendar_amount_thousand">%1$sk</string>
+    <string name="calendar_amount_lakh">%1$sL</string>
 
     <!-- Notes Screen -->
     <string name="subtotal">ఉప మొత్తం</string>
@@ -496,4 +505,20 @@
     <string name="reorder_categories_subtitle">మీకు ముఖ్యమైన కేటగిరీలను మొదట ఉంచండి</string>
     <string name="reset_default">యథాస్థానానికి మార్చు</string>
     <string name="save_order">ఆర్డర్‌ను సేవ్ చేయి</string>
+
+    <!-- Custom apps & categories -->
+    <string name="category_add_new">కొత్తది జోడించండి</string>
+    <string name="enter_category_name">వర్గం పేరు నమోదు చేయండి</string>
+    <string name="category_name_required">వర్గం పేరు నమోదు చేయండి</string>
+    <string name="saved_for_next_time">తదుపరిసారి కోసం జాబితాలో సేవ్ చేయబడుతుంది</string>
+    <string name="remove_from_list">జాబితా నుండి తీసివేయండి</string>
+    <string name="custom_presets_title">యాప్‌లు &amp; వర్గాలు</string>
+    <string name="custom_presets_subtitle">మీ స్వంతవి జోడించండి - AI ట్రాక్ వీటిని కూడా ఉపయోగిస్తుంది</string>
+    <string name="custom_presets_sheet_hint">ఖర్చు నమోదు చేసేటప్పుడు కనిపిస్తాయి. AI ట్రాక్ మీ ఎంట్రీలను గుర్తించడానికి వీటిని ఉపయోగిస్తుంది.</string>
+    <string name="my_apps">నా యాప్‌లు</string>
+    <string name="my_categories">నా వర్గాలు</string>
+    <string name="custom_presets_add">జోడించండి</string>
+    <string name="custom_presets_none">ఇంకా ఏదీ జోడించలేదు</string>
+    <string name="custom_name_exists">జాబితాలో ఇప్పటికే ఉంది</string>
+    <string name="custom_presets_full">జాబితా నిండింది - ముందు ఒకటి తీసివేయండి</string>
 </resources>

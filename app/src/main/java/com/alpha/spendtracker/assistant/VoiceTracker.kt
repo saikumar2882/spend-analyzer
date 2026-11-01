@@ -69,7 +69,7 @@ class VoiceTracker @Inject constructor(
             return TrackOutcome.Failed(context.getString(R.string.voice_save_failed))
         }
 
-        return when (val plan = VoiceTrackPlanner.plan(results, prefs.defaultApp, prefs.defaultPurpose)) {
+        return when (val plan = VoiceTrackPlanner.plan(results, prefs.defaultApp, prefs.defaultPurpose, custom = prefs.customPresets)) {
             is VoiceTrackPlanner.Plan.Review -> {
                 notifyReview(results)
                 TrackOutcome.NeedsReview(context.getString(plan.reason.messageRes()))

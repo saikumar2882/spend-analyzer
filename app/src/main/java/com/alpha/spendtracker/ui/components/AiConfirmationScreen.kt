@@ -11,6 +11,7 @@ import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.rounded.Add
 import androidx.compose.material.icons.rounded.Category
 import androidx.compose.material.icons.rounded.CreditCard
 import androidx.compose.material.icons.rounded.Description
@@ -29,7 +30,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.res.stringResource
 import com.alpha.spendtracker.R
+import com.alpha.spendtracker.data.AiPurposes
 import com.alpha.spendtracker.data.AiTransactionResponse
+import com.alpha.spendtracker.data.CustomPresets
 import com.alpha.spendtracker.ui.icons.AppIcons
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.util.findActivity
@@ -48,12 +51,18 @@ fun AiConfirmationScreen(
     defaultPurpose: String = "Others",
     currencySymbol: String = "₹",
     /** Overrides "Confirm & save" when confirming doesn't save yet (editing one log of a batch). */
-    confirmLabel: String? = null
+    confirmLabel: String? = null,
+    /** The user's own apps and categories, offered next to the built-ins; new ones are reported through the callbacks. */
+    customPresets: CustomPresets = CustomPresets.EMPTY,
+    onAddCustomApp: (String) -> Unit = {},
+    onAddCustomCategory: (String) -> Unit = {}
 ) {
-    val initialPreset = remember(extractedData, defaultApp) {
-        APP_PRESETS.firstOrNull { it.id == extractedData.appPresetId }
-            ?: APP_PRESETS.firstOrNull { it.displayName.equals(extractedData.appName, ignoreCase = true) }
-            ?: APP_PRESETS.firstOrNull { it.displayName.equals(defaultApp, ignoreCase = true) }
+    val appOptions = remember(customPresets) { customPresets.allAppPresets() }
+    val purposeOptions = remember(customPresets) { customPresets.allPurposeNames() }
+    val initialPreset = remember(extractedData, defaultApp, appOptions) {
+        appOptions.firstOrNull { it.id == extractedData.appPresetId }
+            ?: appOptions.firstOrNull { it.displayName.equals(extractedData.appName, ignoreCase = true) }
+            ?: appOptions.firstOrNull { it.displayName.equals(defaultApp, ignoreCase = true) }
             ?: APP_PRESETS.last()
     }
 
@@ -63,15 +72,25 @@ fun AiConfirmationScreen(
         if (initialPreset.id == "other") (extractedData.appName ?: "") else ""
     }
     var customAppName by remember { mutableStateOf(initialCustomAppName) }
-    val initialPurpose = remember(extractedData, defaultPurpose) {
-        PURPOSE_PRESETS.firstOrNull { it.equals(extractedData.purpose, ignoreCase = true) }
-            ?: PURPOSE_PRESETS.firstOrNull { it.equals(defaultPurpose, ignoreCase = true) }
-            ?: "Others"
+    val initialPurpose = remember(extractedData, defaultPurpose, customPresets) {
+        // The saved default can be a legacy twin ("Food & Drinks", "Others") the dropdown no longer
+        // lists; canonicalOrNull maps it to the entry that does stand for it.
+        AiPurposes.canonicalOrNull(extractedData.purpose, customPresets)
+            ?: AiPurposes.canonicalOrNull(defaultPurpose, customPresets)
+            ?: AiPurposes.FALLBACK
     }
     var purpose by remember { mutableStateOf(initialPurpose) }
+    // "Add new category" works like "Other Platform": type a name and it is saved to the list.
+    var addingCategory by remember { mutableStateOf(false) }
+    var newCategory by remember { mutableStateOf("") }
+    val typedCategory = CustomPresets.cleanName(newCategory)
+    // A typed name that already exists ("food", "Lending") means that category.
+    val effectivePurpose = if (addingCategory && typedCategory.isNotBlank()) {
+        customPresets.resolveCategory(typedCategory) ?: typedCategory
+    } else purpose
     var notes by remember { mutableStateOf(extractedData.notes) }
     var personName by remember { mutableStateOf(extractedData.personName) }
-    val isLendBorrow = purpose == "Lending" || purpose == "Borrowing"
+    val isLendBorrow = effectivePurpose == "Lending" || effectivePurpose == "Borrowing"
     var selectedTimestamp by remember {
         mutableLongStateOf(extractedData.timestamp ?: System.currentTimeMillis())
     }
@@ -132,7 +151,7 @@ fun AiConfirmationScreen(
         ExtractedSummaryCard(
             amount = amount,
             appName = if (selectedPreset.id == "other") customAppName.ifBlank { "Other" } else selectedPreset.displayName,
-            purpose = purpose,
+            purpose = effectivePurpose,
             notes = if (isLendBorrow) buildLendBorrowNotes(personName, notes) else notes,
             dateLabel = dateFormatter.format(selectedTimestamp),
             currencySymbol = currencySymbol
@@ -178,6 +197,7 @@ fun AiConfirmationScreen(
         val learnedLabel = stringResource(R.string.ai_learned_from_corrections)
         AppPresetDropdown(
             selected = selectedPreset,
+            options = appOptions,
             onSelect = { selectedPreset = it },
             colors = fieldColors,
             supportingText = learnedLabel.takeIf { extractedData.learnedApp && selectedPreset.id == initialPreset.id }
@@ -186,7 +206,7 @@ fun AiConfirmationScreen(
         if (selectedPreset.id == "other") {
             OutlinedTextField(
                 value = customAppName,
-                onValueChange = { customAppName = it },
+                onValueChange = { customAppName = it.take(CustomPresets.MAX_NAME_LENGTH) },
                 label = { Text(stringResource(R.string.enter_app_name)) },
                 leadingIcon = if (customAppName.isNotBlank()) {
                     {
@@ -202,16 +222,41 @@ fun AiConfirmationScreen(
                 modifier = Modifier.fillMaxWidth(),
                 singleLine = true,
                 colors = fieldColors,
-                shape = RoundedCornerShape(12.dp)
+                shape = RoundedCornerShape(12.dp),
+                supportingText = if (customAppName.isNotBlank() && customPresets.resolveApp(customAppName) == null) {
+                    { Text(stringResource(R.string.saved_for_next_time)) }
+                } else null
             )
         }
 
         PurposeDropdown(
-            selected = purpose,
-            onSelect = { purpose = it },
+            selected = if (addingCategory) stringResource(R.string.category_add_new) else purpose,
+            options = purposeOptions,
+            customCategories = customPresets.categories,
+            onSelect = {
+                purpose = it
+                addingCategory = false
+            },
+            onAddNew = { addingCategory = true },
             colors = fieldColors,
-            supportingText = learnedLabel.takeIf { extractedData.learnedPurpose && purpose == initialPurpose }
+            supportingText = learnedLabel.takeIf { extractedData.learnedPurpose && !addingCategory && purpose == initialPurpose }
         )
+
+        if (addingCategory) {
+            OutlinedTextField(
+                value = newCategory,
+                onValueChange = { newCategory = it.take(CustomPresets.MAX_NAME_LENGTH) },
+                label = { Text(stringResource(R.string.enter_category_name)) },
+                leadingIcon = { Icon(Icons.Rounded.Category, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                modifier = Modifier.fillMaxWidth(),
+                singleLine = true,
+                colors = fieldColors,
+                shape = RoundedCornerShape(12.dp),
+                supportingText = if (typedCategory.isNotBlank() && customPresets.resolveCategory(typedCategory) == null) {
+                    { Text(stringResource(R.string.saved_for_next_time)) }
+                } else null
+            )
+        }
 
         if (isLendBorrow) {
             OutlinedTextField(
@@ -260,24 +305,33 @@ fun AiConfirmationScreen(
                 onClick = {
                     val finalAmount = amount.toDoubleOrNull() ?: 0.0
                     val finalNotes = if (isLendBorrow) buildLendBorrowNotes(personName, notes) else notes.trim()
-                    val finalCustomApp = customAppName.trim()
-                    val appCorrected = selectedPreset.id != initialPreset.id ||
-                        (selectedPreset.id == "other" && !finalCustomApp.equals(initialCustomAppName.trim(), ignoreCase = true))
-                    val purposeCorrected = purpose != initialPurpose
+                    // A name typed under "Other Platform" that is already in the list means that app.
+                    val typedApp = CustomPresets.cleanName(customAppName)
+                    val knownApp = if (selectedPreset.id == "other" && typedApp.isNotBlank()) customPresets.resolveApp(typedApp) else null
+                    val finalPreset = knownApp ?: selectedPreset
+                    val finalCustomApp = if (finalPreset.id == "other") typedApp else ""
+                    val finalPurpose = effectivePurpose.ifBlank { "Others" }
+                    val appCorrected = finalPreset.id != initialPreset.id ||
+                        (finalPreset.id == "other" && !finalCustomApp.equals(initialCustomAppName.trim(), ignoreCase = true))
+                    val purposeCorrected = finalPurpose != initialPurpose
                     if ((appCorrected || purposeCorrected) && finalNotes.isNotBlank()) {
                         onLearnCorrection(
                             finalNotes,
-                            if (appCorrected) (if (selectedPreset.id == "other") finalCustomApp else selectedPreset.displayName) else null,
-                            if (purposeCorrected) purpose else null
+                            if (appCorrected) (if (finalPreset.id == "other") finalCustomApp else finalPreset.displayName) else null,
+                            if (purposeCorrected) finalPurpose else null
                         )
+                    }
+                    if (finalPreset.id == "other" && finalCustomApp.isNotBlank()) onAddCustomApp(finalCustomApp)
+                    if (addingCategory && typedCategory.isNotBlank() && customPresets.resolveCategory(typedCategory) == null) {
+                        onAddCustomCategory(typedCategory)
                     }
                     onConfirm(
                         NewSpend(
                             amount = finalAmount,
-                            purpose = purpose.ifBlank { "Others" },
+                            purpose = finalPurpose,
                             notes = finalNotes,
-                            preset = selectedPreset,
-                            customAppName = if (selectedPreset.id == "other") finalCustomApp else "",
+                            preset = finalPreset,
+                            customAppName = finalCustomApp,
                             timestamp = selectedTimestamp
                         )
                     )
@@ -285,7 +339,8 @@ fun AiConfirmationScreen(
                 modifier = Modifier.weight(1f).height(44.dp),
                 shape = RoundedCornerShape(12.dp),
                 enabled = amount.toDoubleOrNull()?.let { it > 0 } == true &&
-                          (selectedPreset.id != "other" || customAppName.isNotBlank())
+                          (selectedPreset.id != "other" || customAppName.isNotBlank()) &&
+                          (!addingCategory || typedCategory.isNotBlank())
             ) { Text(confirmLabel ?: stringResource(R.string.confirm_and_save), fontWeight = FontWeight.SemiBold) }
         }
 
@@ -457,6 +512,7 @@ private fun DateField(
 @Composable
 private fun AppPresetDropdown(
     selected: AppPreset,
+    options: List<AppPreset>,
     onSelect: (AppPreset) -> Unit,
     colors: TextFieldColors,
     supportingText: String? = null
@@ -490,7 +546,7 @@ private fun AppPresetDropdown(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            APP_PRESETS.forEach { preset ->
+            options.forEach { preset ->
                 DropdownMenuItem(
                     leadingIcon = {
                         Box(
@@ -524,7 +580,10 @@ private fun AppPresetDropdown(
 @Composable
 private fun PurposeDropdown(
     selected: String,
+    options: List<String>,
+    customCategories: List<String>,
     onSelect: (String) -> Unit,
+    onAddNew: () -> Unit,
     colors: TextFieldColors,
     supportingText: String? = null
 ) {
@@ -550,15 +609,23 @@ private fun PurposeDropdown(
             expanded = expanded,
             onDismissRequest = { expanded = false }
         ) {
-            PURPOSE_PRESETS.forEach { option ->
+            options.forEach { option ->
                 DropdownMenuItem(
-                    text = { CategoryDropdownItemContent(option) },
+                    text = { CategoryDropdownItemContent(option, customCategories = customCategories) },
                     onClick = {
                         onSelect(option)
                         expanded = false
                     }
                 )
             }
+            DropdownMenuItem(
+                leadingIcon = { Icon(Icons.Rounded.Add, contentDescription = null, modifier = Modifier.size(18.dp)) },
+                text = { Text(stringResource(R.string.category_add_new), fontWeight = FontWeight.Medium) },
+                onClick = {
+                    onAddNew()
+                    expanded = false
+                }
+            )
         }
     }
 }

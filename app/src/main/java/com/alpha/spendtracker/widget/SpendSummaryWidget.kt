@@ -47,7 +47,7 @@ import java.util.Calendar
 private object SummaryWidgetColors {
     val background = ColorProvider(
         day = Color(0xFFF1EFF9),
-        night = Color(0xFF252A38)
+        night = Color(0xFF18181B)
     )
     val text = ColorProvider(
         day = Color(0xFF191A23),
@@ -55,15 +55,15 @@ private object SummaryWidgetColors {
     )
     val mutedText = ColorProvider(
         day = Color(0xFF5E5F70),
-        night = Color(0xFFB7BBCB)
+        night = Color(0xFFA1A1AA)
     )
     val accent = ColorProvider(
         day = Color(0xFF5D45E8),
-        night = Color(0xFF9D8BFF)
+        night = Color(0xFFF4F4F5)
     )
     val addButton = ColorProvider(
         day = Color(0xFFE2DDFB),
-        night = Color(0xFF353B50)
+        night = Color(0xFF27272A)
     )
 }
 

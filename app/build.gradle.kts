@@ -16,8 +16,8 @@ android {
     applicationId = "com.alpha.spendtracker"
     minSdk = 24
     targetSdk = 37
-    versionCode = 25
-    versionName = "2.4.1"
+    versionCode = 26
+    versionName = "2.5.0"
 
     testInstrumentationRunner = "androidx.test.runner.AndroidJUnitRunner"
   }
@@ -102,6 +102,8 @@ dependencies {
   implementation(libs.androidx.appcompat)
   implementation(libs.mlkit.translate)
   implementation(libs.mlkit.text.recognition)
+  // Gemini Nano through AICore (on-device LLM). Its minSdk is 26; see the <uses-sdk> override in the manifest.
+  implementation(libs.mlkit.genai.prompt)
   // Voice assistant logging via Android AppFunctions framework (Android 16+). See VoiceTracker.
   implementation(libs.androidx.appfunctions)
   implementation(libs.androidx.appfunctions.service)

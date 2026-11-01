@@ -1,6 +1,8 @@
 package com.alpha.spendtracker.ui.components
 
+import com.alpha.spendtracker.data.AiPurposes
 import com.alpha.spendtracker.data.AiTransactionResponse
+import com.alpha.spendtracker.data.CustomPresets
 import com.alpha.spendtracker.ui.screens.NewSpend
 import com.alpha.spendtracker.ui.viewmodel.SpendDraft
 
@@ -17,15 +19,19 @@ import com.alpha.spendtracker.ui.viewmodel.SpendDraft
 fun AiTransactionResponse.toNewSpend(
     defaultApp: String,
     defaultPurpose: String,
-    now: Long = System.currentTimeMillis()
+    now: Long = System.currentTimeMillis(),
+    custom: CustomPresets = CustomPresets.EMPTY
 ): NewSpend {
-    val preset = APP_PRESETS.firstOrNull { it.id == appPresetId }
-        ?: APP_PRESETS.firstOrNull { it.displayName.equals(appName, ignoreCase = true) }
-        ?: APP_PRESETS.firstOrNull { it.displayName.equals(defaultApp, ignoreCase = true) }
+    val apps = custom.allAppPresets()
+    val preset = apps.firstOrNull { it.id == appPresetId }
+        ?: apps.firstOrNull { it.displayName.equals(appName, ignoreCase = true) }
+        ?: apps.firstOrNull { it.displayName.equals(defaultApp, ignoreCase = true) }
         ?: APP_PRESETS.last()
-    val resolvedPurpose = PURPOSE_PRESETS.firstOrNull { it.equals(purpose, ignoreCase = true) }
-        ?: PURPOSE_PRESETS.firstOrNull { it.equals(defaultPurpose, ignoreCase = true) }
-        ?: "Others"
+    // canonicalOrNull, not a lookup in the picker's list: the saved default can be a legacy twin
+    // ("Food & Drinks", "Others") that the list no longer carries but that still means something.
+    val resolvedPurpose = AiPurposes.canonicalOrNull(purpose, custom)
+        ?: AiPurposes.canonicalOrNull(defaultPurpose, custom)
+        ?: AiPurposes.FALLBACK
     val isLendBorrow = resolvedPurpose == "Lending" || resolvedPurpose == "Borrowing"
     return NewSpend(
         preset = preset,

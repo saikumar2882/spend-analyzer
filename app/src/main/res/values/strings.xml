@@ -126,6 +126,15 @@
     <string name="history_expand_month">Show this month\'s logs</string>
     <string name="history_collapse_month">Hide this month\'s logs</string>
     <string name="total_spend">Total Spend</string>
+    <string name="history_show_calendar">Show calendar</string>
+    <string name="history_show_list">Show list</string>
+    <string name="calendar_prev_month">Previous month</string>
+    <string name="calendar_next_month">Next month</string>
+    <string name="calendar_month_summary">%1$s · spent on %2$d of %3$d days</string>
+    <string name="calendar_empty_month">Nothing logged this month</string>
+    <string name="calendar_day_description">Day %1$d, %2$s spent</string>
+    <string name="calendar_amount_thousand">%1$sk</string>
+    <string name="calendar_amount_lakh">%1$sL</string>
     <string name="quick_filter_all">All</string>
     <string name="quick_filter_housing">Housing</string>
     <string name="quick_filter_groceries">Groceries</string>
@@ -500,4 +509,20 @@
     <string name="reorder_categories_subtitle">Pin your top expense categories to the front</string>
     <string name="reset_default">Reset Default</string>
     <string name="save_order">Save Order</string>
+
+    <!-- Custom apps & categories -->
+    <string name="category_add_new">Add new</string>
+    <string name="enter_category_name">Category name</string>
+    <string name="category_name_required">Enter a category name</string>
+    <string name="saved_for_next_time">Saved to your list for next time</string>
+    <string name="remove_from_list">Remove from list</string>
+    <string name="custom_presets_title">Apps &amp; categories</string>
+    <string name="custom_presets_subtitle">Add your own - AI Track uses them too</string>
+    <string name="custom_presets_sheet_hint">Shown when you log an expense. AI Track uses them to recognise your entries.</string>
+    <string name="my_apps">My apps</string>
+    <string name="my_categories">My categories</string>
+    <string name="custom_presets_add">Add</string>
+    <string name="custom_presets_none">None added yet</string>
+    <string name="custom_name_exists">Already in the list</string>
+    <string name="custom_presets_full">List is full - remove one first</string>
 </resources>

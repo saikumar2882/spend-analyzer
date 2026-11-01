@@ -233,7 +233,7 @@ class AiBatchTest {
         )
         val spend = r.toNewSpend(defaultApp = "Google Pay", defaultPurpose = "Others", now = 5L)
         assertEquals(phonePe, spend.preset)
-        assertEquals("Travel & Commute", spend.purpose)
+        assertEquals("Commute", spend.purpose)
         assertEquals("Auto", spend.notes)
         assertEquals(1_790_000_000_000L, spend.timestamp)
         assertTrue(spend.isSavable())
@@ -242,7 +242,7 @@ class AiBatchTest {
         val bare = AiTransactionResponse(amount = 10.0, appName = "??", purpose = "nonsense")
             .toNewSpend(defaultApp = "PhonePe", defaultPurpose = "Others", now = 5L)
         assertEquals(5L, bare.timestamp)
-        assertEquals("Others", bare.purpose)
+        assertEquals("Miscellaneous", bare.purpose)
         assertEquals("PhonePe", bare.preset.displayName)
     }
 

@@ -104,7 +104,7 @@ class SpendRepository(
         val userDoc = firestore.collection("users").document(userId)
 
         startE2eeSettingSync(userDoc, scope)
-        startMonthlyBudgetSync(userDoc, scope)
+        startUserSettingsSync(userDoc, scope)
 
         startCollectionSync(
             userDoc, "spends", Spend::class.java, scope,
@@ -261,28 +261,67 @@ class SpendRepository(
         )
     }
 
-    private fun startMonthlyBudgetSync(userDoc: DocumentReference, scope: CoroutineScope) {
+    private fun startUserSettingsSync(userDoc: DocumentReference, scope: CoroutineScope) {
         val ref = userDoc.collection(PROFILE_COLLECTION).document("settings")
         syncListeners.add(
             ref.addSnapshotListener { snapshot, e ->
                 if (e != null) {
-                    Log.w(tag, "monthly budget listen failed.", e)
+                    Log.w(tag, "user settings listen failed.", e)
                     return@addSnapshotListener
                 }
                 if (snapshot != null && snapshot.exists()) {
                     val budget = snapshot.getDouble("monthlyBudget")
-                    if (budget != null) {
-                        scope.launch(Dispatchers.IO) {
-                            try {
+                    @Suppress("UNCHECKED_CAST")
+                    val apps = snapshot.get("customApps") as? List<String>
+                    @Suppress("UNCHECKED_CAST")
+                    val categories = snapshot.get("customCategories") as? List<String>
+                    @Suppress("UNCHECKED_CAST")
+                    val appOrder = snapshot.get("userAppOrder") as? List<String>
+                    @Suppress("UNCHECKED_CAST")
+                    val catOrder = snapshot.get("userCategoryOrder") as? List<String>
+
+                    scope.launch(Dispatchers.IO) {
+                        try {
+                            if (budget != null) {
                                 aiPreferencesRepository?.updateMonthlyBudget(budget)
-                            } catch (e: Exception) {
-                                if (e is CancellationException) throw e
-                                Log.e(tag, "Failed to update local monthly budget preference", e)
                             }
+                            if (apps != null || categories != null) {
+                                aiPreferencesRepository?.setCustomPresets(
+                                    apps = apps ?: emptyList(),
+                                    categories = categories ?: emptyList()
+                                )
+                            }
+                            if (appOrder != null) {
+                                aiPreferencesRepository?.updateAppOrder(appOrder)
+                            }
+                            if (catOrder != null) {
+                                aiPreferencesRepository?.updateCategoryOrder(catOrder)
+                            }
+                        } catch (e: Exception) {
+                            if (e is CancellationException) throw e
+                            Log.e(tag, "Failed to update local user settings preferences", e)
                         }
                     }
                 }
             }
+        )
+    }
+
+    fun publishUserSettings(userId: String, prefs: AiPreferences) {
+        if (userId.isBlank() || userId == "anonymous" || FirebaseAuth.getInstance().currentUser == null) return
+        val data = mapOf(
+            "monthlyBudget" to prefs.monthlyBudget,
+            "customApps" to prefs.customPresets.apps,
+            "customCategories" to prefs.customPresets.categories,
+            "userAppOrder" to prefs.userAppOrder,
+            "userCategoryOrder" to prefs.userCategoryOrder,
+            "updatedAt" to System.currentTimeMillis()
+        )
+        firestorePush(
+            "user settings write",
+            firestore.collection("users").document(userId)
+                .collection(PROFILE_COLLECTION).document("settings")
+                .set(data, com.google.firebase.firestore.SetOptions.merge())
         )
     }
 
